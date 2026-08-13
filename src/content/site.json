@@ -25,7 +25,7 @@
   "pages": {
     "blog": {
       "title": "Writing",
-      "intro": "Notes on things I've built and things I've broken. There's an [RSS feed](/rss.xml) if you'd rather not check back.",
+      "intro": "Notes on things I've built and things I've broken. There's an [RSS feed](/rss.xml) too!",
       "feedDescription": "Notes on things I've built and things I've broken, by Jacob Wiltshire."
     },
     "music": {
@@ -39,7 +39,7 @@
     },
     "files": {
       "title": "Files",
-      "intro": "Everything public in my R2 bucket. Open a folder to browse, or search across the lot."
+      "intro": "Everything public in my R2 bucket. Open a folder to browse, or search through."
     },
     "notFound": {
       "title": "Nothing here",
