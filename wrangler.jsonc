@@ -1,0 +1,47 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "rcnsh",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // Guestbook entries + OAuth sessions.
+  // Create with: wrangler d1 create rcnsh   →  paste the id below.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "rcnsh",
+      "database_id": "d1dadeb1-fb9f-4a36-aff3-fa129643839b",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // Public file bucket. A native binding, so no S3 keys are needed any more.
+  // `remote: true` makes even local dev read the real bucket rather than an
+  // empty simulated one — the contents are public anyway, and it means the
+  // file browser shows real data while developing.
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "rcn",
+      "remote": true
+    }
+  ],
+
+  // Short-lived cache for Spotify access tokens and GitHub responses.
+  // Create with: wrangler kv namespace create CACHE  →  paste the id below.
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "02d9b4fc36304046be09c0700b899f1a"
+    }
+  ],
+
+  "vars": {
+    // The bucket's custom domain (R2 → rcn → Settings → Custom Domains).
+    // The r2.dev URL also works if this is ever detached:
+    //   https://pub-8637e700566f4157b02a73fe9f7526df.r2.dev
+    "PUBLIC_BUCKET_URL": "https://upload.rcn.sh",
+    "GITHUB_USERNAME": "rcnsh"
+  }
+}

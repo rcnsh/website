@@ -1,0 +1,27 @@
+---
+import { externalLinks, site } from "@/lib/site";
+
+const year = new Date().getFullYear();
+---
+
+<footer class="mt-20 border-t border-line">
+  <div
+    class="mx-auto flex max-w-3xl flex-col gap-3 px-5 py-7 font-mono text-xs text-ink-faint sm:flex-row sm:items-center sm:px-6"
+  >
+    <p>&copy; {year} {site.author}</p>
+    <nav class="flex flex-wrap gap-x-5 gap-y-2 sm:ml-auto">
+      {
+        externalLinks.map((link) => (
+          <a
+            href={link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="transition-colors hover:text-ink-dim"
+          >
+            {link.label}
+          </a>
+        ))
+      }
+    </nav>
+  </div>
+</footer>

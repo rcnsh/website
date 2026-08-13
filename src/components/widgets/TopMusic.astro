@@ -1,0 +1,32 @@
+---
+import MusicExplorer from "@/components/react/MusicExplorer";
+import {
+  getTopArtists,
+  getTopTracks,
+  type Artist,
+  type TimeRange,
+  type Track,
+} from "@/lib/spotify";
+
+const initialRange: TimeRange = "long_term";
+
+// Server island: the first tab arrives fully rendered, and the React island
+// fetches the other ranges on demand.
+let tracks: Track[] = [];
+let artists: Artist[] = [];
+try {
+  [tracks, artists] = await Promise.all([
+    getTopTracks(initialRange, 12),
+    getTopArtists(initialRange, 12),
+  ]);
+} catch (error) {
+  console.error("[spotify] top music island failed", error);
+}
+---
+
+<MusicExplorer
+  client:load
+  initialRange={initialRange}
+  initialTracks={tracks}
+  initialArtists={artists}
+/>

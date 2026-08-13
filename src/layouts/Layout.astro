@@ -1,0 +1,92 @@
+---
+import { ClientRouter } from "astro:transitions";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
+import "@/styles/global.css";
+
+import TopBar from "@/components/TopBar.astro";
+import Footer from "@/components/Footer.astro";
+import { site } from "@/lib/site";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title, description = site.description } = Astro.props;
+
+const pageTitle = title ? `${site.name} • ${title}` : `${site.name} • Home`;
+const canonical =
+  new URL(Astro.url.pathname, site.url).toString().replace(/\/+$/, "") ||
+  site.url;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta name="twitter:card" content="summary" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-icon-180x180.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <meta name="theme-color" content="#0d0d0c" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="generator" content={Astro.generator} />
+
+    <ClientRouter />
+  </head>
+
+  <body class="min-h-dvh">
+    <a
+      href="#content"
+      class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[200] focus:rounded-xs focus:bg-overlay focus:px-4 focus:py-2 focus:text-sm"
+    >
+      Skip to content
+    </a>
+
+    <div class="flex min-h-dvh flex-col">
+      <TopBar />
+      <main id="content" class="mx-auto w-full max-w-3xl flex-1 px-5 pt-12 sm:px-6">
+        <slot />
+      </main>
+      <Footer />
+    </div>
+  </body>
+</html>
+
+<style is:global>
+  /* Cross-page transition: a short cross-fade, no travel. */
+  @view-transition {
+    navigation: auto;
+  }
+
+  ::view-transition-old(root) {
+    animation: vt-out 0.12s ease both;
+  }
+  ::view-transition-new(root) {
+    animation: vt-in 0.22s ease both;
+  }
+
+  @keyframes vt-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes vt-in {
+    from {
+      opacity: 0;
+    }
+  }
+</style>

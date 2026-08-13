@@ -1,0 +1,19 @@
+# Copy to `.dev.vars` for local development.
+# In production these are Worker secrets: `wrangler secret put <NAME>`
+
+# GitHub OAuth app (Settings → Developer settings → OAuth Apps).
+# Local callback URL:      http://localhost:4321/api/auth/callback
+# Production callback URL: https://rcn.sh/api/auth/callback
+GITHUB_CLIENT_ID=""
+GITHUB_CLIENT_SECRET=""
+
+# Classic PAT with `read:user`. Required for the contribution graph
+# (GitHub only exposes the calendar over GraphQL, which needs auth) and it
+# lifts the REST rate limit from 60/hr to 5000/hr.
+GITHUB_TOKEN=""
+
+# Spotify app credentials + a refresh token minted with the scopes:
+#   user-read-currently-playing user-top-read user-read-recently-played
+SPOTIFY_CLIENT_ID=""
+SPOTIFY_CLIENT_SECRET=""
+SPOTIFY_REFRESH_TOKEN=""

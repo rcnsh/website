@@ -1,0 +1,48 @@
+---
+import { stack } from "@/lib/site";
+
+// Split so the things actually reached for first read as the sentence, and
+// the rest trail off as an aside — rather than a uniform wall of badges.
+const primary = stack.filter((item) => item.primary);
+const rest = stack.filter((item) => !item.primary);
+---
+
+<div class="max-w-[56ch] text-[1.0625rem] leading-[1.9] text-ink-dim">
+  <p>
+    {
+      primary.map((item, i) => (
+        <>
+          {i > 0 && <span class="text-ink-faint">, </span>}
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-ink underline decoration-line-strong underline-offset-[3px] transition-colors hover:decoration-brand"
+          >
+            {item.name}
+          </a>
+        </>
+      ))
+    }
+    <span class="text-ink-faint"> &mdash; day to day.</span>
+  </p>
+
+  <p class="mt-2.5 text-[0.9375rem] text-ink-faint">
+    Also{" "}
+    {
+      rest.map((item, i) => (
+        <>
+          {i > 0 && <span>, </span>}
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="transition-colors hover:text-ink-dim"
+          >
+            {item.name}
+          </a>
+        </>
+      ))
+    }.
+  </p>
+</div>

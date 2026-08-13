@@ -1,0 +1,59 @@
+---
+import { getRecentTracks } from "@/lib/spotify";
+import { relativeTime } from "@/lib/utils";
+
+let tracks: Awaited<ReturnType<typeof getRecentTracks>> = [];
+try {
+  tracks = await getRecentTracks(15);
+} catch (error) {
+  console.error("[spotify] recent tracks island failed", error);
+}
+---
+
+{
+  tracks.length === 0 ? (
+    <p class="py-6 text-sm text-ink-faint">Nothing to show yet.</p>
+  ) : (
+    <ol class="divide-y divide-line border-y border-line">
+      {tracks.map((track) => (
+        <li>
+          <a
+            href={track.url ?? "#"}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="group flex items-center gap-4 py-2.5"
+          >
+            {track.image ? (
+              <img
+                src={track.image}
+                alt=""
+                width={32}
+                height={32}
+                loading="lazy"
+                class="h-8 w-8 shrink-0 rounded-xs object-cover"
+              />
+            ) : (
+              <div class="h-8 w-8 shrink-0 rounded-xs bg-raised" />
+            )}
+
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-[0.9375rem] text-ink transition-colors group-hover:text-brand">
+                {track.title}
+              </span>
+              <span class="block truncate text-xs text-ink-dim">
+                {track.artists}
+              </span>
+            </span>
+
+            <time
+              datetime={track.playedAt}
+              class="shrink-0 font-mono text-[11px] text-ink-faint"
+            >
+              {relativeTime(track.playedAt)}
+            </time>
+          </a>
+        </li>
+      ))}
+    </ol>
+  )
+}

@@ -1,0 +1,84 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import Logo from "@/components/Logo.astro";
+import Contributions from "@/components/widgets/Contributions.astro";
+import Repos from "@/components/widgets/Repos.astro";
+import Stack from "@/components/widgets/Stack.astro";
+import Stats from "@/components/widgets/Stats.astro";
+import ClockTile from "@/components/widgets/ClockTile.astro";
+import NowPlaying from "@/components/react/NowPlaying";
+import RichText from "@/components/RichText.astro";
+import { home, site } from "@/lib/site";
+---
+
+<Layout>
+  <!-- Masthead -->
+  <section class="animate-rise pb-12 pt-2 sm:pt-6">
+    <Logo class="h-10 w-auto sm:h-12" />
+
+    <h1
+      class="display-face mt-7 text-[2.75rem] text-ink sm:text-[4rem]"
+    >
+      {site.author}
+    </h1>
+    <p class="mt-3.5 font-mono text-[0.8125rem] text-ink-faint">
+      {site.tagline}
+    </p>
+
+    <RichText
+      text={home.bio}
+      class="mt-9 max-w-[56ch] text-[1.0625rem] leading-[1.75] text-ink-dim"
+    />
+  </section>
+
+  <!--
+    flex+gap rather than space-y: Astro renders islands as <astro-island>
+    (display: contents) alongside injected <script>/<style> siblings, so
+    `space-y-*`'s `> * + *` margins land on zero-height elements.
+  -->
+  <div class="flex flex-col gap-14 pb-6">
+    <!-- Facts strip. display:contents on the island makes these siblings. -->
+    <dl
+      class="flex flex-wrap gap-x-12 gap-y-5 border-y border-line py-5"
+    >
+      <ClockTile />
+      <Stats server:defer>
+        <Fragment slot="fallback">
+          {
+            Array.from({ length: 3 }).map(() => (
+              <div>
+                <div class="placeholder-block h-2.5 w-16 rounded-xs" />
+                <div class="placeholder-block mt-2.5 h-4 w-10 rounded-xs" />
+              </div>
+            ))
+          }
+        </Fragment>
+      </Stats>
+    </dl>
+
+    <section>
+      <h2 class="rule-heading label mb-5">Listening</h2>
+      <NowPlaying client:visible />
+    </section>
+
+    <section>
+      <h2 class="rule-heading label mb-5">Contributions</h2>
+      <Contributions server:defer>
+        <div slot="fallback" class="placeholder-block h-[124px] rounded-xs">
+        </div>
+      </Contributions>
+    </section>
+
+    <section>
+      <h2 class="rule-heading label mb-5">Uses</h2>
+      <Stack />
+    </section>
+
+    <Repos server:defer>
+      <div slot="fallback">
+        <div class="rule-heading label mb-5">Selected work</div>
+        <div class="placeholder-block h-[260px] rounded-xs"></div>
+      </div>
+    </Repos>
+  </div>
+</Layout>

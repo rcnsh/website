@@ -1,0 +1,104 @@
+---
+import { getContributions } from "@/lib/github";
+
+// Rendered as a server island, so a slow GitHub response never blocks the page.
+const data = await getContributions();
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Month labels sit above the first week that starts a new month.
+const monthLabels: { index: number; label: string }[] = [];
+if (data) {
+  let previous = -1;
+  data.weeks.forEach((week, index) => {
+    const first = week[0];
+    if (!first) return;
+    const month = new Date(first.date).getMonth();
+    if (month !== previous && index < data.weeks.length - 1) {
+      monthLabels.push({ index, label: MONTHS[month]! });
+      previous = month;
+    }
+  });
+}
+---
+
+{
+  data ? (
+    <div>
+      <div class="overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div class="inline-block min-w-full">
+          <div class="relative mb-1 ml-[26px] h-3">
+            {monthLabels.map(({ index, label }) => (
+              <span
+                class="absolute font-mono text-[10px] text-ink-faint"
+                style={`left: ${index * 13}px`}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+
+          <div class="flex gap-[3px]">
+            <div class="mr-1 flex w-[22px] shrink-0 flex-col gap-[3px] font-mono text-[9px] text-ink-faint">
+              <span class="h-2.5" />
+              <span class="h-2.5 leading-[10px]">Mon</span>
+              <span class="h-2.5" />
+              <span class="h-2.5 leading-[10px]">Wed</span>
+              <span class="h-2.5" />
+              <span class="h-2.5 leading-[10px]">Fri</span>
+              <span class="h-2.5" />
+            </div>
+
+            {data.weeks.map((week) => (
+              <div class="flex flex-col gap-[3px]">
+                {Array.from({ length: 7 }, (_, day) => {
+                  const cell = week[day];
+                  if (!cell) return <span class="h-2.5 w-2.5" />;
+                  return (
+                    <span
+                      class="h-2.5 w-2.5 rounded-[1px]"
+                      data-level={cell.level}
+                      title={`${cell.count} contribution${cell.count === 1 ? "" : "s"} on ${cell.date}`}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-3.5 flex items-center gap-1.5 font-mono text-[10px] text-ink-faint">
+        <span>{data.total.toLocaleString("en-GB")} in the last year</span>
+        <span class="ml-auto">Less</span>
+        {[0, 1, 2, 3, 4].map((level) => (
+          <span class="h-2.5 w-2.5 rounded-[1px]" data-level={level} />
+        ))}
+        <span>More</span>
+      </div>
+    </div>
+  ) : (
+    <p class="py-4 text-sm text-ink-faint">
+      Set <code class="font-mono text-ink-dim">GITHUB_TOKEN</code> to show the
+      contribution graph.
+    </p>
+  )
+}
+
+<style>
+  [data-level="0"] {
+    background: var(--color-raised);
+  }
+  [data-level="1"] {
+    background: color-mix(in oklab, var(--color-brand-deep) 40%, var(--color-raised));
+  }
+  [data-level="2"] {
+    background: color-mix(in oklab, var(--color-brand-deep) 65%, var(--color-raised));
+  }
+  [data-level="3"] {
+    background: var(--color-brand-deep);
+  }
+  [data-level="4"] {
+    background: var(--color-brand);
+  }
+</style>

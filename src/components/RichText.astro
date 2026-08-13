@@ -1,0 +1,87 @@
+---
+/**
+ * Renders the tiny slice of Markdown used in site.json: `[text](url)` links,
+ * and nothing else. Everything outside a link is emitted as plain text, so
+ * copy in the config can't inject markup.
+ *
+ * A full Markdown renderer would be a dependency and a parse at render time
+ * for what amounts to a handful of links.
+ */
+interface Props {
+  text: string;
+  class?: string;
+  /** Applied to links; defaults to the underlined inline-link treatment. */
+  linkClass?: string;
+}
+
+const {
+  text,
+  class: className,
+  linkClass = "text-ink underline decoration-line-strong underline-offset-[3px] transition-colors hover:decoration-brand",
+} = Astro.props;
+
+type Segment =
+  | { kind: "text"; value: string }
+  | { kind: "link"; value: string; href: string; external: boolean };
+
+const LINK = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+
+/** Only http(s), mailto and site-relative hrefs — no `javascript:` etc. */
+function safeHref(href: string): string | null {
+  if (href.startsWith("/") || href.startsWith("#")) return href;
+  try {
+    const { protocol } = new URL(href);
+    return ["http:", "https:", "mailto:"].includes(protocol) ? href : null;
+  } catch {
+    return null;
+  }
+}
+
+const segments: Segment[] = [];
+let cursor = 0;
+
+for (const match of text.matchAll(LINK)) {
+  const [whole, label, href] = match;
+  const index = match.index ?? 0;
+
+  if (index > cursor) {
+    segments.push({ kind: "text", value: text.slice(cursor, index) });
+  }
+
+  const url = safeHref(href!);
+  if (url) {
+    segments.push({
+      kind: "link",
+      value: label!,
+      href: url,
+      external: /^https?:/.test(url),
+    });
+  } else {
+    // Unsafe href — keep the label, drop the link.
+    segments.push({ kind: "text", value: label! });
+  }
+
+  cursor = index + whole.length;
+}
+
+if (cursor < text.length) {
+  segments.push({ kind: "text", value: text.slice(cursor) });
+}
+---
+
+<p class={className}>{
+  segments.map((segment) =>
+    segment.kind === "link" ? (
+      <a
+        href={segment.href}
+        target={segment.external ? "_blank" : undefined}
+        rel={segment.external ? "noopener noreferrer" : undefined}
+        class={linkClass}
+      >
+        {segment.value}
+      </a>
+    ) : (
+      segment.value
+    ),
+  )
+}</p>

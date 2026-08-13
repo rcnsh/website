@@ -1,0 +1,214 @@
+---
+import CommandPalette from "./react/CommandPalette";
+import { externalLinks, nav } from "@/lib/site";
+
+const path = Astro.url.pathname.replace(/\/+$/, "") || "/";
+
+/**
+ * "/" would prefix-match every route, so home is the one that needs an exact
+ * comparison. It matters now that the wordmark is a real tab and can be marked
+ * active like the rest.
+ */
+const isActive = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+
+const tabs = nav.slice(1);
+const homeActive = isActive("/");
+
+// Built here rather than inside the island so site.ts (and Zod) stay off the
+// client bundle — only the resulting data crosses.
+const paletteItems = [...nav, ...externalLinks];
+---
+
+{
+  /*
+    Deliberately NOT transition:persist. The header's active-route marker is
+    computed from Astro.url, so persisting the node across navigations freezes
+    it on whichever page was loaded first — every subsequent page would render
+    the correct header and then have it thrown away. Only the palette island
+    below is persisted, so it keeps its state without pinning the markup.
+  */
+}
+<header class="sticky top-0 z-50 border-b border-line bg-base/85 backdrop-blur-md">
+  <div class="mx-auto flex h-14 max-w-3xl items-center px-5 sm:px-6">
+    {
+      /*
+        Wordmark and links share one rail so a single underline can travel the
+        whole row. -ml-3 cancels the first tab's padding, keeping "rcn" optically
+        flush with the content column below.
+      */
+    }
+    <div class="relative -ml-3 flex items-stretch self-stretch" data-nav-rail>
+      <a
+        href="/"
+        aria-label="rcn.sh — home"
+        aria-current={homeActive ? "page" : undefined}
+        data-nav-item
+        data-nav-active={homeActive ? "" : undefined}
+        class="relative inline-flex shrink-0 items-center px-3 font-mono text-sm tracking-tight text-ink"
+      >
+        rcn<span class="text-ink-faint">.sh</span>
+      </a>
+
+      {
+        tabs.map((item) => {
+          const active = isActive(item.href);
+          return (
+            <a
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              data-nav-item
+              data-nav-active={active ? "" : undefined}
+              class:list={[
+                "relative hidden items-center px-3 text-sm transition-colors duration-200 sm:inline-flex",
+                active ? "text-ink" : "text-ink-faint hover:text-ink",
+              ]}
+            >
+              {item.label}
+            </a>
+          );
+        })
+      }
+
+      <span class="nav-underline" data-nav-underline aria-hidden="true"></span>
+    </div>
+
+    <div class="ml-auto">
+      <CommandPalette client:idle items={paletteItems} transition:persist />
+    </div>
+  </div>
+
+  <!-- Mobile: same links, wrapped under the bar. No hover, so no travelling bar. -->
+  <nav class="flex border-t border-line px-2 py-1 text-sm sm:hidden">
+    {
+      tabs.map((item) => {
+        const active = isActive(item.href);
+        return (
+          <a
+            href={item.href}
+            aria-current={active ? "page" : undefined}
+            class:list={[
+              "relative px-3 py-2",
+              active
+                ? "text-ink after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-brand"
+                : "text-ink-faint",
+            ]}
+          >
+            {item.label}
+          </a>
+        );
+      })
+    }
+  </nav>
+</header>
+
+<style>
+  /*
+    One bar for the whole rail: width and offset are pushed in as custom
+    properties, so hovering a different tab animates a single element between
+    two places rather than cross-fading two of them.
+  */
+  .nav-underline {
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    height: 2px;
+    width: var(--nav-w, 0);
+    transform: translate3d(var(--nav-x, 0), 0, 0);
+    opacity: var(--nav-o, 0);
+    background: var(--color-brand);
+    pointer-events: none;
+    transition:
+      transform 0.42s var(--ease-out-quint),
+      width 0.42s var(--ease-out-quint),
+      opacity 0.22s ease;
+  }
+
+  /* Placing the bar for the first time — jump, don't fly in from the corner. */
+  .nav-underline[data-instant] {
+    transition: opacity 0.22s ease;
+  }
+
+  /* Until the script takes over (or if it never does), the active tab marks itself. */
+  [data-nav-rail]:not([data-nav-ready]) [data-nav-active]::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: -1px;
+    height: 2px;
+    background: var(--color-brand);
+  }
+</style>
+
+<script>
+  // The rail is rebuilt on every navigation. Listeners on the old nodes die
+  // with them, but the one on `window` would outlive it and pin a detached
+  // rail, so each run retires the previous run's listeners.
+  let binding: AbortController | null = null;
+
+  function setupNav() {
+    binding?.abort();
+    binding = null;
+
+    const rail = document.querySelector<HTMLElement>("[data-nav-rail]");
+    if (!rail) return;
+
+    const bar = rail.querySelector<HTMLElement>("[data-nav-underline]");
+    const items = Array.from(rail.querySelectorAll<HTMLElement>("[data-nav-item]"));
+    if (!bar || items.length === 0) return;
+
+    const activeTab = () => items.find((el) => el.hasAttribute("data-nav-active")) ?? null;
+
+    let shown = false;
+
+    const place = (el: HTMLElement | null, animate: boolean) => {
+      // Tabs hidden at this breakpoint have no box to measure — treat the
+      // target as absent so the bar fades out instead of collapsing to 0,0.
+      if (!el || (el.offsetParent === null && el.offsetWidth === 0)) {
+        rail.style.setProperty("--nav-o", "0");
+        shown = false;
+        return;
+      }
+
+      // Animating from a stale position looks like a glitch, so only tween
+      // when the bar is already on screen where the user can see it start.
+      const jump = !animate || !shown;
+      if (jump) bar.setAttribute("data-instant", "");
+
+      rail.style.setProperty("--nav-x", `${el.offsetLeft}px`);
+      rail.style.setProperty("--nav-w", `${el.offsetWidth}px`);
+      rail.style.setProperty("--nav-o", "1");
+
+      if (jump) {
+        void bar.offsetWidth; // commit the jump before re-arming the transition
+        bar.removeAttribute("data-instant");
+      }
+      shown = true;
+    };
+
+    const rest = () => place(activeTab(), true);
+
+    binding = new AbortController();
+    const { signal } = binding;
+
+    for (const item of items) {
+      item.addEventListener("pointerenter", () => place(item, true), { signal });
+      item.addEventListener("focus", () => place(item, true), { signal });
+    }
+
+    rail.addEventListener("pointerleave", rest, { signal });
+    rail.addEventListener("focusout", (event) => {
+      if (!rail.contains(event.relatedTarget as Node | null)) rest();
+    }, { signal });
+    window.addEventListener("resize", () => place(activeTab(), false), {
+      passive: true,
+      signal,
+    });
+
+    rail.setAttribute("data-nav-ready", "");
+    place(activeTab(), false);
+  }
+
+  // The header is re-rendered on every navigation, so re-bind each time. This
+  // fires on the initial load too.
+  document.addEventListener("astro:page-load", setupNav);
+</script>

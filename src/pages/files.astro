@@ -1,0 +1,24 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import FilesRoot from "@/components/widgets/FilesRoot.astro";
+import RichText from "@/components/RichText.astro";
+import { pages } from "@/lib/site";
+
+const page = pages.files;
+---
+
+<Layout title={page.title} description={page.intro}>
+  <header class="animate-rise pb-10">
+    <h1 class="display-face text-[2.25rem] text-ink">{page.title}</h1>
+    <RichText text={page.intro} class="mt-2.5 max-w-[54ch] text-ink-dim" />
+  </header>
+
+  <div class="pb-6">
+    <FilesRoot server:defer>
+      <div slot="fallback">
+        <div class="placeholder-block h-9 rounded-xs"></div>
+        <div class="placeholder-block mt-3 h-[320px] rounded-xs"></div>
+      </div>
+    </FilesRoot>
+  </div>
+</Layout>

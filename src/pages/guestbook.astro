@@ -1,0 +1,229 @@
+---
+import { desc } from "drizzle-orm";
+import Layout from "@/layouts/Layout.astro";
+import GuestbookForm from "@/components/react/GuestbookForm";
+import { GithubIcon } from "@/components/react/BrandIcons";
+import { getSession } from "@/lib/auth";
+import { getDb, schema } from "@/lib/db";
+import { containsProfanity } from "@/lib/profanity";
+import { relativeTime } from "@/lib/utils";
+import RichText from "@/components/RichText.astro";
+import { pages } from "@/lib/site";
+
+// Needs the request's cookies, so it can't be prerendered.
+export const prerender = false;
+
+const page = pages.guestbook;
+const MAX_LENGTH = page.maxMessageLength;
+
+let session = null;
+let entries: (typeof schema.guestbook.$inferSelect)[] = [];
+let error: string | null = Astro.url.searchParams.get("error");
+let posted = false;
+
+// A missing D1 binding shouldn't take the page down — show the reason instead.
+let dbReady = true;
+
+try {
+  session = await getSession(Astro.cookies);
+} catch (sessionError) {
+  console.error("[guestbook] session lookup failed", sessionError);
+  dbReady = false;
+}
+
+if (dbReady && Astro.request.method === "POST") {
+  const formData = await Astro.request.formData();
+  const message = String(formData.get("message") ?? "").trim();
+
+  if (!session) {
+    error = "auth";
+  } else if (!message) {
+    error = "empty";
+  } else if (message.length > MAX_LENGTH) {
+    error = "long";
+  } else if (containsProfanity(message)) {
+    error = "profanity";
+  } else {
+    try {
+      const db = getDb();
+      // One entry per person: signing again replaces the old message.
+      await db
+        .insert(schema.guestbook)
+        .values({
+          githubId: session.githubId,
+          username: session.username,
+          displayName: session.displayName,
+          avatarUrl: session.avatarUrl,
+          message,
+        })
+        .onConflictDoUpdate({
+          target: schema.guestbook.githubId,
+          set: {
+            message,
+            username: session.username,
+            displayName: session.displayName,
+            avatarUrl: session.avatarUrl,
+            updatedAt: new Date(),
+          },
+        });
+      posted = true;
+      error = null;
+    } catch (insertError) {
+      console.error("[guestbook] insert failed", insertError);
+      error = "db";
+    }
+  }
+}
+
+if (dbReady) {
+  try {
+    entries = await getDb()
+      .select()
+      .from(schema.guestbook)
+      .orderBy(desc(schema.guestbook.updatedAt))
+      .limit(200);
+  } catch (queryError) {
+    console.error("[guestbook] query failed", queryError);
+    dbReady = false;
+  }
+}
+
+const ERRORS: Record<string, string> = {
+  state: "That login attempt expired. Give it another go.",
+  auth: "Sign in with GitHub first.",
+  empty: "Write something before signing.",
+  long: `Keep it under ${MAX_LENGTH} characters.`,
+  profanity: "Let's keep it friendly.",
+  db: "Couldn't save that. Try again in a moment.",
+};
+
+const existing = session
+  ? entries.find((entry) => entry.githubId === session.githubId)
+  : undefined;
+---
+
+<Layout title={page.title} description={page.intro}>
+  <header class="animate-rise pb-10">
+    <h1 class="display-face text-[2.25rem] text-ink">{page.title}</h1>
+    <RichText text={page.intro} class="mt-2.5 max-w-[54ch] text-ink-dim" />
+  </header>
+
+  {
+    !dbReady && (
+      <p class="border-y border-amber-500/25 bg-amber-500/5 px-4 py-3 text-sm text-amber-200/90">
+        The guestbook database isn't reachable. Create the D1 database, set{" "}
+        <code class="font-mono">database_id</code> in{" "}
+        <code class="font-mono">wrangler.jsonc</code>, then run the migrations.
+      </p>
+    )
+  }
+
+  {
+    dbReady && (
+      <>
+        <section class="border-y border-line py-6">
+          {session ? (
+            <>
+              <div class="mb-4 flex items-center gap-3">
+                {session.avatarUrl && (
+                  <img
+                    src={session.avatarUrl}
+                    alt=""
+                    width={28}
+                    height={28}
+                    class="h-7 w-7 rounded-full"
+                  />
+                )}
+                <p class="min-w-0 truncate font-mono text-xs text-ink-dim">
+                  @{session.username}
+                </p>
+                <form method="POST" action="/api/auth/logout" class="ml-auto">
+                  <button
+                    type="submit"
+                    class="font-mono text-xs text-ink-faint underline decoration-line-strong underline-offset-[3px] transition-colors hover:text-ink-dim"
+                  >
+                    sign out
+                  </button>
+                </form>
+              </div>
+
+              <GuestbookForm
+                client:load
+                maxLength={MAX_LENGTH}
+                initialMessage={existing?.message ?? ""}
+                isUpdate={Boolean(existing)}
+              />
+            </>
+          ) : (
+            <a
+              href="/api/auth/login"
+              class="inline-flex items-center gap-2.5 text-[0.9375rem] text-ink underline decoration-line-strong underline-offset-[4px] transition-colors hover:decoration-brand"
+            >
+              <GithubIcon className="h-4 w-4" />
+              Sign in with GitHub to leave a message
+            </a>
+          )}
+
+          {error && ERRORS[error] && (
+            <p class="mt-3 text-sm text-red-400/90">{ERRORS[error]}</p>
+          )}
+
+          {posted && (
+            <p class="mt-3 text-sm text-emerald-400/90">Signed — thanks.</p>
+          )}
+        </section>
+
+        <section class="pb-6 pt-10">
+          <h2 class="rule-heading label mb-5">
+            {entries.length} {entries.length === 1 ? "signature" : "signatures"}
+          </h2>
+
+          {entries.length === 0 ? (
+            <p class="py-6 text-sm text-ink-faint">
+              No one's signed yet. Be the first.
+            </p>
+          ) : (
+            <ul class="divide-y divide-line border-y border-line">
+              {entries.map((entry) => (
+                <li class="flex gap-3.5 py-4">
+                  {entry.avatarUrl ? (
+                    <img
+                      src={entry.avatarUrl}
+                      alt=""
+                      width={28}
+                      height={28}
+                      loading="lazy"
+                      class="mt-0.5 h-7 w-7 shrink-0 rounded-full"
+                    />
+                  ) : (
+                    <div class="mt-0.5 h-7 w-7 shrink-0 rounded-full bg-raised" />
+                  )}
+
+                  <div class="min-w-0 flex-1">
+                    <p class="break-words text-[0.9375rem] leading-relaxed text-ink">
+                      {entry.message}
+                    </p>
+                    <p class="mt-1.5 font-mono text-[11px] text-ink-faint">
+                      <a
+                        href={`https://github.com/${entry.username}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="transition-colors hover:text-ink-dim"
+                      >
+                        @{entry.username}
+                      </a>
+                      {" · "}
+                      <time datetime={entry.updatedAt.toISOString()}>
+                        {relativeTime(entry.updatedAt)}
+                      </time>
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </>
+    )
+  }
+</Layout>

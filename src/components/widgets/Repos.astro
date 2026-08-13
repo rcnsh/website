@@ -1,0 +1,59 @@
+---
+import { getFeaturedRepos } from "@/lib/github";
+import { pinnedRepos } from "@/lib/site";
+import { relativeTime } from "@/lib/utils";
+
+const repos = await getFeaturedRepos(pinnedRepos);
+---
+
+<section>
+  <div class="mb-5 flex items-baseline gap-3.5">
+    <h2 class="label shrink-0">Selected work</h2>
+    <span class="h-px flex-1 bg-line"></span>
+    <a
+      href="https://go.rcn.sh/github"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="shrink-0 font-mono text-[11px] text-ink-faint transition-colors hover:text-ink-dim"
+    >
+      all repos &rarr;
+    </a>
+  </div>
+
+  {
+    repos.length === 0 ? (
+      <p class="py-6 text-sm text-ink-faint">
+        Couldn't reach GitHub. Set{" "}
+        <code class="font-mono text-ink-dim">GITHUB_TOKEN</code> to raise the
+        rate limit.
+      </p>
+    ) : (
+      <ul class="divide-y divide-line border-y border-line">
+        {repos.map((repo) => (
+          <li>
+            <a
+              href={repo.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="group flex flex-col gap-1 py-4 sm:flex-row sm:items-baseline sm:gap-6"
+            >
+              <span class="w-full shrink-0 font-mono text-sm text-ink transition-colors group-hover:text-brand sm:w-[15rem]">
+                {repo.name}
+              </span>
+
+              <span class="flex-1 text-[0.9375rem] leading-relaxed text-ink-dim">
+                {repo.description ?? "—"}
+              </span>
+
+              <span class="shrink-0 font-mono text-[11px] text-ink-faint">
+                {repo.language ?? "—"}
+                {repo.stars > 0 && ` · ★ ${repo.stars}`}
+                <span class="hidden sm:inline"> · {relativeTime(repo.updatedAt)}</span>
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</section>

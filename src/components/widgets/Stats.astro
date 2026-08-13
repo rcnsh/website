@@ -1,0 +1,25 @@
+---
+import { getProfile } from "@/lib/github";
+
+// Deferred island: three facts from GitHub. The page owns the <dl>, and
+// <astro-island> is display:contents, so these land as its direct children.
+const profile = await getProfile();
+const since = profile ? new Date(profile.createdAt).getFullYear() : null;
+
+const facts = [
+  { label: "Repos", value: profile ? String(profile.publicRepos) : "—" },
+  { label: "Followers", value: profile ? String(profile.followers) : "—" },
+  { label: "On GitHub since", value: since ? String(since) : "—" },
+];
+---
+
+{
+  facts.map((fact) => (
+    <div>
+      <dt class="label">{fact.label}</dt>
+      <dd class="mt-1.5 font-mono text-base tabular-nums text-ink">
+        {fact.value}
+      </dd>
+    </div>
+  ))
+}

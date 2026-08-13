@@ -1,0 +1,116 @@
+import { z } from "zod";
+import raw from "@/content/site.json";
+
+/**
+ * Everything you're likely to want to change lives in `src/content/site.json`.
+ * This module only loads and validates it.
+ *
+ * The import is resolved by Vite at build time, so the JSON is inlined into the
+ * bundle — there is no file read, fetch, or parse at runtime.
+ *
+ * Validation runs once at module load. A typo or missing field fails the build
+ * with a pointer to the exact path, rather than rendering a broken page.
+ */
+
+const linkSchema = z.object({
+  href: z.string().min(1),
+  label: z.string().min(1),
+  /** Maps to an icon in components/react/icon-map.ts. */
+  icon: z.string().optional(),
+  /** Extra terms the command palette should match on. */
+  keywords: z.string().optional(),
+});
+
+const pageSchema = z.object({
+  title: z.string().min(1),
+  intro: z.string().default(""),
+});
+
+const schema = z.object({
+  identity: z.object({
+    siteName: z.string().min(1),
+    url: z.url(),
+    author: z.string().min(1),
+    tagline: z.string(),
+    metaDescription: z.string().min(1),
+  }),
+  accounts: z.object({
+    github: z.string().min(1),
+    spotify: z.string().min(1),
+  }),
+  clock: z.object({
+    label: z.string().min(1),
+    /**
+     * Whose clock this is — pinned to my timezone, not the visitor's.
+     * Checked against the runtime's zone database so a typo like
+     * "Europe/Newcastle" fails the build rather than throwing in the browser.
+     */
+    timeZone: z.string().refine(
+      (tz) => {
+        try {
+          new Intl.DateTimeFormat("en-GB", { timeZone: tz });
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { error: "not a recognised IANA time zone (e.g. \"Europe/London\")" },
+    ),
+    hour12: z.boolean().default(false),
+  }),
+  home: z.object({
+    bio: z.string().min(1),
+  }),
+  pages: z.object({
+    music: pageSchema,
+    guestbook: pageSchema.extend({
+      maxMessageLength: z.number().int().positive().default(200),
+    }),
+    files: pageSchema,
+    notFound: pageSchema,
+  }),
+  nav: z.array(linkSchema).min(1),
+  links: z.array(linkSchema),
+  stack: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        url: z.url(),
+        /** Highlighted — the things actually reached for first. */
+        primary: z.boolean().optional(),
+      }),
+    )
+    .min(1),
+  pinnedRepos: z.array(z.string()),
+});
+
+const parsed = schema.safeParse(raw);
+
+if (!parsed.success) {
+  const issues = parsed.error.issues
+    .map((issue) => `  ${issue.path.join(".") || "(root)"}: ${issue.message}`)
+    .join("\n");
+  throw new Error(`Invalid src/content/site.json:\n${issues}`);
+}
+
+const config = parsed.data;
+
+export const site = {
+  name: config.identity.siteName,
+  url: config.identity.url,
+  author: config.identity.author,
+  tagline: config.identity.tagline,
+  description: config.identity.metaDescription,
+  githubUser: config.accounts.github,
+  spotifyUser: config.accounts.spotify,
+} as const;
+
+export const clock = config.clock;
+export const home = config.home;
+export const pages = config.pages;
+export const nav = config.nav;
+export const externalLinks = config.links;
+export const stack = config.stack;
+export const pinnedRepos = config.pinnedRepos;
+
+export type SiteLink = z.infer<typeof linkSchema>;

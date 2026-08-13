@@ -1,0 +1,96 @@
+{
+  "identity": {
+    "siteName": "rcn.sh",
+    "url": "https://rcn.sh",
+    "author": "Jacob Wiltshire",
+    "tagline": "computer science student · newcastle upon tyne",
+    "metaDescription": "Jacob Wiltshire — computer science student at Newcastle University. Music, files, and a guestbook."
+  },
+
+  "accounts": {
+    "github": "rcnsh",
+    "spotify": "nz3i2a30ep85rv5ymcpglhndj"
+  },
+
+  "clock": {
+    "label": "Local time",
+    "timeZone": "Asia/Singapore",
+    "hour12": false
+  },
+
+  "home": {
+    "bio": "I study computer science at [Newcastle University](https://www.ncl.ac.uk/) and I'm currently studying abroad at the [National University of Singapore](https://www.nus.edu.sg/). Most of what I write is TypeScript and Python, and the rest of my time goes on experimenting with anything I'm finding interesting."
+  },
+
+  "pages": {
+    "music": {
+      "title": "Music",
+      "intro": "Straight off [my Spotify](https://open.spotify.com/user/nz3i2a30ep85rv5ymcpglhndj), refreshed every few minutes."
+    },
+    "guestbook": {
+      "title": "Guestbook",
+      "intro": "Leave a note to say hi!",
+      "maxMessageLength": 200
+    },
+    "files": {
+      "title": "Files",
+      "intro": "Everything public in my R2 bucket. Open a folder to browse, or search across the lot."
+    },
+    "notFound": {
+      "title": "Nothing here",
+      "intro": "That page doesn't exist."
+    }
+  },
+
+  "nav": [
+    { "href": "/", "label": "Home", "icon": "home", "keywords": "index about bio start" },
+    { "href": "/music", "label": "Music", "icon": "music", "keywords": "spotify listening tracks artists songs" },
+    { "href": "/guestbook", "label": "Guestbook", "icon": "book", "keywords": "sign message comment leave note" },
+    { "href": "/files", "label": "Files", "icon": "file", "keywords": "r2 bucket storage downloads browse" }
+  ],
+
+  "links": [
+    {
+      "href": "https://go.rcn.sh/github",
+      "label": "GitHub",
+      "icon": "github",
+      "keywords": "code repos source projects"
+    },
+    {
+      "href": "https://go.rcn.sh/valorant",
+      "label": "Valorant",
+      "icon": "crosshair",
+      "keywords": "games stats rank tracker"
+    },
+    {
+      "href": "/pgp_key.asc.txt",
+      "label": "PGP key",
+      "icon": "key",
+      "keywords": "gpg encryption security public key"
+    }
+  ],
+
+  "stack": [
+    { "name": "TypeScript", "url": "https://www.typescriptlang.org/", "primary": true },
+    { "name": "Astro", "url": "https://astro.build/", "primary": true },
+    { "name": "Next.js", "url": "https://nextjs.org/", "primary": true },
+    { "name": "Python", "url": "https://python.org/", "primary": true },
+    { "name": "Linux", "url": "https://www.linux.org/", "primary": true },
+    { "name": "React", "url": "https://react.dev/" },
+    { "name": "Tailwind", "url": "https://tailwindcss.com/" },
+    { "name": "Cloudflare", "url": "https://developers.cloudflare.com/workers/" },
+    { "name": "Postgres", "url": "https://www.postgresql.org/" },
+    { "name": "Neovim", "url": "https://neovim.io/" },
+    { "name": "Git", "url": "https://git-scm.com/" },
+    { "name": "Docker", "url": "https://www.docker.com/" }
+  ],
+
+  "pinnedRepos": [
+    "rcnsh-new",
+    "notes",
+    "virtue-gymnastics-website",
+    "RaspberryPyGame",
+    "Edexcel-Large-Data-Set-Analysis",
+    "pmt_bypass"
+  ]
+}
