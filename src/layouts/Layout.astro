@@ -11,11 +11,19 @@ import { site } from "@/lib/site";
 interface Props {
   title?: string;
   description?: string;
+  /** Posts are "article"; everything else is a page. */
+  ogType?: "website" | "article";
 }
 
-const { title, description = site.description } = Astro.props;
+const { title, description = site.description, ogType = "website" } = Astro.props;
 
 const pageTitle = title ? `${site.name} • ${title}` : `${site.name} • Home`;
+
+/*
+  Page intros double as meta descriptions, and those are written for RichText —
+  so `[label](url)` reaches here verbatim unless it's unwrapped to its label.
+*/
+const metaDescription = description.replace(/\[([^\]]+)\]\([^)\s]+\)/g, "$1");
 const canonical =
   new URL(Astro.url.pathname, site.url).toString().replace(/\/+$/, "") ||
   site.url;
@@ -27,13 +35,13 @@ const canonical =
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{pageTitle}</title>
-    <meta name="description" content={description} />
+    <meta name="description" content={metaDescription} />
     <link rel="canonical" href={canonical} />
 
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
     <meta property="og:site_name" content={site.name} />
     <meta property="og:title" content={pageTitle} />
-    <meta property="og:description" content={description} />
+    <meta property="og:description" content={metaDescription} />
     <meta property="og:url" content={canonical} />
     <meta name="twitter:card" content="summary" />
 
@@ -41,6 +49,18 @@ const canonical =
     <link rel="apple-touch-icon" href="/apple-icon-180x180.png" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="sitemap" href="/sitemap-index.xml" />
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title={`${site.name} — Writing`}
+      href="/rss.xml"
+    />
+    <link
+      rel="alternate"
+      type="application/feed+json"
+      title={`${site.name} — Writing`}
+      href="/feed.json"
+    />
     <meta name="theme-color" content="#0d0d0c" />
     <meta name="color-scheme" content="dark" />
     <meta name="generator" content={Astro.generator} />

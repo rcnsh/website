@@ -7,6 +7,8 @@ import {
   Home,
   KeyRound,
   Music,
+  PenLine,
+  Rss,
 } from "lucide-react";
 import { GithubIcon } from "./BrandIcons";
 
@@ -16,9 +18,11 @@ import { GithubIcon } from "./BrandIcons";
  */
 export const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   home: Home,
+  pen: PenLine,
   music: Music,
   book: Book,
   file: FileText,
+  rss: Rss,
   github: GithubIcon,
   crosshair: Crosshair,
   key: KeyRound,

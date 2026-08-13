@@ -1,0 +1,110 @@
+---
+import { render } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import {
+  formatDate,
+  getPosts,
+  isoDate,
+  postHref,
+  readingTime,
+  type Post,
+} from "@/lib/blog";
+
+export async function getStaticPaths() {
+  const posts = await getPosts();
+
+  // Sorted newest first, so the previous entry is the newer post.
+  return posts.map((post, index) => ({
+    params: { slug: post.id },
+    props: {
+      post,
+      newer: posts[index - 1] ?? null,
+      older: posts[index + 1] ?? null,
+    },
+  }));
+}
+
+interface Props {
+  post: Post;
+  newer: Post | null;
+  older: Post | null;
+}
+
+const { post, newer, older } = Astro.props;
+const { Content } = await render(post);
+const minutes = readingTime(post.body);
+---
+
+<Layout
+  title={post.data.title}
+  description={post.data.description}
+  ogType="article"
+>
+  <article class="animate-rise pb-6">
+    <header class="pb-9">
+      <a
+        href="/blog"
+        class="label inline-flex items-center gap-1.5 transition-colors hover:text-ink-dim"
+      >
+        <span aria-hidden="true">&larr;</span> Writing
+      </a>
+
+      <h1 class="display-face mt-6 text-[2.25rem] leading-[1.1] text-ink">
+        {post.data.title}
+      </h1>
+
+      <div class="label mt-5 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <time datetime={isoDate(post.data.pubDate)}>
+          {formatDate(post.data.pubDate)}
+        </time>
+        <span aria-hidden="true">&middot;</span>
+        <span>{minutes} min read</span>
+        {
+          post.data.updatedDate && (
+            <>
+              <span aria-hidden="true">&middot;</span>
+              <span>
+                updated{" "}
+                <time datetime={isoDate(post.data.updatedDate)}>
+                  {formatDate(post.data.updatedDate)}
+                </time>
+              </span>
+            </>
+          )
+        }
+        {post.data.draft && <span class="text-brand">draft</span>}
+      </div>
+    </header>
+
+    <div class="prose border-t border-line pt-9">
+      <Content />
+    </div>
+  </article>
+
+  {
+    (newer || older) && (
+      <nav class="mt-14 grid gap-px border-t border-line pt-8 sm:grid-cols-2 sm:gap-8">
+        {/* Older sits on the left so the pair reads oldest → newest. */}
+        {older ? (
+          <a href={postHref(older)} class="group block">
+            <span class="label">&larr; Older</span>
+            <span class="mt-1.5 block text-ink transition-colors group-hover:text-brand-alt">
+              {older.data.title}
+            </span>
+          </a>
+        ) : (
+          <span />
+        )}
+
+        {newer && (
+          <a href={postHref(newer)} class="group block sm:text-right">
+            <span class="label">Newer &rarr;</span>
+            <span class="mt-1.5 block text-ink transition-colors group-hover:text-brand-alt">
+              {newer.data.title}
+            </span>
+          </a>
+        )}
+      </nav>
+    )
+  }
+</Layout>

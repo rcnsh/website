@@ -23,6 +23,11 @@
   },
 
   "pages": {
+    "blog": {
+      "title": "Writing",
+      "intro": "Notes on things I've built and things I've broken. There's an [RSS feed](/rss.xml) if you'd rather not check back.",
+      "feedDescription": "Notes on things I've built and things I've broken, by Jacob Wiltshire."
+    },
     "music": {
       "title": "Music",
       "intro": "Straight off [my Spotify](https://open.spotify.com/user/nz3i2a30ep85rv5ymcpglhndj), refreshed every few minutes."
@@ -44,6 +49,7 @@
 
   "nav": [
     { "href": "/", "label": "Home", "icon": "home", "keywords": "index about bio start" },
+    { "href": "/blog", "label": "Writing", "icon": "pen", "keywords": "blog posts articles notes essays" },
     { "href": "/music", "label": "Music", "icon": "music", "keywords": "spotify listening tracks artists songs" },
     { "href": "/guestbook", "label": "Guestbook", "icon": "book", "keywords": "sign message comment leave note" },
     { "href": "/files", "label": "Files", "icon": "file", "keywords": "r2 bucket storage downloads browse" }
@@ -67,6 +73,12 @@
       "label": "PGP key",
       "icon": "key",
       "keywords": "gpg encryption security public key"
+    },
+    {
+      "href": "/rss.xml",
+      "label": "RSS",
+      "icon": "rss",
+      "keywords": "feed subscribe atom json follow"
     }
   ],
 
