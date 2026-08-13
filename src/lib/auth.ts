@@ -1,4 +1,3 @@
-import { GitHub, generateState } from "arctic";
 import { eq, lt } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import type { AstroCookies } from "astro";
@@ -6,6 +5,8 @@ import { getDb, schema } from "./db";
 
 export const SESSION_COOKIE = "rcnsh_session";
 export const OAUTH_STATE_COOKIE = "rcnsh_oauth_state";
+
+const USER_AGENT = "rcn.sh";
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 /** Sessions past halfway through their life get extended on use. */
@@ -18,7 +19,12 @@ export type SessionUser = {
   avatarUrl: string | null;
 };
 
-export function getGitHubClient(origin: string) {
+// --- GitHub OAuth ---
+
+const AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
+const TOKEN_URL = "https://github.com/login/oauth/access_token";
+
+function credentials(): { clientId: string; clientSecret: string } {
   const clientId = env.GITHUB_CLIENT_ID;
   const clientSecret = env.GITHUB_CLIENT_SECRET;
 
@@ -28,10 +34,70 @@ export function getGitHubClient(origin: string) {
     );
   }
 
-  return new GitHub(clientId, clientSecret, `${origin}/api/auth/callback`);
+  return { clientId, clientSecret };
 }
 
-export { generateState };
+/** Both legs of the flow must send the same redirect_uri or GitHub rejects it. */
+function callbackUrl(origin: string): string {
+  return `${origin}/api/auth/callback`;
+}
+
+export function createAuthorizationUrl(origin: string, state: string): string {
+  const { clientId } = credentials();
+  const url = new URL(AUTHORIZE_URL);
+
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("redirect_uri", callbackUrl(origin));
+  url.searchParams.set("state", state);
+  // No scopes: the default grant already reads the public profile.
+
+  return url.toString();
+}
+
+/**
+ * GitHub answers a spent or forged code with HTTP 200 and an `error` field, so
+ * the status alone doesn't tell success from failure.
+ */
+export async function exchangeCodeForToken(
+  origin: string,
+  code: string,
+): Promise<string> {
+  const { clientId, clientSecret } = credentials();
+
+  const response = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+      "User-Agent": USER_AGENT,
+    },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+      redirect_uri: callbackUrl(origin),
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`GitHub token exchange failed: ${response.status}`);
+  }
+
+  const payload = (await response.json()) as {
+    access_token?: string;
+    error?: string;
+    error_description?: string;
+  };
+
+  if (!payload.access_token) {
+    const reason = payload.error_description ?? payload.error ?? "no token";
+    throw new Error(`GitHub token exchange failed: ${reason}`);
+  }
+
+  return payload.access_token;
+}
 
 // --- Session tokens ---
 
@@ -42,6 +108,11 @@ export { generateState };
 function randomToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Same 256 bits of entropy, but it only ever lives in a short-lived cookie. */
+export function generateState(): string {
+  return randomToken();
 }
 
 async function hashToken(token: string): Promise<string> {
@@ -131,7 +202,7 @@ export async function fetchGitHubUser(accessToken: string): Promise<SessionUser>
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/vnd.github+json",
-      "User-Agent": "rcn.sh",
+      "User-Agent": USER_AGENT,
     },
   });
 

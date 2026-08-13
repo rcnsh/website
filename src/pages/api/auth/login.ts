@@ -1,16 +1,15 @@
 import type { APIRoute } from "astro";
 import {
   OAUTH_STATE_COOKIE,
+  createAuthorizationUrl,
   generateState,
-  getGitHubClient,
 } from "@/lib/auth";
 
 export const prerender = false;
 
 export const GET: APIRoute = async ({ cookies, url, redirect }) => {
   const state = generateState();
-  const github = getGitHubClient(url.origin);
-  const authUrl = github.createAuthorizationURL(state, []);
+  const authUrl = createAuthorizationUrl(url.origin, state);
 
   cookies.set(OAUTH_STATE_COOKIE, state, {
     path: "/",
@@ -20,5 +19,5 @@ export const GET: APIRoute = async ({ cookies, url, redirect }) => {
     maxAge: 60 * 10,
   });
 
-  return redirect(authUrl.toString(), 302);
+  return redirect(authUrl, 302);
 };
