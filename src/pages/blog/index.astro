@@ -1,0 +1,37 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import PostList from "@/components/PostList.astro";
+import RichText from "@/components/RichText.astro";
+import { getPosts } from "@/lib/blog";
+import { pages } from "@/lib/site";
+
+const page = pages.blog;
+const posts = await getPosts();
+
+// Newest first already, so the years come out in order too.
+const years = [...new Set(posts.map((post) => post.data.pubDate.getFullYear()))];
+---
+
+<Layout title={page.title} description={page.intro}>
+  <header class="animate-rise pb-10">
+    <h1 class="display-face text-[2.25rem] text-ink">{page.title}</h1>
+    <RichText text={page.intro} class="mt-2.5 max-w-[54ch] text-ink-dim" />
+  </header>
+
+  <div class="flex flex-col gap-12 pb-6">
+    {
+      years.map((year) => (
+        <section>
+          <h2 class="rule-heading label mb-2">{year}</h2>
+          <PostList posts={posts.filter((p) => p.data.pubDate.getFullYear() === year)} />
+        </section>
+      ))
+    }
+
+    {
+      posts.length === 0 && (
+        <p class="text-ink-faint">Nothing published yet.</p>
+      )
+    }
+  </div>
+</Layout>

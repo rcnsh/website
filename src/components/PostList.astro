@@ -1,0 +1,39 @@
+---
+import { formatDate, isoDate, postHref, type Post } from "@/lib/blog";
+
+interface Props {
+  posts: Post[];
+  class?: string;
+}
+
+const { posts, class: className } = Astro.props;
+---
+
+<ul class:list={["divide-y divide-line", className]}>
+  {
+    posts.map((post) => (
+      <li>
+        <a
+          href={postHref(post)}
+          class="group grid gap-x-6 gap-y-1.5 py-5 sm:grid-cols-[6.5rem_1fr]"
+        >
+          <time class="label pt-1" datetime={isoDate(post.data.pubDate)}>
+            {formatDate(post.data.pubDate)}
+          </time>
+
+          <div>
+            <h3 class="text-[1.0625rem] text-ink transition-colors group-hover:text-brand-alt">
+              {post.data.title}
+              {post.data.draft && (
+                <span class="label ml-2 align-middle text-brand">draft</span>
+              )}
+            </h3>
+            <p class="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-dim">
+              {post.data.description}
+            </p>
+          </div>
+        </a>
+      </li>
+    ))
+  }
+</ul>
