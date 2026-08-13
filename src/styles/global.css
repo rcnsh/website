@@ -146,6 +146,156 @@
   animation: pulse-dim 1.8s ease-in-out infinite;
 }
 
+/* --- Long-form prose ---
+   Post bodies, and nothing else. Narrow on purpose: fenced code belongs to
+   Expressive Code, which renders <figure>/<figcaption>/<pre>, so none of those
+   are touched here. */
+@utility prose {
+  color: var(--color-ink-dim);
+  font-size: 1.0625rem;
+  line-height: 1.75;
+
+  /* Rhythm runs one way — every block gets top margin, never bottom, so
+     stacked elements can't double their gap. */
+  & > * + * {
+    margin-top: 1.25em;
+  }
+
+  & h2,
+  & h3,
+  & h4 {
+    color: var(--color-ink);
+    /* Clears the sticky header when an #anchor is jumped to. */
+    scroll-margin-top: 5rem;
+  }
+
+  /* Headings keep the mono display voice, a size down from the page title. */
+  & > h2 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.375rem;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+    margin-top: 2.5em;
+  }
+
+  & > h3 {
+    font-weight: 600;
+    font-size: 1.125rem;
+    line-height: 1.4;
+    margin-top: 2em;
+  }
+
+  & > h4 {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-top: 1.75em;
+  }
+
+  & a {
+    color: var(--color-ink);
+    text-decoration: underline;
+    text-decoration-color: var(--color-line-strong);
+    text-underline-offset: 3px;
+    transition: text-decoration-color 0.2s;
+  }
+
+  & a:hover {
+    text-decoration-color: var(--color-brand);
+  }
+
+  & strong {
+    color: var(--color-ink);
+    font-weight: 600;
+  }
+
+  & ul,
+  & ol {
+    padding-left: 1.35em;
+  }
+  & ul {
+    list-style: disc;
+  }
+  & ol {
+    list-style: decimal;
+  }
+  & li::marker {
+    color: var(--color-ink-faint);
+  }
+  & li + li,
+  & li > ul,
+  & li > ol {
+    margin-top: 0.5em;
+  }
+
+  /* The rule does the distinguishing, not the colour — ink-faint is a metadata
+     tone and drops under 4.5:1 at reading size. */
+  & blockquote {
+    border-left: 2px solid var(--color-line-strong);
+    padding-left: 1.25rem;
+  }
+
+  & hr {
+    border: 0;
+    border-top: 1px solid var(--color-line);
+    margin-block: 2.5em;
+  }
+
+  /* Inline code only. Listed by parent rather than excluding `pre`, so it can
+     never reach inside an Expressive Code block. */
+  & :where(p, li, td, th, h2, h3, h4, blockquote) > code {
+    font-family: var(--font-mono);
+    font-size: 0.8125em;
+    color: var(--color-ink);
+    background: var(--color-raised);
+    border: 1px solid var(--color-line);
+    border-radius: 3px;
+    padding: 0.1em 0.35em;
+  }
+
+  & img,
+  & video {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+  }
+
+  /* Markdown emits a bare <table>, so the table itself has to be the scroll
+     container — otherwise a wide one drags the whole page sideways. */
+  & table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-size: 0.9375rem;
+  }
+
+  & th,
+  & td {
+    border-bottom: 1px solid var(--color-line);
+    padding: 0.55rem 0.85rem 0.55rem 0;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  & th {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+
+  & sup a {
+    text-decoration: none;
+    font-size: 0.75em;
+    color: var(--color-brand);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

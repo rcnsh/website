@@ -53,6 +53,10 @@ const schema = z.object({
     bio: z.string().min(1),
   }),
   pages: z.object({
+    blog: pageSchema.extend({
+      /** The intro is written for the page — a subscriber needs its own line. */
+      feedDescription: z.string().min(1),
+    }),
     music: pageSchema,
     guestbook: pageSchema.extend({
       maxMessageLength: z.number().int().positive().default(200),
