@@ -7,8 +7,12 @@ import Stack from "@/components/widgets/Stack.astro";
 import Stats from "@/components/widgets/Stats.astro";
 import ClockTile from "@/components/widgets/ClockTile.astro";
 import NowPlaying from "@/components/react/NowPlaying";
+import PostList from "@/components/PostList.astro";
 import RichText from "@/components/RichText.astro";
+import { getPosts } from "@/lib/blog";
 import { home, site } from "@/lib/site";
+
+const recentPosts = (await getPosts()).slice(0, 3);
 ---
 
 <Layout>
@@ -54,6 +58,21 @@ import { home, site } from "@/lib/site";
         </Fragment>
       </Stats>
     </dl>
+
+    {
+      recentPosts.length > 0 && (
+        <section>
+          <h2 class="rule-heading label mb-2">Writing</h2>
+          <PostList posts={recentPosts} />
+          <a
+            href="/blog"
+            class="label mt-5 inline-block transition-colors hover:text-ink-dim"
+          >
+            All posts &rarr;
+          </a>
+        </section>
+      )
+    }
 
     <section>
       <h2 class="rule-heading label mb-5">Listening</h2>
