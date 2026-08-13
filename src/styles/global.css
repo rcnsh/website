@@ -20,6 +20,9 @@
   --color-brand: #7f8ad0;
   --color-brand-alt: #9aa2dd;
   --color-brand-deep: #5b66af;
+  /* The mark's blue half, lifted the same way, so a gradient can run
+     blue → indigo in the order the logo itself does. */
+  --color-brand-blue: #6f9bd8;
 
   /* Display voice is the metadata mono set heavy — no extra font to download. */
   --font-display: var(--font-mono);

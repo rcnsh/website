@@ -38,7 +38,7 @@ const paletteItems = [...nav, ...externalLinks];
         data-nav-active={homeActive ? "" : undefined}
         class="relative inline-flex shrink-0 items-center px-3 font-mono text-sm tracking-tight text-ink"
       >
-        rcn<span class="text-ink-faint">.sh</span>
+        <span class="wordmark">rcn</span><span class="text-ink-faint">.sh</span>
       </a>
 
       {
@@ -94,6 +94,40 @@ const paletteItems = [...nav, ...externalLinks];
 </header>
 
 <style>
+  /*
+    Hovering the wordmark runs the logo's own blue → indigo across it. The
+    stops are registered as <color> so they interpolate — a gradient built
+    from plain custom properties would snap between the two states.
+    initial-value has to be a literal, so it repeats --color-ink's hex.
+  */
+  @property --wm-from {
+    syntax: "<color>";
+    inherits: false;
+    initial-value: #e8e3d9;
+  }
+  @property --wm-to {
+    syntax: "<color>";
+    inherits: false;
+    initial-value: #e8e3d9;
+  }
+
+  .wordmark {
+    /* Tilted a little, like the strokes in the mark. */
+    background-image: linear-gradient(100deg, var(--wm-from), var(--wm-to));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    transition:
+      --wm-from 0.35s var(--ease-out-quint),
+      --wm-to 0.35s var(--ease-out-quint);
+  }
+
+  a:hover .wordmark,
+  a:focus-visible .wordmark {
+    --wm-from: var(--color-brand-blue);
+    --wm-to: var(--color-brand-alt);
+  }
+
   /*
     One bar for the whole rail — width and offset come in as custom properties,
     so hovering a tab moves a single element rather than cross-fading two.
