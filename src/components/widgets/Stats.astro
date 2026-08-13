@@ -1,8 +1,8 @@
 ---
 import { getProfile } from "@/lib/github";
 
-// Deferred island: three facts from GitHub. The page owns the <dl>, and
-// <astro-island> is display:contents, so these land as its direct children.
+// Deferred island. The page owns the <dl>; <astro-island> is display:contents,
+// so these land as its direct children.
 const profile = await getProfile();
 const since = profile ? new Date(profile.createdAt).getFullYear() : null;
 

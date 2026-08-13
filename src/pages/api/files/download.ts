@@ -4,9 +4,8 @@ import { env } from "cloudflare:workers";
 export const prerender = false;
 
 /**
- * Fallback used only when PUBLIC_BUCKET_URL isn't configured — streams the
- * object straight out of the R2 binding. If the bucket has a public domain,
- * lib/r2 links there instead and this route never gets hit.
+ * Streams objects out of the R2 binding. Only reached when PUBLIC_BUCKET_URL
+ * is unset — otherwise lib/r2 links straight at the public domain.
  */
 export const GET: APIRoute = async ({ url, request }) => {
   const key = url.searchParams.get("key");

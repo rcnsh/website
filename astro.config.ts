@@ -9,9 +9,8 @@ export default defineConfig({
   site: "https://rcn.sh",
   trailingSlash: "never",
 
-  // Static by default — every page ships as a prerendered shell and the live
-  // bits (Spotify, GitHub, R2, guestbook) arrive via server islands or routes
-  // that opt out with `export const prerender = false`.
+  // Static by default. Live data arrives via server islands, or routes that
+  // opt out with `export const prerender = false`.
   output: "static",
   adapter: cloudflare({
     imageService: "compile",

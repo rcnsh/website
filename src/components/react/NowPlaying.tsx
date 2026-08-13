@@ -13,8 +13,7 @@ const POLL_MS = 20_000;
 
 export default function NowPlaying() {
   const [data, setData] = useState<Payload | null>(null);
-  // Interpolated locally between polls so the bar moves every second rather
-  // than jumping every 20.
+  // Interpolated between polls so the bar moves every second, not every 20.
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
 
@@ -65,8 +64,7 @@ export default function NowPlaying() {
   }, [data]);
 
   if (!data) {
-    // Mirrors the loaded layout row for row — art, label, title, artist, and
-    // the fourth line — so swapping in real data doesn't move anything.
+    // Mirrors the loaded layout row for row, so real data doesn't move anything.
     return (
       <Shell>
         <div className="placeholder-block h-14 w-14 shrink-0 rounded-xs" />
@@ -145,9 +143,8 @@ export default function NowPlaying() {
         <p className="truncate text-sm text-ink-dim">{data.artists}</p>
 
         {/*
-          Fourth line, always present so "playing" and "recently played" are
-          the same height. Playing gets the progress bar; otherwise the album
-          fills the slot rather than leaving it blank.
+          Always present so "playing" and "recently played" are the same
+          height — progress bar when playing, album name otherwise.
         */}
         <div className="mt-2.5 flex h-3.5 items-center gap-2.5">
           {playing ? (
@@ -174,12 +171,8 @@ export default function NowPlaying() {
 }
 
 /**
- * Fixed-height frame shared by every state.
- *
- * Without it the widget was 56px as a skeleton, 87px playing, 62px recently
- * played and 20px when idle — so everything below it jumped as the fetch
- * resolved. Reserving the tallest layout once means the content can change
- * without moving the page.
+ * Fixed-height frame shared by every state, so the page doesn't jump as the
+ * fetch resolves.
  */
 function Shell({ children }: { children: React.ReactNode }) {
   return (

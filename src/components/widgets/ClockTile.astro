@@ -2,24 +2,16 @@
 import { clock } from "@/lib/site";
 
 /**
- * Rendered directly by the page rather than inside the stats server island.
- * Astro hoists component <script> tags into the page bundle, so they run at
- * page load — before a deferred island's HTML has been swapped in. Keeping the
- * clock static means its script always finds its element.
- *
- * The clock shows *my* time, not the visitor's — `clock.timeZone` in
- * src/content/site.json decides which.
+ * Static, not a server island: Astro hoists component <script> tags to page
+ * load, before a deferred island's HTML exists, so the script would find
+ * nothing. Shows my time, not the visitor's — see `clock.timeZone`.
  */
 ---
 
 <div>
   <dt class="label">{clock.label}</dt>
   {
-    /*
-      Config reaches the script through data attributes rather than an import:
-      this <script> is hoisted and bundled for the browser, and importing
-      site.ts would pull Zod in with it.
-    */
+    /* Config comes in via data attributes — importing site.ts would ship Zod. */
   }
   <dd
     class="mt-1.5 font-mono text-base tabular-nums text-ink"
@@ -36,7 +28,7 @@ import { clock } from "@/lib/site";
     const node = document.querySelector<HTMLElement>("[data-clock]");
     if (!node) return;
 
-    // Built once, outside the tick — constructing a formatter is the slow part.
+    // Built once — constructing a formatter is the slow part.
     const format = new Intl.DateTimeFormat("en-GB", {
       hour: "2-digit",
       minute: "2-digit",
@@ -52,7 +44,7 @@ import { clock } from "@/lib/site";
     render();
     const id = window.setInterval(render, 1000);
 
-    // Clear before the next view transition so intervals never stack up.
+    // Clear before the next transition so intervals don't stack up.
     document.addEventListener(
       "astro:before-swap",
       () => window.clearInterval(id),

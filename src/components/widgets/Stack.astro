@@ -1,8 +1,7 @@
 ---
 import { stack } from "@/lib/site";
 
-// Split so the things actually reached for first read as the sentence, and
-// the rest trail off as an aside — rather than a uniform wall of badges.
+// Split so the primary tools read as the sentence and the rest trail off.
 const primary = stack.filter((item) => item.primary);
 const rest = stack.filter((item) => !item.primary);
 ---

@@ -24,9 +24,7 @@ function username() {
   return env.GITHUB_USERNAME || site.githubUser;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Contribution calendar                                                       */
-/* -------------------------------------------------------------------------- */
+// --- Contribution calendar ---
 
 export type ContributionDay = {
   date: string;
@@ -120,9 +118,7 @@ export async function getContributions(): Promise<Contributions | null> {
   });
 }
 
-/* -------------------------------------------------------------------------- */
-/* Repositories                                                                */
-/* -------------------------------------------------------------------------- */
+// --- Repositories ---
 
 export type Repo = {
   name: string;

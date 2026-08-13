@@ -33,9 +33,7 @@ export function getGitHubClient(origin: string) {
 
 export { generateState };
 
-/* -------------------------------------------------------------------------- */
-/* Session tokens                                                              */
-/* -------------------------------------------------------------------------- */
+// --- Session tokens ---
 
 /**
  * The raw token goes in the cookie; only its SHA-256 hash is stored. A leaked
@@ -126,9 +124,7 @@ export async function destroySession(cookies: AstroCookies): Promise<void> {
   cookies.delete(SESSION_COOKIE, { path: "/" });
 }
 
-/* -------------------------------------------------------------------------- */
-/* GitHub profile                                                              */
-/* -------------------------------------------------------------------------- */
+// --- GitHub profile ---
 
 export async function fetchGitHubUser(accessToken: string): Promise<SessionUser> {
   const response = await fetch("https://api.github.com/user", {

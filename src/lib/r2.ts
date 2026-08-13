@@ -3,21 +3,9 @@ import { env } from "cloudflare:workers";
 /**
  * R2 listing through the native bucket binding.
  *
- * Two modes:
- *
- *  - `listWholeTree()` walks the bucket once and returns every directory's
- *    listing up front, so the browser can expand folders with no network at
- *    all. This is the normal path — the bucket is a few hundred objects and
- *    the whole tree is ~10 KB gzipped, where lazy-loading cost a 250–860 ms
- *    round trip on every first expand.
- *
- *  - `listDirectory()` reads one directory at a time using `delimiter`. It's
- *    the fallback for when the bucket grows past FULL_TREE_MAX_OBJECTS, and
- *    still backs the /api/files/list endpoint.
- *
- * The old site did neither well: it pulled the entire index over the S3 API on
- * every request, rebuilt the tree per render, and silently truncated at 1000
- * objects because it never paginated.
+ * `listWholeTree()` sends every directory with the page, so expanding a folder
+ * costs no network. `listDirectory()` reads one directory at a time — it backs
+ * /api/files/list, and takes over once the bucket outgrows the tree.
  */
 
 export type R2File = {
@@ -45,11 +33,7 @@ export type R2Listing = {
 /** Every directory in the bucket, keyed by prefix ("" is the root). */
 export type R2Tree = Record<string, R2Listing>;
 
-/**
- * Above this, shipping the whole tree to the client stops being a win and we
- * fall back to lazy loading. At ~157 bytes of JSON per entry, 5000 objects is
- * roughly 780 KB raw / 150 KB gzipped — past what's reasonable to inline.
- */
+/** Above this the tree is too big to inline (~150 KB gzipped), so lazy-load instead. */
 const FULL_TREE_MAX_OBJECTS = 5000;
 
 function publicUrlFor(key: string): string {
@@ -58,12 +42,7 @@ function publicUrlFor(key: string): string {
   return base ? `${base}/${encoded}` : `/api/files/download?key=${encodeURIComponent(key)}`;
 }
 
-/**
- * Dot-prefixed entries are hidden from the public browser, the same way `ls`
- * hides them. The bucket has `.thumb` (a thumbnail cache) and `.aashare` in it,
- * which are tooling artefacts rather than things worth listing. Delete this
- * and its two call sites to show everything.
- */
+/** Dot-prefixed entries stay hidden, the same way `ls` hides them. */
 function isHidden(name: string): boolean {
   return name.startsWith(".");
 }
@@ -97,8 +76,7 @@ export async function listDirectory(prefix = ""): Promise<R2Listing> {
       delimiter: "/",
       limit: 1000,
       cursor,
-      // No `include`: only key/size/uploaded are used, and asking for
-      // httpMetadata makes R2 do extra work on every list.
+      // No `include` — httpMetadata costs extra work and isn't used.
     });
 
     for (const delimited of result.delimitedPrefixes) {
@@ -140,10 +118,8 @@ export async function listDirectory(prefix = ""): Promise<R2Listing> {
 }
 
 /**
- * One flat pass over the bucket, folded into a listing per directory.
- *
- * Returns null when the bucket is larger than FULL_TREE_MAX_OBJECTS, which
- * tells the caller to fall back to per-directory lazy loading.
+ * One flat pass over the bucket, folded into a listing per directory. Returns
+ * null past FULL_TREE_MAX_OBJECTS, telling the caller to lazy-load instead.
  */
 export async function listWholeTree(): Promise<R2Tree | null> {
   const bucket = env.BUCKET;
@@ -167,7 +143,6 @@ export async function listWholeTree(): Promise<R2Tree | null> {
     const result = await bucket.list({ limit: 1000, cursor });
 
     for (const object of result.objects) {
-      // Directory markers and hidden paths never make it into the tree.
       if (object.size === 0 || object.key.endsWith("/")) continue;
 
       const segments = object.key.split("/");
@@ -230,7 +205,7 @@ export async function searchBucket(query: string, limit = 100): Promise<R2File[]
 
     for (const object of result.objects) {
       if (object.size === 0 || object.key.endsWith("/")) continue;
-      // Hidden anywhere in the path, so `.thumb/x.png` stays out of results.
+      // Hidden anywhere in the path, so `.thumb/x.png` stays out.
       if (object.key.split("/").some(isHidden)) continue;
       if (!object.key.toLowerCase().includes(needle)) continue;
 

@@ -89,9 +89,8 @@ export default function FileBrowser({ tree, initial }: Props) {
       } else {
         next.add(prefix);
         void load(prefix);
-        // Grows only. The collapse animation needs the children to stay in the
-        // DOM once opened, but nothing should be mounted before its first open
-        // — otherwise the whole inlined tree renders on first paint.
+        // Grows only — the collapse animation needs children to stay in the DOM
+        // once opened.
         setMounted((m) => (m.has(prefix) ? m : new Set(m).add(prefix)));
       }
       return next;
@@ -104,8 +103,8 @@ export default function FileBrowser({ tree, initial }: Props) {
     [complete, listings],
   );
 
-  // Search: instant and local when the tree is complete, otherwise a debounced
-  // round trip to /api/files/search (which re-scans the bucket each time).
+  // Local and instant with a complete tree, otherwise debounced against
+  // /api/files/search.
   useEffect(() => {
     const term = query.trim();
     if (term.length < 2) {
@@ -134,7 +133,7 @@ export default function FileBrowser({ tree, initial }: Props) {
         const data = (await response.json()) as { files: R2File[] };
         setResults(data.files ?? []);
       } catch {
-        // Aborted or failed — leave the previous results in place.
+        // Aborted or failed — keep the previous results.
       } finally {
         setSearching(false);
       }
@@ -308,12 +307,9 @@ function FolderRow({
       </button>
 
       {/*
-        Collapse is a pure CSS grid-row transition rather than an animated
-        height. Two reasons: a JS height animation has to measure, so a nested
-        folder opening inside an already-open one leaves the ancestor clipped
-        at its stale height; and if the frame loop is ever starved (background
-        tab) the content would stay stuck at height 0 and be unreachable.
-        `1fr` needs no measurement and nests cleanly.
+        A CSS grid-row transition, not an animated height: `1fr` needs no
+        measurement, so it nests cleanly and can't get stuck at 0 if the frame
+        loop is starved in a background tab.
       */}
       <div
         className={cn(
@@ -329,10 +325,9 @@ function FolderRow({
           >
             <div style={{ marginLeft: `-${depth * 16 + 7}px` }}>
               {/*
-                Rendered only after this folder's first open. The whole tree is
-                inlined in the page, so without this gate React would mount
-                every file row on first paint — ~5400 DOM nodes here — and pay
-                to reconcile all of them on every keystroke in the search box.
+                Gated on first open. The whole tree is inlined, so without this
+                React would mount every file row on first paint and reconcile
+                them all on every keystroke.
               */}
               {mounted.has(folder.prefix) && (
                 <Level

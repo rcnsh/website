@@ -8,13 +8,9 @@ interface Props {
 const { class: className, plate = false } = Astro.props;
 
 /**
- * The source artwork is a wide, short mark centred in a 1080² canvas — it
- * fills 75% of the width but only 22% of the height, so a square box renders
- * a glyph a fifth of its apparent size. Cropping to the real bounds makes the
- * SVG's box the mark itself, so `h-8` means eight units of *logo*.
- * Aspect ratio is 815.34 / 235.38 ≈ 3.46:1 — size it by height, width auto.
- *
- * The plate variant keeps the full square, since the plate is the square.
+ * The viewBox is cropped to the mark's real bounds (≈3.46:1), so `h-8` means
+ * eight units of logo rather than of mostly-empty canvas. Size by height, width
+ * auto. The plate variant keeps the full square.
  */
 const viewBox = plate ? "0 0 1080 1080" : "132.33 422.31 815.34 235.38";
 ---

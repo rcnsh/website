@@ -6,9 +6,8 @@ import { iconFor } from "./icon-map";
 import { cn } from "@/lib/utils";
 
 /**
- * Entries come from src/content/site.json via TopBar rather than being
- * imported here — site.ts pulls in Zod for validation, and this is a client
- * island, so importing it would ship the validator to the browser.
+ * Entries arrive as a prop from TopBar rather than being imported — this is a
+ * client island, and importing site.ts would ship Zod to the browser.
  */
 export type PaletteItem = {
   href: string;

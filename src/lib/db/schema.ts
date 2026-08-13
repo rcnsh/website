@@ -2,9 +2,8 @@ import { sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
- * One entry per signer. Keyed on the GitHub user id rather than the email the
- * old Astro DB table used — emails are often private on GitHub, and the id
- * never changes when someone renames their account.
+ * One entry per signer, keyed on the GitHub user id — emails are often private,
+ * and the id survives a rename.
  */
 export const guestbook = sqliteTable(
   "guestbook",

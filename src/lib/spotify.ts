@@ -3,13 +3,8 @@ import { z } from "zod";
 import { cached } from "./cache";
 
 /**
- * Spotify, ported off the old Vercel/Node version.
- *
- * Two deliberate changes from the original:
- *  1. `btoa` instead of `Buffer` — there is no Node Buffer in workerd.
- *  2. Schemas only describe the handful of fields actually rendered. The old
- *     code mirrored Spotify's entire response shape, so any field Spotify
- *     added or nulled would throw and take the whole page down.
+ * Spotify. The schemas describe only the fields actually rendered, so a field
+ * Spotify adds or nulls can't take the page down.
  */
 
 const TOKEN_CACHE_KEY = "spotify:access_token";
@@ -64,11 +59,9 @@ export type NowPlaying =
 export type TimeRange = "short_term" | "medium_term" | "long_term";
 
 /**
- * Freshness per range, matched to how fast each one actually moves. A
- * lifetime top-tracks list changes over months, so re-fetching it every half
- * hour was pure waste. These are only the *fresh* windows — `cached()` keeps
- * serving a stale value instantly while it refreshes behind the response, so a
- * long window costs nothing in accuracy, only in how often Spotify is polled.
+ * How long each range stays fresh, matched to how fast it moves. A long window
+ * only means Spotify is polled less — `cached()` serves stale instantly either
+ * way.
  */
 const TOP_FRESHNESS: Record<TimeRange, number> = {
   short_term: 60 * 60, // "4 weeks" — shifts day to day
@@ -87,9 +80,7 @@ function normaliseTrack(raw: z.infer<typeof trackSchema>): Track {
   };
 }
 
-/* -------------------------------------------------------------------------- */
-/* Auth                                                                        */
-/* -------------------------------------------------------------------------- */
+// --- Auth ---
 
 async function requestAccessToken(): Promise<{ token: string; ttl: number }> {
   const { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REFRESH_TOKEN } = env;
@@ -155,9 +146,7 @@ async function spotify(path: string): Promise<unknown> {
   return body.trim() ? JSON.parse(body) : null;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Queries                                                                     */
-/* -------------------------------------------------------------------------- */
+// --- Queries ---
 
 export async function getNowPlaying(): Promise<NowPlaying> {
   // Never cached — the whole point is that it is live.
@@ -228,7 +217,6 @@ export async function getTopArtists(range: TimeRange, limit = 12): Promise<Artis
 export type RecentTrack = Track & { playedAt: string };
 
 export async function getRecentTracks(limit = 20): Promise<RecentTrack[]> {
-  // Short window, but SWR means a visitor never waits on it either way.
   return cached(`spotify:recent:${limit}`, 60 * 5, async () => {
     const data = await spotify(`/me/player/recently-played?limit=${limit}`);
     const parsed = z

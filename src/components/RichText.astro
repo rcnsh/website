@@ -1,11 +1,8 @@
 ---
 /**
- * Renders the tiny slice of Markdown used in site.json: `[text](url)` links,
- * and nothing else. Everything outside a link is emitted as plain text, so
- * copy in the config can't inject markup.
- *
- * A full Markdown renderer would be a dependency and a parse at render time
- * for what amounts to a handful of links.
+ * The slice of Markdown used in site.json: `[text](url)` links, nothing else.
+ * Everything outside a link is emitted as plain text, so config copy can't
+ * inject markup.
  */
 interface Props {
   text: string;

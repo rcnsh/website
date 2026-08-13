@@ -2,14 +2,9 @@ import { z } from "zod";
 import raw from "@/content/site.json";
 
 /**
- * Everything you're likely to want to change lives in `src/content/site.json`.
- * This module only loads and validates it.
- *
- * The import is resolved by Vite at build time, so the JSON is inlined into the
- * bundle — there is no file read, fetch, or parse at runtime.
- *
- * Validation runs once at module load. A typo or missing field fails the build
- * with a pointer to the exact path, rather than rendering a broken page.
+ * Loads and validates `src/content/site.json`. Vite inlines the JSON at build
+ * time, and validation runs at module load, so a typo fails the build with the
+ * exact path rather than rendering a broken page.
  */
 
 const linkSchema = z.object({
@@ -40,11 +35,7 @@ const schema = z.object({
   }),
   clock: z.object({
     label: z.string().min(1),
-    /**
-     * Whose clock this is — pinned to my timezone, not the visitor's.
-     * Checked against the runtime's zone database so a typo like
-     * "Europe/Newcastle" fails the build rather than throwing in the browser.
-     */
+    /** My timezone, not the visitor's. Checked against the runtime's zone database. */
     timeZone: z.string().refine(
       (tz) => {
         try {

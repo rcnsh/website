@@ -32,9 +32,8 @@ import { home, site } from "@/lib/site";
   </section>
 
   <!--
-    flex+gap rather than space-y: Astro renders islands as <astro-island>
-    (display: contents) alongside injected <script>/<style> siblings, so
-    `space-y-*`'s `> * + *` margins land on zero-height elements.
+    flex+gap, not space-y — islands render as display:contents, so `> * + *`
+    margins would land on zero-height elements.
   -->
   <div class="flex flex-col gap-14 pb-6">
     <!-- Facts strip. display:contents on the island makes these siblings. -->

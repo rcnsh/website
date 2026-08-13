@@ -1,9 +1,6 @@
 /**
- * Local profanity check.
- *
- * The old site POSTed every message to vector.profanity.dev — a third-party
- * service that, if it ever went away or got slow, would block signing. A short
- * local wordlist is less clever but has no network dependency and no upkeep.
+ * Local profanity check. A short wordlist rather than a third-party API, so
+ * signing the guestbook never depends on another service being up.
  */
 
 /** Matched as whole words only — too short to substring-search safely. */
@@ -13,10 +10,7 @@ const EXACT = [
   "shit", "slut", "spic", "twat", "wank",
 ];
 
-/**
- * Long enough that a substring match won't hit an innocent word, so these also
- * catch padded-out spellings like "n i g g e r".
- */
+/** Long enough to substring-match safely, so padded-out spellings are caught too. */
 const SUBSTRING = [
   "bastard", "bitch", "bollock", "boner", "chink", "dildo", "faggot",
   "goatse", "nigga", "nigger", "penis", "pussy", "rape", "retard",
@@ -43,9 +37,8 @@ function canonicalise(input: string): string {
 }
 
 export function containsProfanity(message: string): boolean {
-  // Whole message with all separators stripped — defeats "f u c k" and
-  // "s-h-i-t", at the cost of gluing adjacent words together. Only the longer
-  // terms are searched here, so "Scunthorpe" and "classroom" stay clean.
+  // Separators stripped, so "f u c k" and "s-h-i-t" are caught. This glues
+  // adjacent words together, hence only the longer terms are searched here.
   const collapsed = canonicalise(message);
   if (!collapsed) return false;
 

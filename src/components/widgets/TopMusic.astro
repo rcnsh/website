@@ -10,8 +10,7 @@ import {
 
 const initialRange: TimeRange = "long_term";
 
-// Server island: the first tab arrives fully rendered, and the React island
-// fetches the other ranges on demand.
+// The first tab arrives rendered; the island fetches other ranges on demand.
 let tracks: Track[] = [];
 let artists: Artist[] = [];
 try {

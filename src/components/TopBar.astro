@@ -4,28 +4,21 @@ import { externalLinks, nav } from "@/lib/site";
 
 const path = Astro.url.pathname.replace(/\/+$/, "") || "/";
 
-/**
- * "/" would prefix-match every route, so home is the one that needs an exact
- * comparison. It matters now that the wordmark is a real tab and can be marked
- * active like the rest.
- */
+// "/" needs an exact match, since it would prefix-match every route.
 const isActive = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
 
 const tabs = nav.slice(1);
 const homeActive = isActive("/");
 
-// Built here rather than inside the island so site.ts (and Zod) stay off the
-// client bundle — only the resulting data crosses.
+// Built here, not in the island, so site.ts (and Zod) stay off the client bundle.
 const paletteItems = [...nav, ...externalLinks];
 ---
 
 {
   /*
-    Deliberately NOT transition:persist. The header's active-route marker is
-    computed from Astro.url, so persisting the node across navigations freezes
-    it on whichever page was loaded first — every subsequent page would render
-    the correct header and then have it thrown away. Only the palette island
-    below is persisted, so it keeps its state without pinning the markup.
+    Not transition:persist — the active-route marker comes from Astro.url, so
+    persisting the header would freeze it on the first page loaded. Only the
+    palette island below persists.
   */
 }
 <header class="sticky top-0 z-50 border-b border-line bg-base/85 backdrop-blur-md">
@@ -33,8 +26,7 @@ const paletteItems = [...nav, ...externalLinks];
     {
       /*
         Wordmark and links share one rail so a single underline can travel the
-        whole row. -ml-3 cancels the first tab's padding, keeping "rcn" optically
-        flush with the content column below.
+        whole row. -ml-3 cancels the first tab's padding.
       */
     }
     <div class="relative -ml-3 flex items-stretch self-stretch" data-nav-rail>
@@ -103,9 +95,8 @@ const paletteItems = [...nav, ...externalLinks];
 
 <style>
   /*
-    One bar for the whole rail: width and offset are pushed in as custom
-    properties, so hovering a different tab animates a single element between
-    two places rather than cross-fading two of them.
+    One bar for the whole rail — width and offset come in as custom properties,
+    so hovering a tab moves a single element rather than cross-fading two.
   */
   .nav-underline {
     position: absolute;
@@ -128,7 +119,7 @@ const paletteItems = [...nav, ...externalLinks];
     transition: opacity 0.22s ease;
   }
 
-  /* Until the script takes over (or if it never does), the active tab marks itself. */
+  /* Until the script takes over, the active tab marks itself. */
   [data-nav-rail]:not([data-nav-ready]) [data-nav-active]::after {
     content: "";
     position: absolute;
@@ -140,9 +131,8 @@ const paletteItems = [...nav, ...externalLinks];
 </style>
 
 <script>
-  // The rail is rebuilt on every navigation. Listeners on the old nodes die
-  // with them, but the one on `window` would outlive it and pin a detached
-  // rail, so each run retires the previous run's listeners.
+  // The rail is rebuilt on every navigation. The `window` listener would
+  // outlive it and pin a detached rail, so each run retires the last one's.
   let binding: AbortController | null = null;
 
   function setupNav() {
@@ -161,16 +151,16 @@ const paletteItems = [...nav, ...externalLinks];
     let shown = false;
 
     const place = (el: HTMLElement | null, animate: boolean) => {
-      // Tabs hidden at this breakpoint have no box to measure — treat the
-      // target as absent so the bar fades out instead of collapsing to 0,0.
+      // Tabs hidden at this breakpoint have no box to measure, so fade the
+      // bar out rather than collapsing it to 0,0.
       if (!el || (el.offsetParent === null && el.offsetWidth === 0)) {
         rail.style.setProperty("--nav-o", "0");
         shown = false;
         return;
       }
 
-      // Animating from a stale position looks like a glitch, so only tween
-      // when the bar is already on screen where the user can see it start.
+      // Only tween when the bar is already on screen — animating from a stale
+      // position reads as a glitch.
       const jump = !animate || !shown;
       if (jump) bar.setAttribute("data-instant", "");
 
@@ -208,7 +198,6 @@ const paletteItems = [...nav, ...externalLinks];
     place(activeTab(), false);
   }
 
-  // The header is re-rendered on every navigation, so re-bind each time. This
-  // fires on the initial load too.
+  // Fires on the initial load too.
   document.addEventListener("astro:page-load", setupNav);
 </script>

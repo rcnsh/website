@@ -1,13 +1,8 @@
 @import "tailwindcss";
 
-/* ---------------------------------------------------------------------------
-   Design tokens
-
-   Warm grey on near-black, carried over from the old site's #cdc8c2 palette
-   rather than the cooler blue-black that dark themes tend to default to.
-   One accent — the logo's blue — and it only ever marks something
-   interactive. No decorative colour anywhere.
---------------------------------------------------------------------------- */
+/* --- Design tokens ---
+   Warm grey on near-black. One accent, the logo's blue, used only to mark
+   something interactive. */
 @theme {
   --color-base: #0d0d0c;
   --color-surface: #131311;
@@ -26,8 +21,7 @@
   --color-brand-alt: #9aa2dd;
   --color-brand-deep: #5b66af;
 
-  /* Display voice: the same mono used for metadata, set heavy. Two voices
-     instead of three, and no extra font to download. */
+  /* Display voice is the metadata mono set heavy — no extra font to download. */
   --font-display: var(--font-mono);
   --font-sans:
     "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
@@ -35,7 +29,7 @@
   --font-mono:
     "Geist Mono Variable", ui-monospace, "SF Mono", "Cascadia Code", monospace;
 
-  /* Small. Large radii are most of what makes a page read as a stack of widgets. */
+  /* Small — large radii are what make a page read as a stack of widgets. */
   --radius-card: 5px;
 
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
@@ -64,9 +58,7 @@
   }
 }
 
-/* ---------------------------------------------------------------------------
-   Base
---------------------------------------------------------------------------- */
+/* --- Base --- */
 @layer base {
   html {
     scrollbar-gutter: stable;
@@ -109,21 +101,16 @@
   }
 }
 
-/* ---------------------------------------------------------------------------
-   Utilities
-
-   `card` is now only for things that genuinely need containment — a dialog, a
-   scrolling file tree. Everything else is separated by rules and whitespace,
-   so the page reads as a document rather than a dashboard of tiles.
---------------------------------------------------------------------------- */
+/* --- Utilities ---
+   `card` is only for things needing real containment, like a dialog or the
+   file tree. Everything else is separated by rules and whitespace. */
 @utility card {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   background: var(--color-surface);
 }
 
-/* Headings: mono at heavy weight, tracked in slightly to stop the fixed
-   advance widths reading as loose at display size. */
+/* Mono at heavy weight, tracked in — fixed advance widths read loose at size. */
 @utility display-face {
   font-family: var(--font-display);
   font-weight: 700;

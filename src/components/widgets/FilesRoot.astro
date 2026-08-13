@@ -3,10 +3,9 @@ import FileBrowser from "@/components/react/FileBrowser";
 import { listDirectory, listWholeTree, type R2Listing, type R2Tree } from "@/lib/r2";
 
 /*
- * Server island. Normally ships the entire directory tree with the page, so
- * expanding a folder costs nothing. `listWholeTree` returns null once the
- * bucket is too big to inline, in which case we send just the root and the
- * client lazy-loads the rest from /api/files/list.
+ * Server island. Ships the whole directory tree with the page, or — once the
+ * bucket is too big for that — just the root, leaving the client to lazy-load
+ * the rest from /api/files/list.
  */
 let tree: R2Tree | null = null;
 let root: R2Listing | null = null;

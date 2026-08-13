@@ -65,11 +65,8 @@ export default function MusicExplorer({
   const bucket = cache[range];
 
   /*
-    Stale-while-revalidate. Switching to an un-fetched range used to leave
-    `items` undefined for the length of the round trip, which fell through to
-    the empty state — so changing period flashed a "no data" message at you.
-    Keeping the last resolved range on screen means there is never an empty
-    frame to see; it just dims until the new data lands.
+    Keeping the last resolved range on screen means switching to an un-fetched
+    one dims rather than flashing the empty state for the round trip.
   */
   const lastResolved = useRef<Bucket>({
     tracks: initialTracks,
@@ -128,11 +125,7 @@ export default function MusicExplorer({
         {loading && <span className="text-ink-faint">loading…</span>}
       </div>
 
-      {/*
-        While a new range is in flight the previous one stays put and just
-        dims, and pointer events are off so you can't click a row that's about
-        to be replaced.
-      */}
+      {/* Pointer events off while stale, so you can't click a row about to be replaced. */}
       <div
         className={cn(
           "transition-opacity duration-200",

@@ -1,24 +1,12 @@
 import { env, waitUntil } from "cloudflare:workers";
 
 /**
- * Stale-while-revalidate cache over the CACHE KV namespace.
+ * Stale-while-revalidate cache over the CACHE KV namespace. Every upstream call
+ * (Spotify, GitHub) goes through here so a visitor never waits on a third-party
+ * API: a stale value is returned immediately and refreshed after the response.
  *
- * Every upstream call on this site (Spotify, GitHub) goes through here. The
- * point is that a visitor should never wait on a third-party API: once a value
- * has been fetched even once, every later request is served straight from KV
- * and any refresh happens after the response has already been sent.
- *
- * Three outcomes:
- *   fresh  — age < freshFor. Return it, do nothing else.
- *   stale  — age >= freshFor but the entry still exists. Return it immediately
- *            and refresh in the background via `waitUntil`, so the current
- *            request pays nothing.
- *   miss   — nothing cached. Fetch synchronously; this is the only slow path,
- *            and only the first visitor after a deploy or a long idle hits it.
- *
- * KV entries are kept far longer than `freshFor` (see STALE_GRACE) precisely so
- * there is something stale to serve. An entry that expired outright would turn
- * every subsequent request back into a blocking fetch.
+ * Only a cold miss blocks. Entries outlive `freshFor` by STALE_GRACE so there
+ * is always something stale to serve.
  */
 
 type Entry<T> = { v: T; t: number };
@@ -65,8 +53,7 @@ export async function cached<T>(
     const stale = Date.now() - hit.t >= freshForSeconds * 1000;
 
     if (stale) {
-      // Refresh after the response goes out. Failures are deliberately
-      // swallowed — the visitor already has a usable value.
+      // Failures are swallowed — the visitor already has a usable value.
       const refresh = loader()
         .then(write)
         .catch((error) => {
@@ -76,9 +63,8 @@ export async function cached<T>(
       try {
         waitUntil(refresh);
       } catch {
-        // No request context to attach to — prerendering at build time, or a
-        // runtime that doesn't provide one. The refresh is still in flight;
-        // it just isn't guaranteed to be awaited. Serving stale is fine.
+        // No request context — prerendering at build time. The refresh is
+        // still in flight, just not guaranteed to finish. Stale is fine.
       }
     }
 
