@@ -6,13 +6,26 @@ import { env, waitUntil } from "cloudflare:workers";
  * API: a stale value is returned immediately and refreshed after the response.
  *
  * Only a cold miss blocks. Entries outlive `freshFor` by STALE_GRACE so there
- * is always something stale to serve.
+ * is always something stale to serve — a month, because the alternative to a
+ * long grace window is a scheduled job that can rot silently.
+ *
+ * `maxStale` is the counterweight: date-anchored data (recently played, the
+ * contribution graph) looks plainly wrong when it's weeks old, so those opt
+ * into a ceiling past which the cache blocks and refetches instead.
  */
 
 type Entry<T> = { v: T; t: number };
 
-/** How long a value may be served stale after it stops being fresh. */
-const STALE_GRACE_SECONDS = 60 * 60 * 24 * 7;
+/** How long an entry survives past `freshFor`, i.e. how long stale is servable. */
+const STALE_GRACE_SECONDS = 60 * 60 * 24 * 30;
+
+export type CacheOptions = {
+  /**
+   * Age past which stale is worse than waiting. Defaults to the full grace
+   * window; set it lower for anything the reader can date at a glance.
+   */
+  maxStaleSeconds?: number;
+};
 
 function isEntry<T>(value: unknown): value is Entry<T> {
   return (
@@ -28,6 +41,7 @@ export async function cached<T>(
   key: string,
   freshForSeconds: number,
   loader: () => Promise<T>,
+  { maxStaleSeconds = STALE_GRACE_SECONDS }: CacheOptions = {},
 ): Promise<T> {
   const kv = env.CACHE;
   if (!kv) return loader();
@@ -50,9 +64,22 @@ export async function cached<T>(
   }
 
   if (isEntry<T>(hit)) {
-    const stale = Date.now() - hit.t >= freshForSeconds * 1000;
+    const age = Date.now() - hit.t;
 
-    if (stale) {
+    if (age >= maxStaleSeconds * 1000) {
+      // Too old to show. Block on a fresh fetch — but if that fails, the old
+      // value still beats an error, so fall back to it rather than throwing.
+      try {
+        const value = await loader();
+        await write(value);
+        return value;
+      } catch (error) {
+        console.error(`[cache] refresh of expired ${key} failed, serving stale`, error);
+        return hit.v;
+      }
+    }
+
+    if (age >= freshForSeconds * 1000) {
       // Failures are swallowed — the visitor already has a usable value.
       const refresh = loader()
         .then(write)

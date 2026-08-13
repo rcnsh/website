@@ -66,56 +66,63 @@ export async function getContributions(): Promise<Contributions | null> {
   // requires a token — unlike the REST endpoints below.
   if (!env.GITHUB_TOKEN) return null;
 
-  return cached(`github:contributions:${username()}`, 60 * 60, async () => {
-    try {
-      const response = await fetch(`${GITHUB_API}/graphql`, {
-        method: "POST",
-        headers: { ...headers(), "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: CONTRIBUTIONS_QUERY,
-          variables: { login: username() },
-        }),
-      });
+  return cached(
+    `github:contributions:${username()}`,
+    60 * 60,
+    async () => {
+      try {
+        const response = await fetch(`${GITHUB_API}/graphql`, {
+          method: "POST",
+          headers: { ...headers(), "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: CONTRIBUTIONS_QUERY,
+            variables: { login: username() },
+          }),
+        });
 
-      if (!response.ok) return null;
+        if (!response.ok) return null;
 
-      const json = (await response.json()) as {
-        data?: {
-          user?: {
-            contributionsCollection?: {
-              contributionCalendar?: {
-                totalContributions: number;
-                weeks: {
-                  contributionDays: {
-                    date: string;
-                    contributionCount: number;
-                    contributionLevel: string;
+        const json = (await response.json()) as {
+          data?: {
+            user?: {
+              contributionsCollection?: {
+                contributionCalendar?: {
+                  totalContributions: number;
+                  weeks: {
+                    contributionDays: {
+                      date: string;
+                      contributionCount: number;
+                      contributionLevel: string;
+                    }[];
                   }[];
-                }[];
+                };
               };
             };
           };
         };
-      };
 
-      const calendar =
-        json.data?.user?.contributionsCollection?.contributionCalendar;
-      if (!calendar) return null;
+        const calendar =
+          json.data?.user?.contributionsCollection?.contributionCalendar;
+        if (!calendar) return null;
 
-      return {
-        total: calendar.totalContributions,
-        weeks: calendar.weeks.map((week) =>
-          week.contributionDays.map((day) => ({
-            date: day.date,
-            count: day.contributionCount,
-            level: LEVELS[day.contributionLevel] ?? 0,
-          })),
-        ),
-      };
-    } catch {
-      return null;
-    }
-  });
+        return {
+          total: calendar.totalContributions,
+          weeks: calendar.weeks.map((week) =>
+            week.contributionDays.map((day) => ({
+              date: day.date,
+              count: day.contributionCount,
+              level: LEVELS[day.contributionLevel] ?? 0,
+            })),
+          ),
+        };
+      } catch {
+        return null;
+      }
+    },
+    // The calendar is anchored to today's date, so a month-old copy would
+    // render with a blank strip at the right-hand edge. Past a day, wait.
+    { maxStaleSeconds: 60 * 60 * 24 },
+  );
 }
 
 // --- Repositories ---

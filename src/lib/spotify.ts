@@ -58,11 +58,9 @@ export type NowPlaying =
 
 export type TimeRange = "short_term" | "medium_term" | "long_term";
 
-/**
- * How long each range stays fresh, matched to how fast it moves. A long window
- * only means Spotify is polled less — `cached()` serves stale instantly either
- * way.
- */
+/*
+How long each range stays fresh, matched to how fast it moves. A long window only means Spotify is polled less — `cached()` serves stale instantly either way.
+*/
 const TOP_FRESHNESS: Record<TimeRange, number> = {
   short_term: 60 * 60, // "4 weeks" — shifts day to day
   medium_term: 60 * 60 * 6, // "6 months" — shifts over weeks
@@ -217,20 +215,27 @@ export async function getTopArtists(range: TimeRange, limit = 12): Promise<Artis
 export type RecentTrack = Track & { playedAt: string };
 
 export async function getRecentTracks(limit = 20): Promise<RecentTrack[]> {
-  return cached(`spotify:recent:${limit}`, 60 * 5, async () => {
-    const data = await spotify(`/me/player/recently-played?limit=${limit}`);
-    const parsed = z
-      .object({
-        items: z
-          .array(z.object({ track: trackSchema, played_at: z.string() }))
-          .default([]),
-      })
-      .safeParse(data);
+  return cached(
+    `spotify:recent:${limit}`,
+    60 * 5,
+    async () => {
+      const data = await spotify(`/me/player/recently-played?limit=${limit}`);
+      const parsed = z
+        .object({
+          items: z
+            .array(z.object({ track: trackSchema, played_at: z.string() }))
+            .default([]),
+        })
+        .safeParse(data);
 
-    if (!parsed.success) return [];
-    return parsed.data.items.map((item) => ({
-      ...normaliseTrack(item.track),
-      playedAt: item.played_at,
-    }));
-  });
+      if (!parsed.success) return [];
+      return parsed.data.items.map((item) => ({
+        ...normaliseTrack(item.track),
+        playedAt: item.played_at,
+      }));
+    },
+    // Every row renders as "played 3 hours ago", so a list left over from last
+    // week reads as broken. Past six hours, wait for real data instead.
+    { maxStaleSeconds: 60 * 60 * 6 },
+  );
 }
