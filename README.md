@@ -12,7 +12,7 @@ building against current packages.
 - **React 19** — command palette, file browser, music explorer, now-playing card
 - **Tailwind 4** — tokens live in `@theme` at the top of `src/styles/global.css`
 - **Drizzle + D1** for the guestbook and sessions, **R2** for files, **KV** for
-  caching, **Arctic** for GitHub OAuth
+  caching, and a hand-rolled GitHub OAuth flow in `src/lib/auth.ts`
 
 ## Setup
 
