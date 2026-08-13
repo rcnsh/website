@@ -2,8 +2,8 @@ import type { APIRoute } from "astro";
 import {
   OAUTH_STATE_COOKIE,
   createSession,
+  exchangeCodeForToken,
   fetchGitHubUser,
-  getGitHubClient,
 } from "@/lib/auth";
 
 export const prerender = false;
@@ -21,9 +21,8 @@ export const GET: APIRoute = async ({ cookies, url, redirect }) => {
   }
 
   try {
-    const github = getGitHubClient(url.origin);
-    const tokens = await github.validateAuthorizationCode(code);
-    const user = await fetchGitHubUser(tokens.accessToken());
+    const accessToken = await exchangeCodeForToken(url.origin, code);
+    const user = await fetchGitHubUser(accessToken);
 
     await createSession(user, cookies, url.protocol === "https:");
 
