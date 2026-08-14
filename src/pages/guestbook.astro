@@ -7,7 +7,6 @@ import { getSession } from "@/lib/auth";
 import { getDb, schema } from "@/lib/db";
 import { containsProfanity } from "@/lib/profanity";
 import { relativeTime } from "@/lib/utils";
-import RichText from "@/components/RichText.astro";
 import { pages } from "@/lib/site";
 
 // Needs the request's cookies, so it can't be prerendered.
@@ -102,10 +101,9 @@ const existing = session
   : undefined;
 ---
 
-<Layout title={page.title} description={page.intro}>
+<Layout title={page.title} description={page.description}>
   <header class="animate-rise pb-10">
     <h1 class="display-face text-[2.25rem] text-ink">{page.title}</h1>
-    <RichText text={page.intro} class="mt-2.5 max-w-[54ch] text-ink-dim" />
   </header>
 
   {

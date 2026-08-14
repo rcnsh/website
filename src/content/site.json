@@ -4,7 +4,7 @@
     "url": "https://rcn.sh",
     "author": "Jacob Wiltshire",
     "tagline": "computer science student · national university of singapore",
-    "metaDescription": "Jacob Wiltshire — computer science student at Newcastle University. Music, files, and a guestbook."
+    "metaDescription": "Jacob Wiltshire — computer science student at Newcastle University. Writing, music, files and a guestbook."
   },
 
   "accounts": {
@@ -25,25 +25,25 @@
   "pages": {
     "blog": {
       "title": "Writing",
-      "intro": "Notes on things I've built and things I've broken. There's an [RSS feed](/rss.xml) too!",
-      "feedDescription": "Notes on things I've built and things I've broken, by Jacob Wiltshire."
+      "description": "Posts on software and side projects. Available as an RSS feed.",
+      "feedDescription": "Posts on software and side projects, by Jacob Wiltshire."
     },
     "music": {
       "title": "Music",
-      "intro": "Straight off [my Spotify](https://open.spotify.com/user/nz3i2a30ep85rv5ymcpglhndj), refreshed every few minutes."
+      "description": "Now playing, top tracks and artists, and recently played, from Spotify."
     },
     "guestbook": {
       "title": "Guestbook",
-      "intro": "Leave a note to say hi!",
+      "description": "Sign in with GitHub to leave a message.",
       "maxMessageLength": 200
     },
     "files": {
       "title": "Files",
-      "intro": "Everything public in my R2 bucket. Open a folder to browse, or search through."
+      "description": "Browse and search the public files hosted on Cloudflare R2."
     },
     "notFound": {
       "title": "Nothing here",
-      "intro": "That page doesn't exist."
+      "description": "That page doesn't exist."
     }
   },
 
