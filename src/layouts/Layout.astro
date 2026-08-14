@@ -20,8 +20,8 @@ const { title, description = site.description, ogType = "website" } = Astro.prop
 const pageTitle = title ? `${site.name} • ${title}` : `${site.name} • Home`;
 
 /*
-  Page intros double as meta descriptions, and those are written for RichText —
-  so `[label](url)` reaches here verbatim unless it's unwrapped to its label.
+  Descriptions come from config and post frontmatter, where `[label](url)` is a
+  habit — unwrap it to the label so raw Markdown never lands in a meta tag.
 */
 const metaDescription = description.replace(/\[([^\]]+)\]\([^)\s]+\)/g, "$1");
 const canonical =
