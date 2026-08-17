@@ -20,11 +20,13 @@ building against current packages.
 npm install
 ```
 
-If npm blocks install scripts, approve them — `workerd` and `esbuild` download
-binaries in `postinstall`:
+npm holds back install scripts it hasn't been told to trust, and `workerd` and
+`esbuild` download their binaries in one. The approvals are already committed
+in the `allowScripts` field of `package.json`, so this should be quiet — but if
+npm reports anything pending, review and approve it:
 
 ```bash
-npm install-scripts approve workerd esbuild
+npm approve-scripts --allow-scripts-pending
 ```
 
 Create the Cloudflare resources and paste the ids into `wrangler.jsonc`:
@@ -114,6 +116,8 @@ env.DB; // D1   env.BUCKET; // R2   env.CACHE; // KV
 | --- | --- |
 | `npm run dev` | Dev server in workerd, with local D1/R2/KV |
 | `npm run build` | `astro check`, then a production build |
+| `npm test` | Unit tests, via the Node test runner — no framework to install |
+| `npm run lint` / `lint:fix` | Biome across the codebase |
 | `npm run preview` | Build, then serve with wrangler |
 | `npm run deploy` | Build and deploy to Cloudflare |
 | `npm run cf-types` | Regenerate `worker-configuration.d.ts` after editing bindings |
