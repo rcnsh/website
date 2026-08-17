@@ -75,10 +75,11 @@ export default function FileBrowser({ tree, initial }: Props) {
     [complete, listings],
   );
 
+  // One-shot bootstrap: listing `load` here would refetch the root every time
+  // a listing lands and changes the callback's identity.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount only
   useEffect(() => {
     if (!complete && !initial) void load("");
-    // Only on mount — one-shot bootstrap.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggle = (prefix: string) => {
@@ -187,9 +188,12 @@ export default function FileBrowser({ tree, initial }: Props) {
           </p>
         ) : !root ? (
           <div className="py-2">
+            {/* biome-ignore-start lint/suspicious/noArrayIndexKey: a fixed-length
+                skeleton — the rows are identical and never reorder. */}
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="placeholder-block my-1.5 h-4 rounded-xs" />
             ))}
+            {/* biome-ignore-end lint/suspicious/noArrayIndexKey: skeleton */}
           </div>
         ) : root.folders.length === 0 && root.files.length === 0 ? (
           <p className="py-8 text-sm text-ink-faint">The bucket is empty.</p>
@@ -230,7 +234,15 @@ type LevelProps = {
   onToggle: (prefix: string) => void;
 };
 
-function Level({ prefix, depth, listings, expanded, mounted, loading, onToggle }: LevelProps) {
+function Level({
+  prefix,
+  depth,
+  listings,
+  expanded,
+  mounted,
+  loading,
+  onToggle,
+}: LevelProps) {
   const listing = listings[prefix];
   if (!listing) return null;
 

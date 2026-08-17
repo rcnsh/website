@@ -137,85 +137,92 @@ export default function MusicExplorer({
         )}
         aria-busy={stale || undefined}
       >
-      {items.length === 0 ? (
-        <p className="py-6 text-sm text-ink-faint">
-          {shown.failed
-            ? "Couldn't reach Spotify just now."
-            : `Nothing listened to in this period.`}
-        </p>
-      ) : view === "tracks" ? (
-        <ol className="divide-y divide-line border-y border-line">
-          {(items as Track[]).map((track, i) => (
-            <li key={`${track.title}-${i}`}>
-              <a
-                href={track.url ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group flex items-center gap-4 py-2.5"
-              >
-                <span className="w-5 shrink-0 font-mono text-[11px] tabular-nums text-ink-faint">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                {track.image ? (
-                  <img
-                    src={track.image}
-                    alt=""
-                    width={36}
-                    height={36}
-                    loading="lazy"
-                    className="h-9 w-9 shrink-0 rounded-xs object-cover"
-                  />
-                ) : (
-                  <div className="h-9 w-9 shrink-0 rounded-xs bg-raised" />
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[0.9375rem] text-ink transition-colors group-hover:text-brand">
-                    {track.title}
+        {items.length === 0 ? (
+          <p className="py-6 text-sm text-ink-faint">
+            {shown.failed
+              ? "Couldn't reach Spotify just now."
+              : `Nothing listened to in this period.`}
+          </p>
+        ) : view === "tracks" ? (
+          <ol className="divide-y divide-line border-y border-line">
+            {/* biome-ignore-start lint/suspicious/noArrayIndexKey: the index
+              disambiguates repeated titles. Switching range replaces the whole
+              list, so rows never reorder in place. */}
+            {(items as Track[]).map((track, i) => (
+              <li key={`${track.title}-${i}`}>
+                <a
+                  href={track.url ?? "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center gap-4 py-2.5"
+                >
+                  <span className="w-5 shrink-0 font-mono text-[11px] tabular-nums text-ink-faint">
+                    {String(i + 1).padStart(2, "0")}
                   </span>
-                  <span className="block truncate text-xs text-ink-dim">
-                    {track.artists}
-                  </span>
-                </span>
-                {track.durationMs && (
-                  <span className="shrink-0 font-mono text-[11px] tabular-nums text-ink-faint">
-                    {formatDuration(track.durationMs)}
-                  </span>
-                )}
-              </a>
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <ul className="grid grid-cols-2 gap-x-5 gap-y-6 sm:grid-cols-4">
-          {(items as Artist[]).map((artist, i) => (
-            <li key={`${artist.name}-${i}`}>
-              <a
-                href={artist.url ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group block"
-              >
-                <div className="aspect-square overflow-hidden rounded-xs bg-raised">
-                  {artist.image && (
+                  {track.image ? (
                     <img
-                      src={artist.image}
+                      src={track.image}
                       alt=""
+                      width={36}
+                      height={36}
                       loading="lazy"
-                      className="h-full w-full object-cover transition-opacity duration-300 group-hover:opacity-80"
+                      className="h-9 w-9 shrink-0 rounded-xs object-cover"
                     />
+                  ) : (
+                    <div className="h-9 w-9 shrink-0 rounded-xs bg-raised" />
                   )}
-                </div>
-                <p className="mt-2 truncate text-sm text-ink transition-colors group-hover:text-brand">
-                  {artist.name}
-                </p>
-                <p className="font-mono text-[10px] text-ink-faint">
-                  {String(i + 1).padStart(2, "0")}
-                </p>
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[0.9375rem] text-ink transition-colors group-hover:text-brand">
+                      {track.title}
+                    </span>
+                    <span className="block truncate text-xs text-ink-dim">
+                      {track.artists}
+                    </span>
+                  </span>
+                  {track.durationMs && (
+                    <span className="shrink-0 font-mono text-[11px] tabular-nums text-ink-faint">
+                      {formatDuration(track.durationMs)}
+                    </span>
+                  )}
+                </a>
+              </li>
+            ))}
+            {/* biome-ignore-end lint/suspicious/noArrayIndexKey: see above */}
+          </ol>
+        ) : (
+          <ul className="grid grid-cols-2 gap-x-5 gap-y-6 sm:grid-cols-4">
+            {/* biome-ignore-start lint/suspicious/noArrayIndexKey: as above —
+              repeated names, and the list is replaced wholesale. */}
+            {(items as Artist[]).map((artist, i) => (
+              <li key={`${artist.name}-${i}`}>
+                <a
+                  href={artist.url ?? "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group block"
+                >
+                  <div className="aspect-square overflow-hidden rounded-xs bg-raised">
+                    {artist.image && (
+                      <img
+                        src={artist.image}
+                        alt=""
+                        loading="lazy"
+                        className="h-full w-full object-cover transition-opacity duration-300 group-hover:opacity-80"
+                      />
+                    )}
+                  </div>
+                  <p className="mt-2 truncate text-sm text-ink transition-colors group-hover:text-brand">
+                    {artist.name}
+                  </p>
+                  <p className="font-mono text-[10px] text-ink-faint">
+                    {String(i + 1).padStart(2, "0")}
+                  </p>
+                </a>
+              </li>
+            ))}
+            {/* biome-ignore-end lint/suspicious/noArrayIndexKey: see above */}
+          </ul>
+        )}
       </div>
     </section>
   );
