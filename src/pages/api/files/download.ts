@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
+import { isHiddenKey } from "@/lib/r2";
 
 export const prerender = false;
 
@@ -14,11 +15,21 @@ export const GET: APIRoute = async ({ url, request }) => {
     return new Response("Bad request", { status: 400 });
   }
 
+  // Every listing hides dot-prefixed entries; without this they would still be
+  // downloadable by name, which makes the browser's idea of hidden a fiction.
+  // 404 rather than 403, so this doesn't confirm what exists.
+  if (isHiddenKey(key)) {
+    return new Response("Not found", { status: 404 });
+  }
+
   const bucket = env.BUCKET;
   if (!bucket) return new Response("Bucket not configured", { status: 503 });
 
   const range = request.headers.get("range");
-  const object = await bucket.get(key, range ? { range: request.headers } : undefined);
+  const object = await bucket.get(
+    key,
+    range ? { range: request.headers } : undefined,
+  );
 
   if (!object) return new Response("Not found", { status: 404 });
 
@@ -32,7 +43,10 @@ export const GET: APIRoute = async ({ url, request }) => {
   if (object.range && "offset" in object.range) {
     const offset = object.range.offset ?? 0;
     const length = object.range.length ?? object.size - offset;
-    headers.set("content-range", `bytes ${offset}-${offset + length - 1}/${object.size}`);
+    headers.set(
+      "content-range",
+      `bytes ${offset}-${offset + length - 1}/${object.size}`,
+    );
     return new Response(object.body, { status: 206, headers });
   }
 
