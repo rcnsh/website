@@ -61,7 +61,8 @@ export default function CommandPalette({ items }: { items: PaletteItem[] }) {
   useEffect(() => setMounted(true), []);
 
   const results = useMemo(() => {
-    return entries.map((item) => ({ item, s: score(item, query) }))
+    return entries
+      .map((item) => ({ item, s: score(item, query) }))
       .filter((r): r is { item: Item; s: number } => r.s !== null)
       .sort((a, b) => b.s - a.s)
       .map((r) => r.item);
@@ -121,6 +122,10 @@ export default function CommandPalette({ items }: { items: PaletteItem[] }) {
     };
   }, [open]);
 
+  // `query` is the trigger, not a value the effect reads. Taking the rule's
+  // advice and dropping it would reset the highlight once on mount and never
+  // again while typing.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trigger-only dep
   useEffect(() => setActive(0), [query]);
 
   // Keep the highlighted row in view when navigating with arrows.
