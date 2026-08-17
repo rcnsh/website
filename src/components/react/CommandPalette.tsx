@@ -193,7 +193,8 @@ export default function CommandPalette({ items }: { items: PaletteItem[] }) {
               </kbd>
             </div>
 
-            <div ref={listRef} className="max-h-72 overflow-y-auto py-1">
+            {/* Tall enough that the full, unfiltered list lands without scrolling. */}
+            <div ref={listRef} className="max-h-[21.5rem] overflow-y-auto py-1">
               {results.length === 0 ? (
                 <p className="px-4 py-6 text-sm text-ink-faint">
                   Nothing matches “{query}”.

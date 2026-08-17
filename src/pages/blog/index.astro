@@ -18,7 +18,7 @@ const years = [...new Set(posts.map((post) => post.data.pubDate.getFullYear()))]
     <RichText text={page.intro} class="mt-2.5 max-w-[54ch] text-ink-dim" />
   </header>
 
-  <div class="flex flex-col gap-12 pb-6">
+  <div class="flex flex-col gap-14 pb-6">
     {
       years.map((year) => (
         <section>

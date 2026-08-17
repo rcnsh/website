@@ -6,17 +6,17 @@ const page = pages.notFound;
 ---
 
 <Layout title="404" description={page.intro}>
-  <section class="animate-rise py-20">
+  <!-- No extra top padding — the layout's pt-12 is where every other page starts. -->
+  <section class="animate-rise pb-20">
     <p class="font-mono text-sm text-ink-faint">404</p>
     <h1 class="display-face mt-3 text-[2.25rem] text-ink">{page.title}</h1>
     <p class="mt-2.5 max-w-[46ch] text-ink-dim">
       {page.intro} Press{" "}
-      <kbd class="font-mono text-sm text-ink">⌘K</kbd> to jump somewhere else, or
+      <kbd class="font-mono text-sm text-ink">⌘K</kbd> to jump somewhere else, or{" "}
       <a
         href="/"
         class="text-ink underline decoration-line-strong underline-offset-[3px] transition-colors hover:decoration-brand"
-      >
-        go home</a
+        >go home</a
       >.
     </p>
   </section>
