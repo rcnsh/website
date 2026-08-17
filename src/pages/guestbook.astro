@@ -34,6 +34,8 @@ if (dbReady && Astro.request.method === "POST") {
   const formData = await Astro.request.formData();
   const message = String(formData.get("message") ?? "").trim();
 
+  // No CSRF check here on purpose: Astro's `security.checkOrigin` is on by
+  // default and rejects a cross-site POST with a 403 before this runs.
   if (!session) {
     error = "auth";
   } else if (!message) {

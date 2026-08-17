@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the first run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # 22.18+ runs TypeScript directly, which is what `npm test` relies on.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # worker-configuration.d.ts is generated, not committed, and tsconfig
+      # pulls it in — so `astro check` needs this first. Reads wrangler.jsonc
+      # locally; no Cloudflare credentials involved.
+      - name: Generate Worker types
+        run: npx wrangler types
+
+      - run: npm run lint
+
+      - run: npm test
+
+      # Covers the .astro files, which Biome cannot parse past the frontmatter.
+      - name: Typecheck
+        run: npx astro check
+
+# Note: `astro build` is deliberately absent. Prerendering opens a remote
+# connection for the `remote: true` R2 binding and reads .dev.vars, so it needs
+# a CLOUDFLARE_API_TOKEN and the Spotify/GitHub secrets to run here. Add a job
+# with those repository secrets if you want the build covered too.
