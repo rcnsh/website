@@ -39,12 +39,23 @@ const FULL_TREE_MAX_OBJECTS = 5000;
 function publicUrlFor(key: string): string {
   const base = (env.PUBLIC_BUCKET_URL || "").replace(/\/+$/, "");
   const encoded = key.split("/").map(encodeURIComponent).join("/");
-  return base ? `${base}/${encoded}` : `/api/files/download?key=${encodeURIComponent(key)}`;
+  return base
+    ? `${base}/${encoded}`
+    : `/api/files/download?key=${encodeURIComponent(key)}`;
 }
 
 /** Dot-prefixed entries stay hidden, the same way `ls` hides them. */
 function isHidden(name: string): boolean {
   return name.startsWith(".");
+}
+
+/**
+ * Hidden anywhere along the path, so `.thumbs/x.png` counts. Every listing
+ * here filters on this; /api/files/download applies it too, so a key that is
+ * missing from the browser can't simply be requested by name instead.
+ */
+export function isHiddenKey(key: string): boolean {
+  return key.split("/").some(isHidden);
 }
 
 /** Rejects `..`, absolute paths, and anything that isn't a clean prefix. */
@@ -205,8 +216,7 @@ export async function searchBucket(query: string, limit = 100): Promise<R2File[]
 
     for (const object of result.objects) {
       if (object.size === 0 || object.key.endsWith("/")) continue;
-      // Hidden anywhere in the path, so `.thumb/x.png` stays out.
-      if (object.key.split("/").some(isHidden)) continue;
+      if (isHiddenKey(object.key)) continue;
       if (!object.key.toLowerCase().includes(needle)) continue;
 
       matches.push({
