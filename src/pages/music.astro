@@ -3,16 +3,25 @@ import Layout from "@/layouts/Layout.astro";
 import NowPlaying from "@/components/react/NowPlaying";
 import TopMusic from "@/components/widgets/TopMusic.astro";
 import RecentTracks from "@/components/widgets/RecentTracks.astro";
-import RichText from "@/components/RichText.astro";
-import { pages } from "@/lib/site";
+import { SpotifyIcon } from "@/components/react/BrandIcons";
+import { pages, site } from "@/lib/site";
 
 const page = pages.music;
+const profileUrl = `https://open.spotify.com/user/${site.spotifyUser}`;
 ---
 
-<Layout title={page.title} description={page.intro}>
-  <header class="animate-rise pb-10">
+<Layout title={page.title} description={page.description}>
+  <header class="animate-rise flex items-center gap-7 pb-10">
     <h1 class="display-face text-[2.25rem] text-ink">{page.title}</h1>
-    <RichText text={page.intro} class="mt-2.5 max-w-[54ch] text-ink-dim" />
+    <a
+      href={profileUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="My Spotify profile"
+      class="text-ink-faint transition-colors hover:text-brand"
+    >
+      <SpotifyIcon className="h-6 w-6" />
+    </a>
   </header>
 
   <!-- flex+gap, not space-y — islands render as display:contents wrappers. -->

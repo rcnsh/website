@@ -18,7 +18,8 @@ const linkSchema = z.object({
 
 const pageSchema = z.object({
   title: z.string().min(1),
-  intro: z.string().default(""),
+  /** Not rendered on the page — this is the <meta name="description">. */
+  description: z.string().min(1),
 });
 
 const schema = z.object({
@@ -54,7 +55,7 @@ const schema = z.object({
   }),
   pages: z.object({
     blog: pageSchema.extend({
-      /** The intro is written for the page — a subscriber needs its own line. */
+      /** The page description is written for search — a subscriber needs its own line. */
       feedDescription: z.string().min(1),
     }),
     music: pageSchema,
