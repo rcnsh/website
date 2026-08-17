@@ -83,7 +83,9 @@ export default function MusicExplorer({
   return (
     <section>
       {/* Text switches with an underline, rather than filled segmented pills. */}
-      <div className="mb-5 flex flex-wrap items-baseline gap-x-5 gap-y-2 font-mono text-xs">
+      {/* Between-group gap has to clearly beat the gap-4 inside each group,
+          or the six buttons read as one undifferentiated run. */}
+      <div className="mb-5 flex flex-wrap items-baseline gap-x-6 gap-y-3 font-mono text-xs">
         <div className="flex gap-4">
           {(["tracks", "artists"] as const).map((option) => (
             <button
@@ -102,7 +104,9 @@ export default function MusicExplorer({
           ))}
         </div>
 
-        <span className="text-line-strong">/</span>
+        {/* The row wraps below sm, and a separator stranded at the end of the
+            first line reads as a stray character. */}
+        <span className="hidden text-line-strong sm:inline">/</span>
 
         <div className="flex gap-4">
           {RANGES.map((option) => (
