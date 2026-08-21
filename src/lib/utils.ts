@@ -1,8 +1,13 @@
 import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
 
+/**
+ * Joins class names. Plain clsx: tailwind-merge resolves conflicts between a
+ * component's own classes and ones handed to it from outside, and nothing here
+ * takes a className prop — every call site owns both sides of the conditional.
+ * Reach for it again the day a component starts accepting one.
+ */
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+  return clsx(inputs);
 }
 
 const UNITS = ["B", "KB", "MB", "GB", "TB"];
