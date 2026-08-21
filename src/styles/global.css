@@ -9,12 +9,17 @@
   --color-raised: #1a1917;
   --color-overlay: #211f1c;
 
-  --color-line: #262420;
-  --color-line-strong: #3a362f;
+  /* Hairlines carry the whole structure, so they have to survive a bright
+     screen: 1.26:1 and 1.62:1 were invisible outside a dark room. */
+  --color-line: #3f3d3a;
+  --color-line-strong: #58544f;
 
+  /* ink-faint is not decoration — it sets the tagline, every section label and
+     all metadata, so it has to clear 4.5:1 on --color-base. Lifted along its
+     own hue to keep the warm cast. */
   --color-ink: #e8e3d9;
   --color-ink-dim: #a09a8f;
-  --color-ink-faint: #6d675e;
+  --color-ink-faint: #807a73;
 
   /* Straight from the logo: #305b99 → #5b66af, lifted for contrast on dark. */
   --color-brand: #7f8ad0;
@@ -38,6 +43,8 @@
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
 
   --animate-rise: rise 0.4s var(--ease-out-quint) both;
+  /* The incoming album cover, fading in over the outgoing one. */
+  --animate-art-in: art-in 0.25s ease both;
 
   @keyframes rise {
     from {
@@ -47,6 +54,12 @@
     to {
       opacity: 1;
       transform: none;
+    }
+  }
+
+  @keyframes art-in {
+    from {
+      opacity: 0;
     }
   }
 
