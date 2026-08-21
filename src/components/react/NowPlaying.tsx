@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
 import { SpotifyIcon } from "./BrandIcons";
-import { formatDuration, relativeTime } from "@/lib/utils";
+import { cn, formatDuration, relativeTime } from "@/lib/utils";
 
 type Payload =
   | { state: "playing"; title: string; artists: string; album: string | null; image: string | null; url: string | null; progressMs: number; durationMs: number }
@@ -96,32 +95,7 @@ export default function NowPlaying() {
 
   return (
     <Shell>
-      {/* initial={false} so the artwork is visible without a frame loop. */}
-      <AnimatePresence mode="popLayout" initial={false}>
-        <motion.div
-          key={data.image ?? data.title}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.25 }}
-          className="relative shrink-0"
-        >
-          {data.image ? (
-            <img
-              src={data.image}
-              alt=""
-              width={56}
-              height={56}
-              loading="lazy"
-              className="h-14 w-14 rounded-xs object-cover"
-            />
-          ) : (
-            <div className="grid h-14 w-14 place-items-center rounded-xs bg-raised">
-              <SpotifyIcon className="h-5 w-5 text-ink-faint" />
-            </div>
-          )}
-        </motion.div>
-      </AnimatePresence>
+      <Artwork image={data.image} title={data.title} />
 
       <div className="min-w-0 flex-1">
         <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-faint">
@@ -167,6 +141,57 @@ export default function NowPlaying() {
         </div>
       </div>
     </Shell>
+  );
+}
+
+/**
+ * Cross-fades between covers. The outgoing frame stays mounted underneath the
+ * incoming one for the length of the fade, so the tile never flashes empty
+ * mid-swap — what AnimatePresence was doing, in two stacked layers and a
+ * keyframe. The first frame renders without animating, since there is nothing
+ * behind it to reveal from.
+ */
+function Artwork({ image, title }: { image: string | null; title: string }) {
+  const id = image ?? title;
+  // Either [current], or [outgoing, incoming] while a fade is in flight.
+  const [frames, setFrames] = useState([{ id, image }]);
+
+  useEffect(() => {
+    setFrames((prev) => {
+      const current = prev[prev.length - 1]!;
+      return current.id === id ? prev : [current, { id, image }];
+    });
+  }, [id, image]);
+
+  // Drop the outgoing layer once the incoming one has finished arriving.
+  const settle = () =>
+    setFrames((prev) => (prev.length > 1 ? prev.slice(-1) : prev));
+
+  return (
+    <div className="relative h-14 w-14 shrink-0">
+      {frames.map((frame, index) => (
+        <div
+          key={frame.id}
+          onAnimationEnd={settle}
+          className={cn("absolute inset-0", index > 0 && "animate-art-in")}
+        >
+          {frame.image ? (
+            <img
+              src={frame.image}
+              alt=""
+              width={56}
+              height={56}
+              loading="lazy"
+              className="h-14 w-14 rounded-xs object-cover"
+            />
+          ) : (
+            <div className="grid h-14 w-14 place-items-center rounded-xs bg-raised">
+              <SpotifyIcon className="h-5 w-5 text-ink-faint" />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 
