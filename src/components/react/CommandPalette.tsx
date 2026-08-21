@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "motion/react";
 import { Search } from "lucide-react";
 import { iconFor } from "./icon-map";
 import { cn } from "@/lib/utils";
@@ -161,87 +160,90 @@ export default function CommandPalette({ items }: { items: PaletteItem[] }) {
     </button>
   );
 
+  /*
+    Always mounted, toggled with opacity, so closing can fade without a
+    presence library to keep the tree alive through the exit. `inert` is what
+    makes that safe: a transparent overlay is still focusable and still in the
+    accessibility tree, and this takes it out of both.
+  */
   const overlay = (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          className="fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[14vh]"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.12 }}
-        >
-          <div
-            className="absolute inset-0 bg-black/75"
-            onClick={close}
-            aria-hidden="true"
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Command palette"
-            className="card relative w-full max-w-md"
-          >
-            <div className="flex items-center gap-3 border-b border-line px-4">
-              <Search className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={onInputKey}
-                placeholder="Jump to…"
-                aria-label="Search pages and links"
-                className="w-full bg-transparent py-3 text-sm text-ink outline-none placeholder:text-ink-faint"
-              />
-              <kbd className="shrink-0 font-mono text-[10px] text-ink-faint">
-                esc
-              </kbd>
-            </div>
-
-            {/* Tall enough that the full, unfiltered list lands without scrolling. */}
-            <div ref={listRef} className="max-h-[21.5rem] overflow-y-auto py-1">
-              {results.length === 0 ? (
-                <p className="px-4 py-6 text-sm text-ink-faint">
-                  Nothing matches “{query}”.
-                </p>
-              ) : (
-                results.map((item, i) => {
-                  const Icon = iconFor(item.icon);
-                  return (
-                    <button
-                      key={item.id}
-                      data-index={i}
-                      type="button"
-                      onMouseMove={() => setActive(i)}
-                      onClick={() => go(item)}
-                      className={cn(
-                        "flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors",
-                        i === active
-                          ? "bg-raised text-ink"
-                          : "text-ink-dim hover:text-ink",
-                      )}
-                    >
-                      <Icon
-                        className={cn(
-                          "h-3.5 w-3.5 shrink-0",
-                          i === active ? "text-brand" : "text-ink-faint",
-                        )}
-                      />
-                      <span className="flex-1 truncate">{item.label}</span>
-                      {item.external && (
-                        <span className="shrink-0 font-mono text-[10px] text-ink-faint">
-                          ↗
-                        </span>
-                      )}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </motion.div>
+    <div
+      inert={!open}
+      className={cn(
+        "fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[14vh]",
+        "transition-opacity duration-[120ms] ease-out",
+        open ? "opacity-100" : "pointer-events-none opacity-0",
       )}
-    </AnimatePresence>
+    >
+      <div
+        className="absolute inset-0 bg-black/75"
+        onClick={close}
+        aria-hidden="true"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+        className="card relative w-full max-w-md"
+      >
+        <div className="flex items-center gap-3 border-b border-line px-4">
+          <Search className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onInputKey}
+            placeholder="Jump to…"
+            aria-label="Search pages and links"
+            className="w-full bg-transparent py-3 text-sm text-ink outline-none placeholder:text-ink-faint"
+          />
+          <kbd className="shrink-0 font-mono text-[10px] text-ink-faint">
+            esc
+          </kbd>
+        </div>
+
+        {/* Tall enough that the full, unfiltered list lands without scrolling. */}
+        <div ref={listRef} className="max-h-[21.5rem] overflow-y-auto py-1">
+          {results.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-ink-faint">
+              Nothing matches “{query}”.
+            </p>
+          ) : (
+            results.map((item, i) => {
+              const Icon = iconFor(item.icon);
+              return (
+                <button
+                  key={item.id}
+                  data-index={i}
+                  type="button"
+                  onMouseMove={() => setActive(i)}
+                  onClick={() => go(item)}
+                  className={cn(
+                    "flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors",
+                    i === active
+                      ? "bg-raised text-ink"
+                      : "text-ink-dim hover:text-ink",
+                  )}
+                >
+                  <Icon
+                    className={cn(
+                      "h-3.5 w-3.5 shrink-0",
+                      i === active ? "text-brand" : "text-ink-faint",
+                    )}
+                  />
+                  <span className="flex-1 truncate">{item.label}</span>
+                  {item.external && (
+                    <span className="shrink-0 font-mono text-[10px] text-ink-faint">
+                      ↗
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
   );
 
   return (
