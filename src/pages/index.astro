@@ -10,7 +10,30 @@ import NowPlaying from "@/components/react/NowPlaying";
 import PostList from "@/components/PostList.astro";
 import RichText from "@/components/RichText.astro";
 import { getPosts } from "@/lib/blog";
-import { home, site } from "@/lib/site";
+import { home, site, stack } from "@/lib/site";
+import { agentGuidance, agentSite, postSummaries } from "@/lib/agent-content";
+import { buildHomeMarkdown } from "@/lib/agent-docs";
+import { markdownResponse } from "@/lib/negotiate";
+
+/* Rendered per request so the Accept header can be read — a prerendered page is
+   served straight from Cloudflare's asset store and the Worker never runs. The
+   page itself is only a template; the three widgets that cost anything are
+   server islands and were already deferred. */
+export const prerender = false;
+
+const markdown = Astro.locals.prefersMarkdown
+  ? markdownResponse(
+      buildHomeMarkdown({
+        site: agentSite,
+        agent: agentGuidance,
+        bio: home.bio,
+        stack: [...stack],
+        posts: await postSummaries(),
+      }),
+    )
+  : null;
+
+if (markdown) return markdown;
 
 const recentPosts = (await getPosts()).slice(0, 3);
 ---

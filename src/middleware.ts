@@ -1,4 +1,5 @@
 import { defineMiddleware } from "astro:middleware";
+import { finaliseNegotiation, preferredType } from "@/lib/negotiate";
 
 /**
  * Security headers for anything the Worker renders — /guestbook, /api/*, and
@@ -35,9 +36,19 @@ const SECURITY_HEADERS: Record<string, string> = {
   ].join("; "),
 };
 
-export const onRequest = defineMiddleware(async (_context, next) => {
-  const response = await next();
+export const onRequest = defineMiddleware(async (context, next) => {
+  /*
+    Decided before the page renders, because a page that can serve Markdown
+    branches on it in its frontmatter — see src/pages/about.astro. What happens
+    to the response afterwards is `finaliseNegotiation`, next to the parser.
+  */
+  const accept = context.request.headers.get("accept");
+  const chosen = preferredType(accept);
+  context.locals.prefersMarkdown = chosen === "text/markdown";
 
+  const response = finaliseNegotiation(await next(), accept, chosen);
+
+  // Last, so they land on a 406 the same as on the page it replaced.
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
     response.headers.set(name, value);
   }

@@ -15,3 +15,11 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
   Strict-Transport-Security: max-age=63072000; includeSubDomains
   Content-Security-Policy: default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; img-src 'self' data: https://*.scdn.co https://*.spotifycdn.com https://avatars.githubusercontent.com https://upload.rcn.sh; upgrade-insecure-requests
+
+# Discovery from a browser-based agent on another origin. /llms.txt and
+# /llms-full.txt are absent on purpose: they are served by the Worker, which
+# sets their own headers, because the asset store types a file by its extension
+# and `_headers` cannot override Content-Type.
+/.well-known/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=3600

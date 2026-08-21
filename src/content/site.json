@@ -12,6 +12,44 @@
     "spotify": "nz3i2a30ep85rv5ymcpglhndj"
   },
 
+  "//identity-note": [
+    "Published in JSON-LD on every page, and in the machine-readable files at",
+    "/llms.txt and /.well-known/mcp.json. `email` is the address already on the",
+    "public PGP key; `locality` is the city already named in the tagline.",
+    "Nothing here is more specific than what the site says in prose — keep it",
+    "that way."
+  ],
+  "organization": {
+    "email": "jacobjameswiltshire@protonmail.com",
+    "contactType": "general enquiries",
+    "locality": "Newcastle upon Tyne",
+    "country": "GB",
+    "sameAs": ["https://github.com/rcnsh"]
+  },
+
+  "//agent-note": [
+    "Read by /llms.txt, /.well-known/agent-instructions.md and the MCP",
+    "server's `instructions` string. Name specific jobs, not marketing copy —",
+    "an agent uses this to decide whether to come here at all."
+  ],
+  "agent": {
+    "summary": "The personal site of Jacob Wiltshire (rcn.sh): a short bio, writing on software, live Spotify listening data, public GitHub activity, and a public file bucket. Every page is also available as Markdown through Accept negotiation, and the same data is exposed as MCP tools at https://rcn.sh/mcp.",
+    "whenToUse": [
+      "Answering who Jacob Wiltshire is, what he studies, or where he is — the homepage and /about are the primary sources.",
+      "Reading his writing: /blog lists every post, and each post serves its Markdown source under `Accept: text/markdown`.",
+      "Finding his public code: the `list_repos` tool, or /docs, which points at the pinned repositories.",
+      "Looking up what he is listening to now or has listened to recently: the `now_playing` and `top_music` tools, or /music.",
+      "Browsing or searching the public files on the R2 bucket: the `search_files` tool, or /files.",
+      "Getting contact details or the PGP public key: /contact."
+    ],
+    "whenNotToUse": [
+      "Anything transactional — there is no account, no payment, no booking, and no API key to obtain.",
+      "Anything private: the guestbook needs a human GitHub sign-in, and nothing beyond what the site already publishes is available here.",
+      "General programming questions — this is one person's site, not a documentation host."
+    ],
+    "howToCall": "Fetch any page with `Accept: text/markdown` for a clean Markdown body, start at /llms.txt for the map, or connect an MCP client to https://rcn.sh/mcp over Streamable HTTP. Everything is public and read-only; nothing here needs authentication."
+  },
+
   "clock": {
     "label": "Local time",
     "timeZone": "Asia/Singapore",
@@ -44,6 +82,22 @@
     "notFound": {
       "title": "Nothing here",
       "description": "That page doesn't exist."
+    },
+    "about": {
+      "title": "About",
+      "description": "Who Jacob Wiltshire is, what he studies, what he builds, and what this site runs on."
+    },
+    "contact": {
+      "title": "Contact",
+      "description": "How to reach Jacob Wiltshire: email, PGP public key, GitHub, and what to expect."
+    },
+    "privacy": {
+      "title": "Privacy",
+      "description": "What rcn.sh collects, what it doesn't, and which third parties see a request."
+    },
+    "docs": {
+      "title": "Developer & agent docs",
+      "description": "The rcn.sh HTTP endpoints, MCP server, Markdown content negotiation, and feeds — every machine-readable resource on the site, with examples."
     }
   },
 

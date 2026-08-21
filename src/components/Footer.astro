@@ -1,7 +1,20 @@
 ---
-import { externalLinks, site } from "@/lib/site";
+import { externalLinks, pages, site } from "@/lib/site";
 
 const year = new Date().getFullYear();
+
+/*
+  The pages a reader — or an agent working out whether this site is a real
+  thing — goes looking for, and would otherwise have to guess the URLs of.
+  Kept separate from the external links so the `target="_blank"` treatment
+  below stays correct for each.
+*/
+const siteLinks = [
+  { href: "/about", label: pages.about.title },
+  { href: "/contact", label: pages.contact.title },
+  { href: "/privacy", label: pages.privacy.title },
+  { href: "/docs", label: "Docs" },
+];
 ---
 
 <footer class="mt-20 border-t border-line">
@@ -10,6 +23,13 @@ const year = new Date().getFullYear();
   >
     <p>&copy; {year} {site.author}</p>
     <nav class="flex flex-wrap gap-x-5 gap-y-2 sm:ml-auto">
+      {
+        siteLinks.map((link) => (
+          <a href={link.href} class="transition-colors hover:text-ink-dim">
+            {link.label}
+          </a>
+        ))
+      }
       {
         externalLinks.map((link) => (
           <a

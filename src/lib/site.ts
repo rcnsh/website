@@ -34,6 +34,31 @@ const schema = z.object({
     github: z.string().min(1),
     spotify: z.string().min(1),
   }),
+  /*
+    The identity an agent can verify us by. Every field lands in the JSON-LD
+    graph, so it has to be true, and it has to be no more specific than what
+    the site already says in prose — see the note beside it in site.json.
+  */
+  organization: z.object({
+    email: z.email(),
+    /** schema.org contactPoint.contactType. Free text; keep it honest. */
+    contactType: z.string().min(1),
+    /** City only. A personal site has no business publishing a street. */
+    locality: z.string().min(1),
+    /** ISO 3166-1 alpha-2. */
+    country: z.string().length(2),
+    sameAs: z.array(z.url()),
+  }),
+  /*
+    "Should an agent reach for this site at all?" — answered in the site's own
+    words rather than left to be guessed from marketing copy.
+  */
+  agent: z.object({
+    summary: z.string().min(1),
+    whenToUse: z.array(z.string().min(1)).min(1),
+    whenNotToUse: z.array(z.string().min(1)).min(1),
+    howToCall: z.string().min(1),
+  }),
   clock: z.object({
     label: z.string().min(1),
     /** My timezone, not the visitor's. Checked against the runtime's zone database. */
@@ -64,6 +89,12 @@ const schema = z.object({
     }),
     files: pageSchema,
     notFound: pageSchema,
+    /* Trust anchors plus the machine-readable index. Bodies live in
+       src/content/pages/*.md; only the metadata is configured here. */
+    about: pageSchema,
+    contact: pageSchema,
+    privacy: pageSchema,
+    docs: pageSchema,
   }),
   nav: z.array(linkSchema).min(1),
   links: z.array(linkSchema),
@@ -101,6 +132,8 @@ export const site = {
   spotifyUser: config.accounts.spotify,
 } as const;
 
+export const organization = config.organization;
+export const agent = config.agent;
 export const clock = config.clock;
 export const home = config.home;
 export const pages = config.pages;

@@ -1,21 +1,103 @@
 ---
 import Layout from "@/layouts/Layout.astro";
+import { agentSite } from "@/lib/agent-content";
+import {
+  absolute,
+  buildNotFoundMarkdown,
+  resourcesIn,
+} from "@/lib/agent-docs";
+import { markdownResponse } from "@/lib/negotiate";
 import { pages } from "@/lib/site";
 
+/*
+  Rendered by the Worker rather than prerendered, for two reasons: the body has
+  to name the path that missed, and a dead end is exactly where an agent most
+  needs telling where to go next — which means reading its Accept header. The
+  generated assets config sets no `not_found_handling`, so an asset miss falls
+  through to the Worker and lands here.
+*/
+export const prerender = false;
+
 const page = pages.notFound;
+const { pathname } = Astro.url;
+
+const markdown = Astro.locals.prefersMarkdown
+  ? markdownResponse(buildNotFoundMarkdown({ site: agentSite, pathname }), 404)
+  : null;
+
+if (markdown) return markdown;
+
+Astro.response.status = 404;
+
+const destinations = resourcesIn("Pages");
+const machineReadable = resourcesIn("Machine-readable").filter((resource) =>
+  ["/llms.txt", "/sitemap-index.xml", "/.well-known/mcp.json"].includes(
+    resource.path,
+  ),
+);
 ---
 
 <Layout title="404" description={page.description}>
   <section class="animate-rise pb-20">
     <p class="font-mono text-sm text-ink-faint">404</p>
     <h1 class="display-face mt-3 text-[2.25rem] text-ink">{page.title}</h1>
-    <p class="mt-2.5 max-w-[46ch] text-ink-dim">
-      Press <kbd class="font-mono text-sm text-ink">⌘K</kbd> to jump somewhere else, or{" "}
-      <a
-        href="/"
-        class="text-ink underline decoration-line-strong underline-offset-[3px] transition-colors hover:decoration-brand"
-        >go home</a
-      >.
+
+    <p class="mt-2.5 max-w-[52ch] text-ink-dim">
+      <code class="font-mono text-sm text-ink">{pathname}</code> doesn't exist on
+      {agentSite.name}. Nothing was moved &mdash; this path has never been a page
+      here. Press <kbd class="font-mono text-sm text-ink">&#8984;K</kbd> to search,
+      or pick something below.
     </p>
+
+    <div class="mt-12 flex flex-col gap-10">
+      <section>
+        <h2 class="rule-heading label mb-5">Every page on the site</h2>
+        <ul class="flex flex-col gap-3.5 text-ink-dim">
+          {
+            destinations.map((resource) => (
+              <li>
+                <a
+                  href={resource.path}
+                  class="text-ink underline decoration-line-strong underline-offset-[3px] transition-colors hover:decoration-brand"
+                >
+                  {resource.title}
+                </a>
+                <span class="text-ink-faint">
+                  {" "}
+                  &mdash; {resource.description}
+                </span>
+              </li>
+            ))
+          }
+        </ul>
+      </section>
+
+      <section>
+        <h2 class="rule-heading label mb-5">If you are a machine</h2>
+        <ul class="flex flex-col gap-3.5 text-ink-dim">
+          {
+            machineReadable.map((resource) => (
+              <li>
+                <a
+                  href={resource.path}
+                  class="font-mono text-sm text-ink underline decoration-line-strong underline-offset-[3px] transition-colors hover:decoration-brand"
+                >
+                  {absolute(agentSite.url, resource.path)}
+                </a>
+                <span class="text-ink-faint">
+                  {" "}
+                  &mdash; {resource.description}
+                </span>
+              </li>
+            ))
+          }
+        </ul>
+        <p class="mt-5 max-w-[52ch] text-sm text-ink-faint">
+          This page is served as Markdown too &mdash; ask for it with
+          <code class="font-mono text-ink">Accept: text/markdown</code> and you get
+          the same list without the chrome.
+        </p>
+      </section>
+    </div>
   </section>
 </Layout>

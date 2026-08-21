@@ -7,30 +7,43 @@ import {
   isoDate,
   postHref,
   readingTime,
-  type Post,
 } from "@/lib/blog";
+import { markdownResponse } from "@/lib/negotiate";
 
-export async function getStaticPaths() {
-  const posts = await getPosts();
+/*
+  Per request rather than prerendered, so a client asking for
+  `Accept: text/markdown` gets the post's own Markdown source — the thing it
+  was written in, not a conversion of the rendered HTML. The lookup that
+  getStaticPaths used to do at build time happens here instead; it is one
+  in-memory scan of the collection.
+*/
+export const prerender = false;
 
-  // Sorted newest first, so the previous entry is the newer post.
-  return posts.map((post, index) => ({
-    params: { slug: post.id },
-    props: {
-      post,
-      newer: posts[index - 1] ?? null,
-      older: posts[index + 1] ?? null,
-    },
-  }));
-}
+const posts = await getPosts();
+// Sorted newest first, so the previous entry is the newer post.
+const index = posts.findIndex((candidate) => candidate.id === Astro.params.slug);
 
-interface Props {
-  post: Post;
-  newer: Post | null;
-  older: Post | null;
-}
+if (index === -1) return Astro.rewrite("/404");
 
-const { post, newer, older } = Astro.props;
+const post = posts[index]!;
+const newer = posts[index - 1] ?? null;
+const older = posts[index + 1] ?? null;
+
+const markdown = Astro.locals.prefersMarkdown
+  ? markdownResponse(
+      [
+        `# ${post.data.title}`,
+        "",
+        `_Published ${isoDate(post.data.pubDate)}._ ${post.data.description}`,
+        "",
+        (post.body ?? "").trim(),
+        "",
+      ].join("\n"),
+    )
+  : null;
+
+if (markdown) return markdown;
+
 const { Content } = await render(post);
 const minutes = readingTime(post.body);
 ---
@@ -39,6 +52,8 @@ const minutes = readingTime(post.body);
   title={post.data.title}
   description={post.data.description}
   ogType="article"
+  published={post.data.pubDate}
+  modified={post.data.updatedDate}
 >
   <article class="animate-rise pb-6">
     <header class="pb-9">

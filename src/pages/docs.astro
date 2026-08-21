@@ -1,0 +1,21 @@
+---
+import ContentPage from "@/components/ContentPage.astro";
+import { getPageEntry, pageMarkdown } from "@/lib/agent-content";
+import { markdownResponse } from "@/lib/negotiate";
+import { pages } from "@/lib/site";
+
+/* Rendered per request so the Accept header can be read — a prerendered page
+   is served by Cloudflare's asset store without the Worker ever running. */
+export const prerender = false;
+
+const page = pages.docs;
+const entry = await getPageEntry("docs");
+
+const markdown = Astro.locals.prefersMarkdown
+  ? markdownResponse(pageMarkdown(entry))
+  : null;
+
+if (markdown) return markdown;
+---
+
+<ContentPage entry={entry} title={page.title} description={page.description} />

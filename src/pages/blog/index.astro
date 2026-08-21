@@ -3,6 +3,21 @@ import Layout from "@/layouts/Layout.astro";
 import PostList from "@/components/PostList.astro";
 import { getPosts } from "@/lib/blog";
 import { pages } from "@/lib/site";
+import { agentSite, postSummaries } from "@/lib/agent-content";
+import { buildBlogIndexMarkdown } from "@/lib/agent-docs";
+import { markdownResponse } from "@/lib/negotiate";
+
+/* Per request, so `Accept: text/markdown` gets the index as Markdown rather
+   than the rendered page. */
+export const prerender = false;
+
+const markdown = Astro.locals.prefersMarkdown
+  ? markdownResponse(
+      buildBlogIndexMarkdown({ site: agentSite, posts: await postSummaries() }),
+    )
+  : null;
+
+if (markdown) return markdown;
 
 const page = pages.blog;
 const posts = await getPosts();

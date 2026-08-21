@@ -1,0 +1,55 @@
+---
+import {
+  serialiseJsonLd,
+  structuredData,
+  type IdentityInput,
+} from "@/lib/structured-data";
+import { organization, site } from "@/lib/site";
+
+/**
+ * The schema.org graph, emitted once per page from src/lib/structured-data.ts.
+ * See that file for what's in it and why it is one `@graph` rather than several
+ * standalone blocks.
+ */
+interface Props {
+  /** Absolute canonical URL of the page, as the Layout computed it. */
+  canonical: string;
+  /** The page's own name — the `<title>` without the site-name prefix. */
+  name: string;
+  description: string;
+  /** Absolute URL of the share card. */
+  image: string;
+  /** Present on a post, which makes the page node a BlogPosting. */
+  published?: Date;
+  modified?: Date;
+}
+
+const { canonical, name, description, image, published, modified } =
+  Astro.props;
+
+const identity: IdentityInput = {
+  siteName: site.name,
+  url: site.url,
+  author: site.author,
+  tagline: site.tagline,
+  description: site.description,
+  email: organization.email,
+  contactType: organization.contactType,
+  locality: organization.locality,
+  country: organization.country,
+  sameAs: [...organization.sameAs],
+  image,
+};
+
+const data = structuredData(
+  identity,
+  { canonical, name, description },
+  published ? { published, modified } : undefined,
+);
+---
+
+<script
+  type="application/ld+json"
+  is:inline
+  set:html={serialiseJsonLd(data)}
+/>

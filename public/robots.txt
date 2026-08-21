@@ -1,7 +1,0 @@
-User-agent: *
-Allow: /
-
-# Nothing here is secret, but these are per-request and pointless to index.
-Disallow: /api/
-
-Sitemap: https://rcn.sh/sitemap-index.xml

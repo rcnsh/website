@@ -25,4 +25,24 @@ const blog = defineCollection({
   }),
 });
 
-export const collections = { blog };
+/**
+ * Standing pages — /about, /contact, /privacy, /docs — written as Markdown so
+ * one source feeds three outputs: the rendered HTML, the `text/markdown`
+ * variant served under Accept negotiation, and the MCP resource of the same
+ * URI. Anything written twice eventually gets written differently.
+ *
+ * Titles and meta descriptions stay in site.json with the rest of the page
+ * metadata; only the body lives here.
+ */
+const pages = defineCollection({
+  loader: glob({ base: "./src/content/pages", pattern: "**/*.md" }),
+  schema: z.object({
+    /** Rendered as the page's H1. The `<title>` comes from site.json. */
+    heading: z.string().min(1),
+    /** The opening line under the heading, set larger than the body. */
+    standfirst: z.string().min(1).optional(),
+    updated: z.coerce.date().optional(),
+  }),
+});
+
+export const collections = { blog, pages };

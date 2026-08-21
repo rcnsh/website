@@ -6,6 +6,7 @@ import "@/styles/global.css";
 
 import TopBar from "@/components/TopBar.astro";
 import Footer from "@/components/Footer.astro";
+import StructuredData from "@/components/StructuredData.astro";
 import { site } from "@/lib/site";
 
 interface Props {
@@ -15,6 +16,9 @@ interface Props {
   ogType?: "website" | "article";
   /** Share card. Site-relative or absolute; resolved against the site URL. */
   image?: string;
+  /** A post's dates. Their presence makes the JSON-LD node a BlogPosting. */
+  published?: Date;
+  modified?: Date;
 }
 
 /* The card in public/. Its dimensions are declared to the scrapers that read
@@ -27,6 +31,8 @@ const {
   description = site.description,
   ogType = "website",
   image = OG_IMAGE.src,
+  published,
+  modified,
 } = Astro.props;
 
 const pageTitle = title ? `${site.name} • ${title}` : `${site.name} • Home`;
@@ -90,6 +96,16 @@ const ogImageSize = image === OG_IMAGE.src ? OG_IMAGE : null;
     <meta name="theme-color" content="#0d0d0c" />
     <meta name="color-scheme" content="dark" />
     <meta name="generator" content={Astro.generator} />
+
+    {/* Same prose an agent would otherwise have to infer from the markup. */}
+    <StructuredData
+      canonical={canonical}
+      name={title ?? site.author}
+      description={metaDescription}
+      image={ogImage}
+      published={published}
+      modified={modified}
+    />
 
     <ClientRouter />
   </head>

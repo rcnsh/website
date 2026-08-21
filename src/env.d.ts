@@ -22,3 +22,12 @@ interface Env extends Secrets {}
 declare namespace Cloudflare {
 	interface Env extends Secrets {}
 }
+
+// Set by src/middleware.ts before the page renders: the client asked for
+// Markdown rather than HTML, so a page that can serve both should return the
+// Markdown one. See src/lib/negotiate.ts.
+declare namespace App {
+	interface Locals {
+		prefersMarkdown: boolean;
+	}
+}

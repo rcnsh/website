@@ -1,0 +1,54 @@
+---
+import { render, type CollectionEntry } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import { formatDate, isoDate } from "@/lib/blog";
+
+/**
+ * The standing pages — /about, /contact, /privacy, /docs. Same shape as a blog
+ * post, one level down: a heading, an optional standfirst, then the body under
+ * a rule. Bodies live in the `pages` content collection so the Markdown a
+ * client negotiates for is the same string the HTML renders from.
+ */
+interface Props {
+  entry: CollectionEntry<"pages">;
+  /** From site.json — the <title> and meta description, not the H1. */
+  title: string;
+  description: string;
+}
+
+const { entry, title, description } = Astro.props;
+const { Content } = await render(entry);
+---
+
+<Layout title={title} description={description}>
+  <article class="animate-rise pb-6">
+    <header class="pb-9">
+      <h1 class="display-face text-[2.25rem] leading-[1.1] text-ink">
+        {entry.data.heading}
+      </h1>
+
+      {
+        entry.data.standfirst && (
+          <p class="mt-5 max-w-[56ch] text-[1.0625rem] leading-[1.75] text-ink-dim">
+            {entry.data.standfirst}
+          </p>
+        )
+      }
+
+      {
+        entry.data.updated && (
+          <p class="label mt-5">
+            Updated{" "}
+            <time datetime={isoDate(entry.data.updated)}>
+              {formatDate(entry.data.updated)}
+            </time>
+          </p>
+        )
+      }
+    </header>
+
+    <div class="prose border-t border-line pt-9">
+      <Content />
+    </div>
+  </article>
+</Layout>
