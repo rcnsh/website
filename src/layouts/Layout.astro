@@ -13,9 +13,21 @@ interface Props {
   description?: string;
   /** Posts are "article"; everything else is a page. */
   ogType?: "website" | "article";
+  /** Share card. Site-relative or absolute; resolved against the site URL. */
+  image?: string;
 }
 
-const { title, description = site.description, ogType = "website" } = Astro.props;
+/* The card in public/. Its dimensions are declared to the scrapers that read
+   them before fetching, so they only hold for this file — a caller passing its
+   own image gets the tag without the size hints. */
+const OG_IMAGE = { src: "/og.png", width: 1200, height: 630 } as const;
+
+const {
+  title,
+  description = site.description,
+  ogType = "website",
+  image = OG_IMAGE.src,
+} = Astro.props;
 
 const pageTitle = title ? `${site.name} • ${title}` : `${site.name} • Home`;
 
@@ -27,6 +39,10 @@ const metaDescription = description.replace(/\[([^\]]+)\]\([^)\s]+\)/g, "$1");
 const canonical =
   new URL(Astro.url.pathname, site.url).toString().replace(/\/+$/, "") ||
   site.url;
+
+// Absolute — a relative og:image is ignored by every scraper that reads it.
+const ogImage = new URL(image, site.url).toString();
+const ogImageSize = image === OG_IMAGE.src ? OG_IMAGE : null;
 ---
 
 <!doctype html>
@@ -43,7 +59,17 @@ const canonical =
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={metaDescription} />
     <meta property="og:url" content={canonical} />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image" content={ogImage} />
+    {
+      ogImageSize && (
+        <>
+          <meta property="og:image:width" content={String(ogImageSize.width)} />
+          <meta property="og:image:height" content={String(ogImageSize.height)} />
+        </>
+      )
+    }
+    <meta property="og:image:alt" content={`${site.author} — ${site.name}`} />
+    <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-icon-180x180.png" />
