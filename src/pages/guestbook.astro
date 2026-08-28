@@ -1,11 +1,12 @@
 ---
-import { desc } from "drizzle-orm";
+import { and, desc, eq, gt } from "drizzle-orm";
 import Layout from "@/layouts/Layout.astro";
 import GuestbookForm from "@/components/react/GuestbookForm";
 import { GithubIcon } from "@/components/react/BrandIcons";
 import { getSession } from "@/lib/auth";
 import { getDb, schema } from "@/lib/db";
 import { containsProfanity } from "@/lib/profanity";
+import { nextAllowedAt, WINDOW_MS } from "@/lib/rate-limit";
 import { relativeTime } from "@/lib/utils";
 import { pages } from "@/lib/site";
 
@@ -19,6 +20,9 @@ let session = null;
 let entries: (typeof schema.guestbook.$inferSelect)[] = [];
 let error: string | null = Astro.url.searchParams.get("error");
 let posted = false;
+
+/** Set when the signer is inside their 24h window; null when they may post. */
+let nextPostAt: Date | null = null;
 
 // A missing D1 binding shouldn't take the page down — show the reason instead.
 let dbReady = true;
@@ -47,28 +51,37 @@ if (dbReady && Astro.request.method === "POST") {
   } else {
     try {
       const db = getDb();
-      // One entry per person: signing again replaces the old message.
-      await db
-        .insert(schema.guestbook)
-        .values({
+
+      // Re-check the limit here rather than trusting the render below: the
+      // form could have been sitting open since before the last message.
+      const [recent] = await db
+        .select({ createdAt: schema.guestbook.createdAt })
+        .from(schema.guestbook)
+        .where(
+          and(
+            eq(schema.guestbook.githubId, session.githubId),
+            gt(schema.guestbook.createdAt, new Date(Date.now() - WINDOW_MS)),
+          ),
+        )
+        .orderBy(desc(schema.guestbook.createdAt))
+        .limit(1);
+
+      nextPostAt = nextAllowedAt(recent?.createdAt ?? null);
+
+      if (nextPostAt) {
+        error = "rate";
+      } else {
+        await db.insert(schema.guestbook).values({
           githubId: session.githubId,
           username: session.username,
           displayName: session.displayName,
           avatarUrl: session.avatarUrl,
           message,
-        })
-        .onConflictDoUpdate({
-          target: schema.guestbook.githubId,
-          set: {
-            message,
-            username: session.username,
-            displayName: session.displayName,
-            avatarUrl: session.avatarUrl,
-            updatedAt: new Date(),
-          },
         });
-      posted = true;
-      error = null;
+        posted = true;
+        error = null;
+        nextPostAt = new Date(Date.now() + WINDOW_MS);
+      }
     } catch (insertError) {
       console.error("[guestbook] insert failed", insertError);
       error = "db";
@@ -81,7 +94,7 @@ if (dbReady) {
     entries = await getDb()
       .select()
       .from(schema.guestbook)
-      .orderBy(desc(schema.guestbook.updatedAt))
+      .orderBy(desc(schema.guestbook.createdAt))
       .limit(200);
   } catch (queryError) {
     console.error("[guestbook] query failed", queryError);
@@ -95,12 +108,15 @@ const ERRORS: Record<string, string> = {
   empty: "Write something before signing.",
   long: `Keep it under ${MAX_LENGTH} characters.`,
   profanity: "Let's keep it friendly.",
+  rate: "One message a day — you've already had yours.",
   db: "Couldn't save that. Try again in a moment.",
 };
 
-const existing = session
-  ? entries.find((entry) => entry.githubId === session.githubId)
-  : undefined;
+// A GET falls back to the freshly-read list, which saves a second query.
+if (session && Astro.request.method !== "POST") {
+  const latest = entries.find((entry) => entry.githubId === session.githubId);
+  nextPostAt = nextAllowedAt(latest?.createdAt ?? null);
+}
 ---
 
 <Layout title={page.title} description={page.description}>
@@ -147,12 +163,17 @@ const existing = session
                 </form>
               </div>
 
-              <GuestbookForm
-                client:load
-                maxLength={MAX_LENGTH}
-                initialMessage={existing?.message ?? ""}
-                isUpdate={Boolean(existing)}
-              />
+              {nextPostAt ? (
+                <p class="text-sm text-ink-faint">
+                  One message a day. You can sign again{" "}
+                  <time datetime={nextPostAt.toISOString()}>
+                    {relativeTime(nextPostAt)}
+                  </time>
+                  .
+                </p>
+              ) : (
+                <GuestbookForm client:load maxLength={MAX_LENGTH} />
+              )}
             </>
           ) : (
             <a
@@ -213,8 +234,8 @@ const existing = session
                         @{entry.username}
                       </a>
                       {" · "}
-                      <time datetime={entry.updatedAt.toISOString()}>
-                        {relativeTime(entry.updatedAt)}
+                      <time datetime={entry.createdAt.toISOString()}>
+                        {relativeTime(entry.createdAt)}
                       </time>
                     </p>
                   </div>
