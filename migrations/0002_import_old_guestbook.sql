@@ -1,0 +1,15 @@
+-- Guestbook entries carried over from the previous site.
+--
+-- The rows themselves are no longer here. They were thirteen real people's
+-- GitHub ids, usernames, display names and avatar URLs — public profile data,
+-- but published to a guestbook on rcn.sh rather than to a public repository,
+-- and /api/guestbook/delete cannot reach a git history. This file was emptied
+-- and the history rewritten when the repository went public.
+--
+-- Deliberately kept rather than deleted, and deliberately NOT renumbered:
+-- `wrangler d1 migrations apply` records applied migrations by name, so the
+-- name has to keep existing for production to go on skipping it. The imported
+-- rows live in the production database and are unaffected by this.
+--
+-- A database built from scratch simply starts without them, which is correct:
+-- someone else's guestbook signatures are not part of this schema.
