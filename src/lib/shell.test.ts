@@ -42,6 +42,32 @@ describe("run", () => {
     assert.equal(result.failed, false);
   });
 
+  it("reverses what ls prints", () => {
+    const forward = run(state(), "ls").output;
+    const backward = run(state(), "sl").output;
+
+    // Defined against ls rather than restating names, so the fixture can grow
+    // without this needing to be rewritten.
+    assert.deepEqual(
+      backward,
+      forward.map((name) => [...name].reverse().join("")),
+    );
+    // The joke lands hardest on a directory: its trailing slash comes out front.
+    assert.ok(backward.includes("/golb"));
+  });
+
+  it("reverses the whole line under sl -l", () => {
+    const forward = run(state(), "ls -l").output;
+    const backward = run(state(), "sl -l").output;
+
+    // Mode and size are reversed along with the name — drwxr-xr-x reads back
+    // as x-rx-rxwrd, which is the point.
+    assert.deepEqual(
+      backward,
+      forward.map((line) => [...line].reverse().join("")),
+    );
+  });
+
   it("changes directory and reports it", () => {
     const cd = run(state(), "cd blog");
     assert.equal(cd.cwd, "/blog");
