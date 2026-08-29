@@ -1,0 +1,311 @@
+---
+import Icon from "./Icon.astro";
+import { externalLinks, nav } from "@/lib/site";
+
+/**
+ * ⌘K / Ctrl+K, or "/" from anywhere that isn't a text field.
+ *
+ * The rows are rendered here rather than built in the browser. The list comes
+ * from site.json, it is a handful of entries long, and shipping it as markup
+ * means filtering is hiding rows and reordering them — no framework, and no
+ * component tree to hydrate on every page just to draw a dialog nobody has
+ * opened yet.
+ *
+ * It lives at the end of <body> rather than inside the header, because the
+ * header's backdrop-blur makes it the containing block for fixed-position
+ * descendants — the overlay would size to the bar instead of the viewport.
+ * The button that opens it stays in the header, marked data-palette-trigger.
+ */
+const items = [...nav, ...externalLinks].map((item) => ({
+  ...item,
+  external: /^https?:/.test(item.href) || item.href.endsWith(".txt"),
+  // Lowercased once here so the keystroke handler never has to.
+  needle: item.label.toLowerCase(),
+  haystack: `${item.label} ${item.keywords ?? ""}`.toLowerCase(),
+}));
+---
+
+<div
+  data-palette
+  inert
+  class="palette fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[14vh]"
+>
+  <div class="absolute inset-0 bg-black/75" data-palette-backdrop aria-hidden="true">
+  </div>
+
+  <div
+    role="dialog"
+    aria-modal="true"
+    aria-label="Command palette"
+    class="card relative w-full max-w-md"
+  >
+    <div class="flex items-center gap-3 border-b border-line px-4">
+      <Icon name="search" class="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+      <input
+        type="text"
+        data-palette-input
+        placeholder="Jump to…"
+        aria-label="Search pages and links"
+        autocomplete="off"
+        class="w-full bg-transparent py-3 text-sm text-ink outline-none placeholder:text-ink-faint"
+      />
+      <kbd class="shrink-0 font-mono text-[10px] text-ink-faint">esc</kbd>
+    </div>
+
+    {/* Tall enough that the full, unfiltered list lands without scrolling. */}
+    <div data-palette-list class="max-h-[21.5rem] overflow-y-auto py-1">
+      {
+        items.map((item) => (
+          <a
+            href={item.href}
+            data-palette-item
+            data-needle={item.needle}
+            data-haystack={item.haystack}
+            target={item.external ? "_blank" : undefined}
+            rel={item.external ? "noopener noreferrer" : undefined}
+            class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-ink-dim transition-colors hover:text-ink"
+          >
+            <Icon
+              name={item.icon}
+              class="palette-icon h-3.5 w-3.5 shrink-0 text-ink-faint"
+            />
+            <span class="flex-1 truncate">{item.label}</span>
+            {item.external && (
+              <span class="shrink-0 font-mono text-[10px] text-ink-faint">↗</span>
+            )}
+          </a>
+        ))
+      }
+
+      <p data-palette-empty hidden class="px-4 py-6 text-sm text-ink-faint">
+        Nothing matches “<span data-palette-query></span>”.
+      </p>
+    </div>
+  </div>
+</div>
+
+<style>
+  /*
+    Always in the DOM, toggled with opacity, so closing can fade. `inert` is
+    what makes that safe: a transparent overlay is still focusable and still in
+    the accessibility tree, and the script takes it out of both.
+  */
+  .palette {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease-out;
+  }
+
+  .palette[data-open] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* A row's own `display: flex` outranks the UA rule for [hidden]. */
+  [data-palette-item][hidden] {
+    display: none;
+  }
+
+  /* The highlighted row — set by the arrow keys and by the pointer. */
+  [data-palette-item][data-active] {
+    background: var(--color-raised);
+    color: var(--color-ink);
+  }
+
+  [data-palette-item][data-active] :global(.palette-icon) {
+    color: var(--color-brand);
+  }
+</style>
+
+<script>
+  // The palette is re-rendered on every navigation, so each run retires the
+  // last one's listeners — the same shape as the nav rail in TopBar.
+  let binding: AbortController | null = null;
+
+  function setupPalette() {
+    binding?.abort();
+    binding = null;
+
+    // A navigation can swap the page out from under an open palette, and the
+    // scroll lock is set on <body>, which survives the swap.
+    document.body.style.overflow = "";
+
+    const palette = document.querySelector<HTMLElement>("[data-palette]");
+    if (!palette) return;
+
+    const input = palette.querySelector<HTMLInputElement>("[data-palette-input]");
+    const list = palette.querySelector<HTMLElement>("[data-palette-list]");
+    const empty = palette.querySelector<HTMLElement>("[data-palette-empty]");
+    const echo = palette.querySelector<HTMLElement>("[data-palette-query]");
+    const backdrop = palette.querySelector<HTMLElement>("[data-palette-backdrop]");
+    if (!input || !list || !empty || !echo || !backdrop) return;
+
+    const rows = Array.from(
+      list.querySelectorAll<HTMLAnchorElement>("[data-palette-item]"),
+    );
+
+    /** The matching rows, in the order they are drawn. */
+    let visible = rows;
+    let active = 0;
+    let open = false;
+    let previousOverflow = "";
+
+    /** Subsequence match — "gst" finds "Guestbook". Null when it doesn't match. */
+    const score = (row: HTMLAnchorElement, query: string): number | null => {
+      if (!query) return 0;
+      const needle = row.dataset.needle ?? "";
+      const haystack = row.dataset.haystack ?? "";
+
+      const direct = needle.indexOf(query);
+      if (direct === 0) return 1000;
+      if (direct > 0) return 800 - direct;
+      if (haystack.includes(query)) return 500;
+
+      let cursor = 0;
+      let gaps = 0;
+      for (const char of query) {
+        const found = haystack.indexOf(char, cursor);
+        if (found === -1) return null;
+        gaps += found - cursor;
+        cursor = found + 1;
+      }
+      return 200 - Math.min(gaps, 199);
+    };
+
+    const setActive = (index: number) => {
+      active = visible.length ? (index + visible.length) % visible.length : 0;
+
+      for (const row of rows) row.removeAttribute("data-active");
+
+      const current = visible[active];
+      if (!current) return;
+      current.setAttribute("data-active", "");
+      // Only worth doing while the list is on screen, and scrolling something
+      // invisible is a good way to move the page instead.
+      if (open) current.scrollIntoView({ block: "nearest" });
+    };
+
+    const filter = () => {
+      const query = input.value.toLowerCase();
+
+      const matches = rows
+        .map((row) => ({ row, s: score(row, query) }))
+        .filter((entry): entry is { row: HTMLAnchorElement; s: number } => entry.s !== null)
+        .sort((a, b) => b.s - a.s);
+
+      for (const row of rows) row.hidden = true;
+      // Moving each match ahead of the empty-state line both re-sorts the list
+      // and keeps that line last.
+      for (const { row } of matches) {
+        row.hidden = false;
+        list.insertBefore(row, empty);
+      }
+
+      visible = matches.map((entry) => entry.row);
+      empty.hidden = visible.length > 0;
+      echo.textContent = input.value;
+      setActive(0);
+    };
+
+    const setOpen = (next: boolean) => {
+      if (next === open) return;
+      open = next;
+
+      palette.toggleAttribute("data-open", next);
+      palette.toggleAttribute("inert", !next);
+
+      if (next) {
+        previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        requestAnimationFrame(() => input.focus());
+      } else {
+        document.body.style.overflow = previousOverflow;
+        input.value = "";
+        filter();
+      }
+    };
+
+    binding = new AbortController();
+    const { signal } = binding;
+
+    for (const trigger of document.querySelectorAll("[data-palette-trigger]")) {
+      trigger.addEventListener("click", () => setOpen(true), { signal });
+    }
+
+    backdrop.addEventListener("click", () => setOpen(false), { signal });
+
+    input.addEventListener("input", filter, { signal });
+
+    input.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          setActive(active + 1);
+        } else if (event.key === "ArrowUp") {
+          event.preventDefault();
+          setActive(active - 1);
+        } else if (event.key === "Enter") {
+          event.preventDefault();
+          // Click the row rather than navigating by hand, so a normal click
+          // and this take the same path — including the router's.
+          visible[active]?.click();
+        }
+      },
+      { signal },
+    );
+
+    list.addEventListener(
+      "click",
+      (event) => {
+        if (!(event.target as HTMLElement).closest("[data-palette-item]")) return;
+        // Next tick: flipping `inert` mid-dispatch would cancel the very
+        // activation this is riding on.
+        setTimeout(() => setOpen(false));
+      },
+      { signal },
+    );
+
+    list.addEventListener(
+      "pointermove",
+      (event) => {
+        const row = (event.target as HTMLElement).closest<HTMLAnchorElement>(
+          "[data-palette-item]",
+        );
+        if (!row) return;
+        const index = visible.indexOf(row);
+        if (index >= 0 && index !== active) setActive(index);
+      },
+      { signal },
+    );
+
+    // Global ⌘K / Ctrl+K, and "/" as a shortcut when not already typing.
+    window.addEventListener(
+      "keydown",
+      (event) => {
+        const typing =
+          event.target instanceof HTMLElement &&
+          (event.target.tagName === "INPUT" ||
+            event.target.tagName === "TEXTAREA" ||
+            event.target.isContentEditable);
+
+        if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
+          event.preventDefault();
+          setOpen(!open);
+        } else if (event.key === "/" && !typing && !open) {
+          event.preventDefault();
+          setOpen(true);
+        } else if (event.key === "Escape" && open) {
+          event.preventDefault();
+          setOpen(false);
+        }
+      },
+      { signal },
+    );
+
+    filter();
+  }
+
+  // Fires on the initial load too.
+  document.addEventListener("astro:page-load", setupPalette);
+</script>

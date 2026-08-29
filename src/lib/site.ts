@@ -10,7 +10,7 @@ import raw from "@/content/site.json";
 const linkSchema = z.object({
   href: z.string().min(1),
   label: z.string().min(1),
-  /** Maps to an icon in components/react/icon-map.ts. */
+  /** Maps to an icon in components/icons.ts. */
   icon: z.string().optional(),
   /** Extra terms the command palette should match on. */
   keywords: z.string().optional(),
