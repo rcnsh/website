@@ -9,18 +9,45 @@
  * it is easy to give away by accident, so keep imports out of the eager path.
  */
 
+/**
+ * Whether this device has a pointer worth broadcasting.
+ *
+ * `any-pointer: fine` is true when *some* attached pointer is precise — a
+ * mouse, trackpad or stylus. A phone is false; a laptop with a touchscreen and
+ * a tablet with a keyboard case are both true, which is the right answer for
+ * each of them.
+ *
+ * A device that fails this still connects and still draws everyone else. It
+ * simply never sends: there is no cursor on a phone to broadcast, and the last
+ * place a finger touched is not one. Matched live rather than read once,
+ * because a mouse can be plugged into a tablet halfway through a session.
+ */
+const FINE_POINTER = "(any-pointer: fine)";
+
 /** Room membership is per page path — see the note on roomKey in the Worker. */
 const ENDPOINT = import.meta.env.DEV
   ? "ws://localhost:8788/api/multiplayer"
   : `wss://${location.host}/api/multiplayer`;
 
 /**
- * One send per frame at most, and never more often than this. Every inbound
- * message is a billed Durable Object request, and 20 Hz through the smoothing
- * below is indistinguishable from raw pointermove — which is 60–120 Hz, and
- * would burn a day's free-tier requests in an afternoon.
+ * Target send rate, in hertz. Every inbound message is a billed Durable Object
+ * request, so this is the single number that decides what the feature costs:
+ * one sender holding a tab open at 60 Hz is roughly 5.2M requests a day
+ * against a 1M/day free-tier allowance. Turn it down before anything else if
+ * that starts to bite.
  */
-const SEND_MS = 50;
+const SEND_HZ = 60;
+
+/**
+ * The floor between two sends, with a few milliseconds of slack.
+ *
+ * Sending is frame-paced, and a bare 1000/60 would sit exactly on a 60 Hz
+ * display's frame interval — a millisecond of scheduling jitter would push a
+ * frame under the threshold and halve the rate to 30 Hz, visibly. The slack
+ * absorbs that. It does mean a 144 Hz display lands nearer 72 Hz than 60,
+ * which is what the Worker's per-socket budget leaves headroom for.
+ */
+const SEND_MS = 1000 / SEND_HZ - 3;
 
 /** Below this, the pointer has not really moved. In CSS pixels. */
 const MOVE_EPSILON = 0.75;
@@ -33,8 +60,12 @@ const MOVE_EPSILON = 0.75;
  */
 const IDLE_MS = 4 * 60 * 1000;
 
-/** Time constant for the position smoothing. Roughly one send interval. */
-const SMOOTH_TAU = 55;
+/**
+ * Time constant for the position smoothing. Roughly one send interval — at
+ * 60 Hz there is far less gap to hide than at 20, so a long tail here would
+ * read as lag rather than as smoothing.
+ */
+const SMOOTH_TAU = 25;
 
 const RECONNECT_MIN_MS = 500;
 const RECONNECT_MAX_MS = 15_000;
@@ -140,6 +171,7 @@ const ARROW = `<svg viewBox="0 0 15 18" fill="var(--mp-colour)" aria-hidden="tru
 
 export function start(): Session {
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const pointer = matchMedia(FINE_POINTER);
 
   const style = document.createElement("style");
   style.textContent = CURSOR_CSS;
@@ -375,6 +407,12 @@ export function start(): Session {
   }
 
   function send(now: number, box: ReturnType<typeof column>) {
+    // Receive-only devices never reach here with a position anyway, since the
+    // handler below refuses to record one. This is the belt to that braces:
+    // some mobile browsers report a stray non-touch pointermove while
+    // scrolling, and one of those should not put a ghost cursor on everyone
+    // else's screen.
+    if (!pointer.matches) return;
     if (!mine || socket?.readyState !== WebSocket.OPEN) return;
     if (now - lastSendAt < SEND_MS) return;
 
@@ -395,26 +433,48 @@ export function start(): Session {
 
   // --- Input ----------------------------------------------------------------
 
+  /**
+   * "Still here" — refreshes the idle timer and brings the socket back if it
+   * has already been dropped.
+   *
+   * pointermove is that signal for anyone holding a mouse, but a phone never
+   * fires one, and a reader who is only *receiving* cursors should not be cut
+   * off after four minutes with no way back. So the ordinary signs of someone
+   * being present count too.
+   */
+  function wake() {
+    lastMoveAt = performance.now();
+    if (idle && !socket && !document.hidden) connect();
+    loop();
+  }
+
   document.addEventListener(
     "pointermove",
     (event) => {
-      // A finger is not a cursor — dragging a touchscreen would broadcast a
-      // pointer that vanishes the moment it lands. Touch users still see
-      // everyone else.
-      if (event.pointerType === "touch") return;
+      // Two gates, and they catch different things. The device check keeps
+      // phones off the wire entirely; the pointerType check covers the
+      // touchscreen on a laptop, which passes the device check on the strength
+      // of its trackpad but should not broadcast a fingertip.
+      if (!pointer.matches || event.pointerType === "touch") {
+        wake();
+        return;
+      }
 
       const box = column();
       mine = {
         x: (event.pageX - box.left) / box.width,
         y: event.pageY - box.top,
       };
-      lastMoveAt = performance.now();
-
-      if (idle && !socket) connect();
-      loop();
+      wake();
     },
     { passive: true, signal },
   );
+
+  for (const name of ["pointerdown", "touchstart", "keydown"] as const) {
+    document.addEventListener(name, wake, { passive: true, signal });
+  }
+  // Also repositions the cursors, which are anchored to the document.
+  window.addEventListener("scroll", wake, { passive: true, signal });
 
   document.addEventListener(
     "visibilitychange",
