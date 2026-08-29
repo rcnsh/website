@@ -26,7 +26,14 @@ const SECURITY_HEADERS: Record<string, string> = {
     "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
-    "connect-src 'self'",
+    /*
+      The multiplayer cursor socket. Same origin — it is a Worker route under
+      rcn.sh, not a second hostname — but `'self'` covering ws/wss is a CSP3
+      clarification some browsers were late to, so the scheme is spelled out.
+      In dev the Durable Object Worker runs on its own port under
+      `npm run dev:multiplayer`, which is a different origin and needs saying.
+    */
+    `connect-src 'self' wss://rcn.sh${import.meta.env.DEV ? " ws://localhost:8788" : ""}`,
     // Spotify spreads art across several scdn.co subdomains (i, mosaic,
     // image-cdn-*), so the wildcard rather than the one host that shows up
     // most. Still scoped to Spotify.
