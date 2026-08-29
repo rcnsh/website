@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  COMMANDS,
   complete,
   dir,
   file,
@@ -109,9 +110,18 @@ describe("run", () => {
   });
 
   it("reports an unknown command", () => {
-    const result = run(state(), "sl");
+    /*
+      Deliberately nonsense. This used to be `sl`, which was a poor choice —
+      it is a well-known joke utility and duly got implemented, so the test
+      broke for the wrong reason. The guard below fails with an explanation
+      rather than an inscrutable false !== true if that happens again.
+    */
+    const name = "frobnicate";
+    assert.ok(!(name in COMMANDS), `${name} is a real command now — rename it`);
+
+    const result = run(state(), name);
     assert.equal(result.failed, true);
-    assert.deepEqual(result.output, ["sh: sl: command not found"]);
+    assert.deepEqual(result.output, [`sh: ${name}: command not found`]);
   });
 
   it("rejects unsupported operators rather than ignoring them", () => {
