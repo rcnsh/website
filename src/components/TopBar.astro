@@ -1,5 +1,6 @@
 ---
 import Icon from "./Icon.astro";
+import SettingsMenu from "./SettingsMenu.astro";
 import { nav } from "@/lib/site";
 
 const path = Astro.url.pathname.replace(/\/+$/, "") || "/";
@@ -62,7 +63,7 @@ const homeActive = isActive("/");
     </div>
 
     {/* The dialog itself is rendered by the layout — see CommandPalette.astro. */}
-    <div class="ml-auto">
+    <div class="ml-auto flex items-center gap-4">
       <button
         type="button"
         data-palette-trigger
@@ -72,6 +73,8 @@ const homeActive = isActive("/");
         <Icon name="search" class="h-3.5 w-3.5" />
         <span class="hidden sm:inline">⌘K</span>
       </button>
+
+      <SettingsMenu />
     </div>
   </div>
 

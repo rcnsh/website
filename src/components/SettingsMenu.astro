@@ -1,0 +1,281 @@
+---
+import Icon from "./Icon.astro";
+
+/**
+ * The cog in the header, and the popover it opens.
+ *
+ * A dropdown rather than a bare switch in the bar: multiplayer is one setting
+ * and it should not cost a permanent piece of chrome that most visitors will
+ * never use. The cog is the affordance; the explanation lives inside.
+ *
+ * The only thing this ships eagerly is the popover markup and the script
+ * below. src/lib/multiplayer.ts — the socket, the render loop and its CSS — is
+ * behind a dynamic import that only runs when the switch is turned on, so a
+ * visitor who leaves it alone pays for nothing beyond a button.
+ */
+---
+
+<div class="relative" data-settings>
+  <button
+    type="button"
+    data-settings-trigger
+    aria-label="Settings"
+    aria-expanded="false"
+    class="relative -m-2 flex items-center p-2 text-ink-faint transition-colors hover:text-ink-dim"
+  >
+    {/*
+      The cog is 14px to sit level with the ⌘K label beside it, which is far
+      too small to aim at. The padding grows the hit target to ~30px and the
+      negative margin takes the space back out of the layout.
+    */}
+    <Icon name="settings" class="h-3.5 w-3.5" />
+    {/* Lit while multiplayer is connected, so the state is legible from the bar. */}
+    <span
+      data-settings-dot
+      hidden
+      class="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand ring-2 ring-base"
+    ></span>
+  </button>
+
+  <div
+    data-settings-panel
+    hidden
+    class="card absolute right-0 top-[calc(100%+0.6rem)] z-50 w-64 p-3 shadow-lg shadow-black/40"
+  >
+    <p class="label mb-2 text-ink-faint">Settings</p>
+
+    <div class="flex items-start gap-3">
+      <div class="min-w-0 flex-1">
+        <label
+          for="setting-multiplayer"
+          class="block cursor-pointer text-sm text-ink"
+        >
+          Multiplayer
+        </label>
+        <p data-settings-status class="mt-0.5 text-xs leading-snug text-ink-faint">
+          Show other readers' cursors on this page.
+        </p>
+      </div>
+
+      {/*
+        A real switch rather than a checkbox: there is no form here and no
+        submit, and role="switch" is what tells a screen reader that flipping
+        it takes effect immediately.
+      */}
+      <button
+        type="button"
+        id="setting-multiplayer"
+        role="switch"
+        aria-checked="false"
+        data-settings-toggle
+        class="switch mt-0.5 shrink-0"
+      >
+        <span class="switch-knob"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* Until the script is up, the cog does nothing — so it is not there. */
+  [data-settings]:not([data-settings-ready]) {
+    display: none;
+  }
+
+  .switch {
+    position: relative;
+    display: block;
+    height: 1.125rem;
+    width: 2rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-line-strong);
+    background: var(--color-raised);
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease;
+  }
+
+  .switch[aria-checked="true"] {
+    border-color: var(--color-brand-deep);
+    background: var(--color-brand-deep);
+  }
+
+  .switch-knob {
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    height: 0.875rem;
+    width: 0.875rem;
+    border-radius: 999px;
+    background: var(--color-ink-dim);
+    transition:
+      transform 0.24s var(--ease-out-quint),
+      background-color 0.2s ease;
+  }
+
+  .switch[aria-checked="true"] .switch-knob {
+    transform: translateX(0.875rem);
+    background: var(--color-ink);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .switch,
+    .switch-knob {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  import type { Session } from "@/lib/multiplayer";
+
+  const STORAGE_KEY = "rcn:multiplayer";
+
+  /*
+    Module scope, not per-page. Astro's view transitions swap the document but
+    do not re-evaluate a module that has already loaded, so the session — and
+    with it the socket and the peers already on screen — survives a navigation.
+    setupSettings() below only ever re-binds the new markup to it.
+  */
+  let session: Session | null = null;
+  let starting = false;
+  let bindings: AbortController | null = null;
+
+  /** Private browsing throws on the first read; the feature is just off there. */
+  function stored(): boolean {
+    try {
+      return localStorage.getItem(STORAGE_KEY) === "on";
+    } catch {
+      return false;
+    }
+  }
+
+  function remember(on: boolean) {
+    try {
+      if (on) localStorage.setItem(STORAGE_KEY, "on");
+      else localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Nothing to do — the preference simply will not survive the tab.
+    }
+  }
+
+  function setupSettings() {
+    bindings?.abort();
+    bindings = null;
+
+    const root = document.querySelector<HTMLElement>("[data-settings]");
+    if (!root) return;
+
+    const trigger = root.querySelector<HTMLButtonElement>("[data-settings-trigger]");
+    const panel = root.querySelector<HTMLElement>("[data-settings-panel]");
+    const toggle = root.querySelector<HTMLButtonElement>("[data-settings-toggle]");
+    const status = root.querySelector<HTMLElement>("[data-settings-status]");
+    const dot = root.querySelector<HTMLElement>("[data-settings-dot]");
+    if (!trigger || !panel || !toggle || !status || !dot) return;
+
+    bindings = new AbortController();
+    const { signal } = bindings;
+
+    const IDLE_COPY = "Show other readers' cursors on this page.";
+
+    const describe = (count: number) => {
+      status.textContent =
+        count === 0
+          ? "On — nobody else is here yet."
+          : count === 1
+            ? "On — one other person is here."
+            : `On — ${count} other people are here.`;
+      dot.hidden = false;
+    };
+
+    const paint = (on: boolean) => {
+      toggle.setAttribute("aria-checked", String(on));
+      if (!on) {
+        status.textContent = IDLE_COPY;
+        dot.hidden = true;
+      }
+    };
+
+    const setOpen = (open: boolean) => {
+      panel.hidden = !open;
+      trigger.setAttribute("aria-expanded", String(open));
+    };
+
+    // Arrow consts rather than declarations, like everything else in here —
+    // a hoisted `function` does not inherit the null-narrowing from the guard
+    // above, and re-checking each element inside would be noise.
+    const enable = async () => {
+      // Two clicks before the chunk lands should not open two sockets.
+      if (session || starting) return;
+      starting = true;
+      try {
+        const { start } = await import("@/lib/multiplayer");
+        // The switch may have been turned back off while this was in flight.
+        if (!stored()) return;
+        session = start();
+        session.onPresence(describe);
+      } catch {
+        remember(false);
+        paint(false);
+        status.textContent = "Multiplayer could not start.";
+      } finally {
+        starting = false;
+      }
+    };
+
+    const disable = () => {
+      session?.destroy();
+      session = null;
+    };
+
+    toggle.addEventListener(
+      "click",
+      () => {
+        const on = toggle.getAttribute("aria-checked") !== "true";
+        remember(on);
+        paint(on);
+        if (on) void enable();
+        else disable();
+      },
+      { signal },
+    );
+
+    trigger.addEventListener("click", () => setOpen(panel.hidden), { signal });
+
+    document.addEventListener(
+      "pointerdown",
+      (event) => {
+        if (!panel.hidden && !root.contains(event.target as Node)) setOpen(false);
+      },
+      { signal },
+    );
+
+    document.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key !== "Escape" || panel.hidden) return;
+        setOpen(false);
+        trigger.focus();
+      },
+      { signal },
+    );
+
+    root.setAttribute("data-settings-ready", "");
+
+    const on = stored();
+    paint(on);
+
+    if (on) {
+      // Already running from a previous page — re-point it and re-attach the
+      // presence readout to this copy of the markup.
+      if (session) {
+        session.setRoom(location.pathname);
+        session.onPresence(describe);
+      } else {
+        void enable();
+      }
+    }
+  }
+
+  document.addEventListener("astro:page-load", setupSettings);
+</script>
