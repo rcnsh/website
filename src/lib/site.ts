@@ -58,12 +58,40 @@ const schema = z.object({
       /** The page description is written for search — a subscriber needs its own line. */
       feedDescription: z.string().min(1),
     }),
+    uses: pageSchema,
     music: pageSchema,
     guestbook: pageSchema.extend({
       maxMessageLength: z.number().int().positive().default(200),
     }),
     files: pageSchema,
     notFound: pageSchema,
+  }),
+  uses: z.object({
+    groups: z
+      .array(
+        z.object({
+          /** Sits on the group's top border, cutting through it. */
+          title: z.string().min(1),
+          items: z
+            .array(
+              z.object({
+                name: z.string().min(1),
+                url: z.url().optional(),
+                /** Second line — a model, a maker, a qualifier. */
+                detail: z.string().optional(),
+                /**
+                 * Which drawing to show. Hardware names a hand-drawn shape in
+                 * UsesArt.astro; software will name a brand mark. An unknown
+                 * name renders a placeholder rather than nothing, so a typo is
+                 * visible on the page instead of silently blank.
+                 */
+                art: z.string().min(1),
+              }),
+            )
+            .min(1),
+        }),
+      )
+      .min(1),
   }),
   nav: z.array(linkSchema).min(1),
   links: z.array(linkSchema),
@@ -107,6 +135,7 @@ export const pages = config.pages;
 export const nav = config.nav;
 export const externalLinks = config.links;
 export const stack = config.stack;
+export const uses = config.uses;
 export const pinnedRepos = config.pinnedRepos;
 
 export type SiteLink = z.infer<typeof linkSchema>;

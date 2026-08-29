@@ -28,6 +28,10 @@
       "description": "Posts on software and side projects. Available as an RSS feed.",
       "feedDescription": "Posts on software and side projects, by Jacob Wiltshire."
     },
+    "uses": {
+      "title": "Uses",
+      "description": "The hardware and software Jacob Wiltshire works on, drawn as a diagram."
+    },
     "music": {
       "title": "Music",
       "description": "Now playing, top tracks and artists, and recently played, from Spotify."
@@ -47,9 +51,56 @@
     }
   },
 
+  "uses": {
+    "groups": [
+      {
+        "title": "IRL",
+        "items": [
+          { "name": "MacBook Pro", "detail": "16\", M5 Pro", "art": "macbook" },
+          { "name": "Pixel 10 Pro", "detail": "Google", "art": "pixel" },
+          { "name": "AirPods Pro 3", "detail": "Apple", "art": "airpods" },
+          { "name": "Wooting Two HE", "detail": "Hall effect", "art": "keyboard" },
+          { "name": "UltralightX", "detail": "Finalmouse", "art": "mouse" },
+          { "name": "Everyday Backpack", "detail": "Peak Design, 30L", "art": "backpack" }
+        ]
+      },
+      {
+        "title": "EVERY DAY",
+        "items": [
+          { "name": "VS Code", "url": "https://code.visualstudio.com/", "art": "vscode" },
+          { "name": "Terminal", "detail": "macOS", "art": "terminal" },
+          { "name": "Helium", "url": "https://helium.computer/", "detail": "Browser", "art": "helium" },
+          { "name": "Claude", "url": "https://claude.ai/", "art": "claude" },
+          { "name": "Premiere Pro", "detail": "Adobe", "art": "premiere" }
+        ]
+      },
+      {
+        "title": "BUILDING WITH",
+        "items": [
+          { "name": "TypeScript", "url": "https://www.typescriptlang.org/", "art": "typescript" },
+          { "name": "Python", "url": "https://python.org/", "art": "python" },
+          { "name": "Astro", "url": "https://astro.build/", "art": "astro" },
+          { "name": "Next.js", "url": "https://nextjs.org/", "art": "nextjs" },
+          { "name": "React", "url": "https://react.dev/", "art": "react" },
+          { "name": "Tailwind", "url": "https://tailwindcss.com/", "art": "tailwind" }
+        ]
+      },
+      {
+        "title": "RUNNING ON",
+        "items": [
+          { "name": "Cloudflare", "url": "https://developers.cloudflare.com/workers/", "art": "cloudflare" },
+          { "name": "Vercel", "url": "https://vercel.com/", "art": "vercel" },
+          { "name": "Postgres", "url": "https://www.postgresql.org/", "art": "postgres" },
+          { "name": "Linux", "url": "https://www.linux.org/", "art": "linux" }
+        ]
+      }
+    ]
+  },
+
   "nav": [
     { "href": "/", "label": "Home", "icon": "home", "keywords": "index about bio start" },
     { "href": "/blog", "label": "Writing", "icon": "pen", "keywords": "blog posts articles notes essays" },
+    { "href": "/uses", "label": "Uses", "icon": "wrench", "keywords": "tools setup gear stack editor hardware software" },
     { "href": "/music", "label": "Music", "icon": "music", "keywords": "spotify listening tracks artists songs" },
     { "href": "/guestbook", "label": "Guestbook", "icon": "book", "keywords": "sign message comment leave note" },
     { "href": "/files", "label": "Files", "icon": "file", "keywords": "r2 bucket storage downloads browse" }
