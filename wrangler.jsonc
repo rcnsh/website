@@ -3,7 +3,10 @@
   "name": "rcnsh",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
-  "observability": { "enabled": true },
+  "observability": {
+    "enabled": true,
+    "traces": { "enabled": true, "head_sampling_rate": 1 }
+  },
 
   // Guestbook entries + OAuth sessions.
   // Create with: wrangler d1 create rcnsh   →  paste the id below.
