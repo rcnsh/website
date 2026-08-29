@@ -18,6 +18,13 @@ export const guestbook = sqliteTable(
     displayName: text("display_name"),
     avatarUrl: text("avatar_url"),
     message: text("message").notNull(),
+    /**
+     * ISO 3166-1 alpha-2, from Cloudflare's `request.cf.country` at the moment
+     * of signing. Nullable on purpose: the entries imported from the old
+     * guestbook predate it, Workers omits it for some requests, and `T1` comes
+     * back for Tor. The map treats all three the same — not placed.
+     */
+    country: text("country"),
     createdAt: integer("created_at", { mode: "timestamp" })
       .notNull()
       .default(sql`(unixepoch())`),
