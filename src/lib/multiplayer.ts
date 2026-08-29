@@ -9,6 +9,8 @@
  * it is easy to give away by accident, so keep imports out of the eager path.
  */
 
+import { SEND_INTERVAL_MS, SMOOTH_TAU_MS } from "../../shared/multiplayer";
+
 /**
  * Whether this device has a pointer worth broadcasting.
  *
@@ -24,30 +26,15 @@
  */
 const FINE_POINTER = "(any-pointer: fine)";
 
+/*
+  The send rate lives in shared/multiplayer.ts, because the Worker has to agree
+  with it — see the note there. Change CURSOR_HZ, not these.
+*/
+
 /** Room membership is per page path — see the note on roomKey in the Worker. */
 const ENDPOINT = import.meta.env.DEV
   ? "ws://localhost:8788/api/multiplayer"
   : `wss://${location.host}/api/multiplayer`;
-
-/**
- * Target send rate, in hertz. Every inbound message is a billed Durable Object
- * request, so this is the single number that decides what the feature costs:
- * one sender holding a tab open at 60 Hz is roughly 5.2M requests a day
- * against a 1M/day free-tier allowance. Turn it down before anything else if
- * that starts to bite.
- */
-const SEND_HZ = 60;
-
-/**
- * The floor between two sends, with a few milliseconds of slack.
- *
- * Sending is frame-paced, and a bare 1000/60 would sit exactly on a 60 Hz
- * display's frame interval — a millisecond of scheduling jitter would push a
- * frame under the threshold and halve the rate to 30 Hz, visibly. The slack
- * absorbs that. It does mean a 144 Hz display lands nearer 72 Hz than 60,
- * which is what the Worker's per-socket budget leaves headroom for.
- */
-const SEND_MS = 1000 / SEND_HZ - 3;
 
 /** Below this, the pointer has not really moved. In CSS pixels. */
 const MOVE_EPSILON = 0.75;
@@ -59,13 +46,6 @@ const MOVE_EPSILON = 0.75;
  * movement.
  */
 const IDLE_MS = 4 * 60 * 1000;
-
-/**
- * Time constant for the position smoothing. Roughly one send interval — at
- * 60 Hz there is far less gap to hide than at 20, so a long tail here would
- * read as lag rather than as smoothing.
- */
-const SMOOTH_TAU = 25;
 
 const RECONNECT_MIN_MS = 500;
 const RECONNECT_MAX_MS = 15_000;
@@ -385,7 +365,7 @@ export function start(): Session {
   function draw(box: ReturnType<typeof column>, dt: number) {
     // Exponential approach rather than a fixed step, so the smoothing holds
     // its shape on a 144 Hz screen and through a dropped frame alike.
-    const alpha = reduced ? 1 : 1 - Math.exp(-dt / SMOOTH_TAU);
+    const alpha = reduced ? 1 : 1 - Math.exp(-dt / SMOOTH_TAU_MS);
 
     for (const peer of peers.values()) {
       if (!peer.drawn) peer.drawn = { ...peer.target };
@@ -414,7 +394,7 @@ export function start(): Session {
     // else's screen.
     if (!pointer.matches) return;
     if (!mine || socket?.readyState !== WebSocket.OPEN) return;
-    if (now - lastSendAt < SEND_MS) return;
+    if (now - lastSendAt < SEND_INTERVAL_MS) return;
 
     // Resting on the page costs nothing. This is most of why an open tab is
     // affordable at all.

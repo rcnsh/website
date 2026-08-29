@@ -1,5 +1,15 @@
 import { DurableObject } from "cloudflare:workers";
 
+/*
+  Rates come from shared/multiplayer.ts, which the client half imports too —
+  the two have to agree, and keeping the numbers in both files meant three
+  edits to change one thing. Change CURSOR_HZ there, not these.
+*/
+import {
+  FLUSH_INTERVAL_MS,
+  MAX_MESSAGES_PER_SECOND,
+} from "../../../shared/multiplayer";
+
 /**
  * Live cursors, one Durable Object per page path.
  *
@@ -19,28 +29,6 @@ interface Env {
 
 /** Beyond this the screen is soup, and the fan-out stops being cheap. */
 const MAX_PEERS = 20;
-
-/**
- * Inbound WebSocket messages are billed as Durable Object requests, so a
- * client that ignores the 60 Hz send cap gets its excess dropped rather than
- * charged.
- *
- * The headroom over 60 is deliberate: the client paces itself off animation
- * frames with a few milliseconds of slack, which puts a 144 Hz display nearer
- * 72 Hz than 60. Clipping those honest clients to make the number tidy would
- * cost them every fourth position for nothing.
- */
-const MAX_MESSAGES_PER_SECOND = 90;
-
-/**
- * Positions are collected as they arrive and flushed on a fixed tick, so N
- * peers cost N frames per tick rather than N² sends per movement.
- *
- * Paired with the client's send rate: flushing slower than clients send would
- * throw away the extra positions they are paying to deliver, and flushing
- * faster would send frames with nothing new in them.
- */
-const FLUSH_MS = 1000 / 60;
 
 /*
   Deliberately wider than the site's palette, which is one accent on warm
@@ -166,7 +154,7 @@ export class CursorRoom extends DurableObject<Env> {
     ]);
 
     if (this.flushTimer === null) {
-      this.flushTimer = setTimeout(() => this.flush(), FLUSH_MS);
+      this.flushTimer = setTimeout(() => this.flush(), FLUSH_INTERVAL_MS);
     }
   }
 
