@@ -54,6 +54,21 @@ export function relativeTime(input: string | Date): string {
   return formatDate(date);
 }
 
+const WORDS_PER_MINUTE = 200;
+
+/**
+ * Deliberately rough. Fenced and inline code are dropped rather than counted at
+ * prose speed, and what's left is counted as whitespace-separated tokens.
+ *
+ * Lives here rather than in lib/blog.ts so the share-card script can import it
+ * without dragging in `astro:content`, which only resolves inside Astro.
+ */
+export function readingTime(body = ""): number {
+  const prose = body.replace(/```[\s\S]*?```/g, " ").replace(/`[^`]*`/g, " ");
+  const words = prose.split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / WORDS_PER_MINUTE));
+}
+
 export function formatDuration(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60);

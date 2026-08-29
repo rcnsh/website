@@ -7,8 +7,9 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "astro dev",
-    "build": "wrangler types && astro check && astro build",
+    "dev": "npm run og && astro dev",
+    "build": "npm run og && wrangler types && astro check && astro build",
+    "og": "node scripts/generate-og.ts",
     "preview": "astro build && wrangler dev",
     "deploy": "astro build && wrangler deploy",
     "check": "astro check",
