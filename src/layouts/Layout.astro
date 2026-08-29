@@ -16,11 +16,16 @@ interface Props {
   ogType?: "website" | "article";
   /** Share card. Site-relative or absolute; resolved against the site URL. */
   image?: string;
+  /**
+   * Dimensions of `image`, declared to the scrapers that read them before
+   * fetching. Defaults to the size every card here is drawn at — the static
+   * one in public/ and the per-post ones lib/og.ts renders alike. Pass null
+   * for an image of some other size.
+   */
+  imageSize?: { width: number; height: number } | null;
 }
 
-/* The card in public/. Its dimensions are declared to the scrapers that read
-   them before fetching, so they only hold for this file — a caller passing its
-   own image gets the tag without the size hints. */
+/* The fallback card in public/, and the size lib/og.ts draws at. */
 const OG_IMAGE = { src: "/og.png", width: 1200, height: 630 } as const;
 
 const {
@@ -28,6 +33,7 @@ const {
   description = site.description,
   ogType = "website",
   image = OG_IMAGE.src,
+  imageSize: ogImageSize = OG_IMAGE,
 } = Astro.props;
 
 const pageTitle = title ? `${site.name} • ${title}` : `${site.name} • Home`;
@@ -43,7 +49,6 @@ const canonical =
 
 // Absolute — a relative og:image is ignored by every scraper that reads it.
 const ogImage = new URL(image, site.url).toString();
-const ogImageSize = image === OG_IMAGE.src ? OG_IMAGE : null;
 ---
 
 <!doctype html>

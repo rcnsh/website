@@ -6,6 +6,7 @@ import {
   getPosts,
   isoDate,
   postHref,
+  postOgHref,
   readingTime,
   type Post,
 } from "@/lib/blog";
@@ -39,6 +40,7 @@ const minutes = readingTime(post.body);
   title={post.data.title}
   description={post.data.description}
   ogType="article"
+  image={postOgHref(post)}
 >
   <article class="animate-rise pb-6">
     <header class="pb-9">
