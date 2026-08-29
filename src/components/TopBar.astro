@@ -1,6 +1,6 @@
 ---
-import CommandPalette from "./react/CommandPalette";
-import { externalLinks, nav } from "@/lib/site";
+import Icon from "./Icon.astro";
+import { nav } from "@/lib/site";
 
 const path = Astro.url.pathname.replace(/\/+$/, "") || "/";
 
@@ -9,16 +9,13 @@ const isActive = (href: string) => (href === "/" ? path === "/" : path.startsWit
 
 const tabs = nav.slice(1);
 const homeActive = isActive("/");
-
-// Built here, not in the island, so site.ts (and Zod) stay off the client bundle.
-const paletteItems = [...nav, ...externalLinks];
 ---
 
 {
   /*
     Not transition:persist — the active-route marker comes from Astro.url, so
-    persisting the header would freeze it on the first page loaded. Only the
-    palette island below persists.
+    persisting the header would freeze it on the first page loaded. Nothing in
+    here holds state worth carrying across a navigation anyway.
   */
 }
 <header class="sticky top-0 z-50 border-b border-line bg-base/85 backdrop-blur-md">
@@ -64,8 +61,17 @@ const paletteItems = [...nav, ...externalLinks];
       <span class="nav-underline" data-nav-underline aria-hidden="true"></span>
     </div>
 
+    {/* The dialog itself is rendered by the layout — see CommandPalette.astro. */}
     <div class="ml-auto">
-      <CommandPalette client:idle items={paletteItems} transition:persist />
+      <button
+        type="button"
+        data-palette-trigger
+        aria-label="Open command palette"
+        class="flex items-center gap-2 font-mono text-xs text-ink-faint transition-colors hover:text-ink-dim"
+      >
+        <Icon name="search" class="h-3.5 w-3.5" />
+        <span class="hidden sm:inline">⌘K</span>
+      </button>
     </div>
   </div>
 

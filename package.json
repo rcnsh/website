@@ -13,7 +13,7 @@
     "deploy": "astro build && wrangler deploy",
     "check": "astro check",
     "test": "node --test \"src/**/*.test.ts\"",
-    "lint": "biome lint src/lib src/components/react src/pages/api src/middleware.ts src/content.config.ts",
+    "lint": "biome lint src/lib src/components/react src/components/icons.ts src/pages/api src/middleware.ts src/content.config.ts",
     "lint:fix": "npm run lint -- --write",
     "cf-types": "wrangler types",
     "db:generate": "drizzle-kit generate",
