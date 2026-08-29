@@ -10,15 +10,8 @@
  */
 
 import { SEND_INTERVAL_MS } from "../../shared/multiplayer.ts";
-import {
-  approach,
-  type Column,
-  isStalled,
-  onScreen,
-  reconnectDelay,
-  toColumn,
-  toScreen,
-} from "./cursors.ts";
+import { approach, type Column, onScreen, toColumn, toScreen } from "./cursors.ts";
+import { link } from "./link.ts";
 
 /**
  * Whether this device has a pointer worth broadcasting.
@@ -189,17 +182,13 @@ export function start(): Session {
   let watcher: ((state: SessionState) => void) | null = null;
 
   let room = path();
-  let socket: WebSocket | null = null;
   let closed = false;
-  let attempt = 0;
-  let retry: ReturnType<typeof setTimeout> | null = null;
 
   /** Latest local pointer position, in column space. Null until it moves. */
   let mine: { x: number; y: number } | null = null;
   let sent: { x: number; y: number } | null = null;
   let lastSendAt = 0;
   let lastMoveAt = performance.now();
-  let idle = false;
 
   let frame: number | null = null;
   let lastFrameAt = 0;
@@ -216,84 +205,50 @@ export function start(): Session {
     // clears the peers, and that must not read as "nobody else is here".
     if (closed) return;
     watcher?.({
-      live: socket?.readyState === WebSocket.OPEN,
+      live: connection.live,
       peers: peers.size,
-      stalled: isStalled(attempt),
+      stalled: connection.stalled,
     });
   }
 
   // --- Connection -----------------------------------------------------------
 
-  function connect() {
-    if (closed || socket) return;
+  /*
+    Everything about keeping the socket up — the backoff, what counts as a
+    deliberate hang-up, which of two sockets is the live one — lives in
+    link.ts, where it can be tested without a browser. What stays here is the
+    half that cannot: turning a WebSocket's events into the three the link
+    understands, and deciding what the rest of the engine does about each.
+  */
+  const connection = link({
+    open(handlers) {
+      const ws = new WebSocket(`${ENDPOINT}?room=${encodeURIComponent(room)}`);
 
-    idle = false;
-    const ws = new WebSocket(`${ENDPOINT}?room=${encodeURIComponent(room)}`);
-    socket = ws;
+      ws.addEventListener("open", () => handlers.opened());
+      ws.addEventListener("message", (event) => {
+        if (typeof event.data === "string") handlers.received(event.data);
+      });
+      ws.addEventListener("close", () => handlers.gone());
+      ws.addEventListener("error", () => handlers.gone());
 
-    ws.addEventListener("open", () => {
-      attempt = 0;
+      return ws;
+    },
+
+    wait(ms, fn) {
+      const timer = setTimeout(fn, ms);
+      return () => clearTimeout(timer);
+    },
+
+    onOpen() {
       // Whatever the pointer was doing while disconnected is the truth now.
       sent = null;
-      announce();
       loop();
-    });
+    },
 
-    ws.addEventListener("message", (event) => {
-      if (typeof event.data === "string") receive(event.data);
-    });
-
-    const gone = () => {
-      if (socket !== ws) return;
-      socket = null;
-      clearPeers();
-      // An idle disconnection is deliberate; movement brings it back.
-      if (!closed && !idle) schedule();
-    };
-
-    ws.addEventListener("close", gone);
-    ws.addEventListener("error", gone);
-  }
-
-  function schedule() {
-    if (retry !== null || closed) return;
-
-    const delay = reconnectDelay(attempt);
-    attempt += 1;
-    // Crossing the stall threshold is a change worth reporting.
-    announce();
-    retry = setTimeout(() => {
-      retry = null;
-      connect();
-    }, delay);
-  }
-
-  /**
-   * Conditions have plausibly changed — the tab came back, or the reader moved
-   * to another page. Drops the backoff so a stalled session tries again now
-   * rather than sitting out the rest of a five-minute wait.
-   */
-  function revive() {
-    if (closed || socket) return;
-
-    if (retry !== null) {
-      clearTimeout(retry);
-      retry = null;
-    }
-    attempt = 0;
-    connect();
-  }
-
-  function disconnect() {
-    if (retry !== null) {
-      clearTimeout(retry);
-      retry = null;
-    }
-    const ws = socket;
-    socket = null;
-    ws?.close();
-    clearPeers();
-  }
+    onMessage: (data) => receive(data),
+    onClose: () => clearPeers(),
+    onState: () => announce(),
+  });
 
   function receive(raw: string) {
     let message: {
@@ -398,14 +353,11 @@ export function start(): Session {
     draw(box, dt);
     send(now, box);
 
-    if (now - lastMoveAt > IDLE_MS && socket) {
-      idle = true;
-      disconnect();
-    }
+    if (now - lastMoveAt > IDLE_MS && connection.live) connection.sleep();
 
     // Nothing to draw and nothing to send is a loop worth not running. The
     // pointermove listener restarts it.
-    if (peers.size > 0 || socket) frame = requestAnimationFrame(tick);
+    if (peers.size > 0 || connection.live) frame = requestAnimationFrame(tick);
   }
 
   function draw(box: Column, dt: number) {
@@ -446,7 +398,7 @@ export function start(): Session {
     // scrolling, and one of those should not put a ghost cursor on everyone
     // else's screen.
     if (!pointer.matches) return;
-    if (!mine || socket?.readyState !== WebSocket.OPEN) return;
+    if (!mine || !connection.live) return;
     if (now - lastSendAt < SEND_INTERVAL_MS) return;
 
     // Resting on the page costs nothing. This is most of why an open tab is
@@ -461,7 +413,7 @@ export function start(): Session {
 
     lastSendAt = now;
     sent = { ...mine };
-    socket.send(JSON.stringify({ t: "m", x: mine.x, y: mine.y }));
+    connection.send(JSON.stringify({ t: "m", x: mine.x, y: mine.y }));
   }
 
   // --- Input ----------------------------------------------------------------
@@ -477,7 +429,7 @@ export function start(): Session {
    */
   function wake() {
     lastMoveAt = performance.now();
-    if (idle && !socket && !document.hidden) connect();
+    if (!document.hidden) connection.wake();
     loop();
   }
 
@@ -510,18 +462,16 @@ export function start(): Session {
     () => {
       // A hidden tab cannot see cursors and rAF is paused anyway, so holding
       // the socket open would be duration billed for nothing.
-      if (document.hidden) disconnect();
+      if (document.hidden) connection.drop();
       else if (!closed) {
         lastMoveAt = performance.now();
-        // revive, not connect — coming back to the tab is the clearest sign
-        // that a stalled session is worth retrying straight away.
-        revive();
+        // revive, not wake — coming back to the tab is the clearest sign that
+        // a stalled session is worth retrying straight away.
+        connection.revive();
       }
     },
     { signal },
   );
-
-  connect();
 
   return {
     setRoom(next) {
@@ -540,8 +490,8 @@ export function start(): Session {
       room = key;
       mine = null;
       sent = null;
-      disconnect();
-      if (!document.hidden) revive();
+      connection.drop();
+      if (!document.hidden) connection.revive();
     },
 
     onState(listener) {
@@ -552,7 +502,7 @@ export function start(): Session {
     destroy() {
       closed = true;
       bindings.abort();
-      disconnect();
+      connection.destroy();
       if (frame !== null) cancelAnimationFrame(frame);
       frame = null;
       layer.remove();
