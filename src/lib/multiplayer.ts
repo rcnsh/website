@@ -48,7 +48,26 @@ const MOVE_EPSILON = 0.75;
 const IDLE_MS = 4 * 60 * 1000;
 
 const RECONNECT_MIN_MS = 500;
-const RECONNECT_MAX_MS = 15_000;
+
+/**
+ * Ceiling on the reconnect backoff.
+ *
+ * Deliberately long. If the room Worker is down, or the network has gone, a
+ * client that keeps knocking every fifteen seconds spends the rest of the
+ * session writing failures into the console for something that is not coming
+ * back on its own — and each attempt is a request. Five minutes still
+ * self-heals without the noise, and the paths that suggest conditions have
+ * actually changed reset the backoff so recovery stays prompt when someone is
+ * there to notice.
+ */
+const RECONNECT_MAX_MS = 5 * 60 * 1000;
+
+/**
+ * How many failed attempts before the UI stops implying everything is fine.
+ * Four is roughly seven seconds of trying: past an ordinary blip, short of
+ * making a momentary hiccup look like an outage.
+ */
+const STALL_AFTER_ATTEMPTS = 4;
 
 interface Identity {
   id: number;
@@ -64,16 +83,32 @@ interface Peer extends Identity {
   drawn: { x: number; y: number } | null;
 }
 
+/** What the settings panel needs to describe the feature honestly. */
+export interface SessionState {
+  /** Whether the socket is actually open right now. */
+  live: boolean;
+  /** Other people in the room. Only meaningful while `live`. */
+  peers: number;
+  /**
+   * Reconnecting has failed often enough to be worth admitting to. The session
+   * has not given up — it is just trying slowly now.
+   */
+  stalled: boolean;
+}
+
 export interface Session {
   /** Point the session at a different page. No-op if it is already there. */
   setRoom(path: string): void;
   /**
-   * Watch how many other people are in the room. One listener, replaced on
-   * each call rather than added to — the settings markup is rebuilt on every
-   * navigation, and a list here would accumulate closures over detached nodes
-   * for the life of the session.
+   * Watch the room. One listener, replaced on each call rather than added to —
+   * the settings markup is rebuilt on every navigation, and a list here would
+   * accumulate closures over detached nodes for the life of the session.
+   *
+   * Reports connection state and not just a count, because the two are not the
+   * same thing and reporting only the count made a dropped socket look exactly
+   * like an empty room.
    */
-  onPresence(listener: (count: number) => void): void;
+  onState(listener: (state: SessionState) => void): void;
   destroy(): void;
 }
 
@@ -163,7 +198,7 @@ export function start(): Session {
   document.body.appendChild(layer);
 
   const peers = new Map<number, Peer>();
-  let presence: ((count: number) => void) | null = null;
+  let watcher: ((state: SessionState) => void) | null = null;
 
   let room = path();
   let socket: WebSocket | null = null;
@@ -192,7 +227,11 @@ export function start(): Session {
     // A destroyed session has no business reporting anything — tearing down
     // clears the peers, and that must not read as "nobody else is here".
     if (closed) return;
-    presence?.(peers.size);
+    watcher?.({
+      live: socket?.readyState === WebSocket.OPEN,
+      peers: peers.size,
+      stalled: attempt > STALL_AFTER_ATTEMPTS,
+    });
   }
 
   // --- Connection -----------------------------------------------------------
@@ -208,6 +247,7 @@ export function start(): Session {
       attempt = 0;
       // Whatever the pointer was doing while disconnected is the truth now.
       sent = null;
+      announce();
       loop();
     });
 
@@ -232,10 +272,28 @@ export function start(): Session {
 
     const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_MIN_MS * 2 ** attempt);
     attempt += 1;
+    // Crossing the stall threshold is a change worth reporting.
+    announce();
     retry = setTimeout(() => {
       retry = null;
       connect();
     }, delay);
+  }
+
+  /**
+   * Conditions have plausibly changed — the tab came back, or the reader moved
+   * to another page. Drops the backoff so a stalled session tries again now
+   * rather than sitting out the rest of a five-minute wait.
+   */
+  function revive() {
+    if (closed || socket) return;
+
+    if (retry !== null) {
+      clearTimeout(retry);
+      retry = null;
+    }
+    attempt = 0;
+    connect();
   }
 
   function disconnect() {
@@ -464,7 +522,9 @@ export function start(): Session {
       if (document.hidden) disconnect();
       else if (!closed) {
         lastMoveAt = performance.now();
-        connect();
+        // revive, not connect — coming back to the tab is the clearest sign
+        // that a stalled session is worth retrying straight away.
+        revive();
       }
     },
     { signal },
@@ -490,12 +550,12 @@ export function start(): Session {
       mine = null;
       sent = null;
       disconnect();
-      if (!document.hidden) connect();
+      if (!document.hidden) revive();
     },
 
-    onPresence(listener) {
-      presence = listener;
-      listener(peers.size);
+    onState(listener) {
+      watcher = listener;
+      announce();
     },
 
     destroy() {
