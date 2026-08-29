@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  COMMANDS,
   complete,
   dir,
   file,
@@ -10,6 +11,7 @@ import {
 } from "./shell.ts";
 
 const root = dir("", [
+  file(".hidden", "shh"),
   file("about.txt", "hello\nworld\nastro rules"),
   dir(
     "blog",
@@ -39,6 +41,57 @@ describe("run", () => {
     const result = run(state(), "ls");
     assert.deepEqual(result.output, ["about.txt", "blog/"]);
     assert.equal(result.failed, false);
+  });
+
+  it("hides dot-entries until -a", () => {
+    assert.deepEqual(run(state(), "ls").output, ["about.txt", "blog/"]);
+    assert.deepEqual(run(state(), "ls -a").output, [
+      ".hidden",
+      "about.txt",
+      "blog/",
+    ]);
+  });
+
+  it("hides them in tree too, or hiding them in ls would be moot", () => {
+    assert.ok(!run(state(), "tree").output.some((l) => l.includes(".hidden")));
+    assert.ok(run(state(), "tree -a").output.some((l) => l.includes(".hidden")));
+  });
+
+  it("counts a hidden entry only under -a", () => {
+    assert.deepEqual(run(state(), "ls | wc -l").output, ["      2"]);
+    assert.deepEqual(run(state(), "ls -a | wc -l").output, ["      3"]);
+  });
+
+  it("still finds a dot-entry by name, the way find does", () => {
+    // find walks everything on purpose — being findable deliberately is the
+    // point of hiding it from a plain listing.
+    assert.deepEqual(run(state(), "find / -name .hidden").output, ["/.hidden"]);
+  });
+
+  it("reverses what ls prints", () => {
+    const forward = run(state(), "ls").output;
+    const backward = run(state(), "sl").output;
+
+    // Defined against ls rather than restating names, so the fixture can grow
+    // without this needing to be rewritten.
+    assert.deepEqual(
+      backward,
+      forward.map((name) => [...name].reverse().join("")),
+    );
+    // The joke lands hardest on a directory: its trailing slash comes out front.
+    assert.ok(backward.includes("/golb"));
+  });
+
+  it("reverses the whole line under sl -l", () => {
+    const forward = run(state(), "ls -l").output;
+    const backward = run(state(), "sl -l").output;
+
+    // Mode and size are reversed along with the name — drwxr-xr-x reads back
+    // as x-rx-rxwrd, which is the point.
+    assert.deepEqual(
+      backward,
+      forward.map((line) => [...line].reverse().join("")),
+    );
   });
 
   it("changes directory and reports it", () => {
@@ -109,9 +162,18 @@ describe("run", () => {
   });
 
   it("reports an unknown command", () => {
-    const result = run(state(), "sl");
+    /*
+      Deliberately nonsense. This used to be `sl`, which was a poor choice —
+      it is a well-known joke utility and duly got implemented, so the test
+      broke for the wrong reason. The guard below fails with an explanation
+      rather than an inscrutable false !== true if that happens again.
+    */
+    const name = "frobnicate";
+    assert.ok(!(name in COMMANDS), `${name} is a real command now — rename it`);
+
+    const result = run(state(), name);
     assert.equal(result.failed, true);
-    assert.deepEqual(result.output, ["sh: sl: command not found"]);
+    assert.deepEqual(result.output, [`sh: ${name}: command not found`]);
   });
 
   it("rejects unsupported operators rather than ignoring them", () => {
@@ -196,6 +258,12 @@ describe("complete", () => {
     assert.equal(result.line, "cat about.txt  | wc -l");
     // Caret lands after the inserted word, not at the end of the line.
     assert.equal(result.cursor, 14);
+  });
+
+  it("offers a dot-entry only once the dot is typed", () => {
+    // Bare Tab must not hand back what ls just hid.
+    assert.ok(!tab("cat ").candidates.includes(".hidden"));
+    assert.equal(tab("cat .hid").line, "cat .hidden ");
   });
 
   it("leaves the line alone when nothing matches", () => {
