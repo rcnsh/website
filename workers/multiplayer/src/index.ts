@@ -22,17 +22,25 @@ const MAX_PEERS = 20;
 
 /**
  * Inbound WebSocket messages are billed as Durable Object requests, so a
- * client that ignores the 20 Hz send cap gets its excess dropped rather than
- * charged. Generous enough that a burst after a stall is not punished.
+ * client that ignores the 60 Hz send cap gets its excess dropped rather than
+ * charged.
+ *
+ * The headroom over 60 is deliberate: the client paces itself off animation
+ * frames with a few milliseconds of slack, which puts a 144 Hz display nearer
+ * 72 Hz than 60. Clipping those honest clients to make the number tidy would
+ * cost them every fourth position for nothing.
  */
-const MAX_MESSAGES_PER_SECOND = 40;
+const MAX_MESSAGES_PER_SECOND = 90;
 
 /**
  * Positions are collected as they arrive and flushed on a fixed tick, so N
- * peers cost N frames per tick rather than N² sends per movement. 50 ms is
- * under the threshold where interpolation stops hiding the gap.
+ * peers cost N frames per tick rather than N² sends per movement.
+ *
+ * Paired with the client's send rate: flushing slower than clients send would
+ * throw away the extra positions they are paying to deliver, and flushing
+ * faster would send frames with nothing new in them.
  */
-const FLUSH_MS = 50;
+const FLUSH_MS = 1000 / 60;
 
 /*
   Deliberately wider than the site's palette, which is one accent on warm
