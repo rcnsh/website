@@ -5,6 +5,7 @@ import "@fontsource-variable/geist-mono";
 import "@/styles/global.css";
 
 import TopBar from "@/components/TopBar.astro";
+import CommandPalette from "@/components/CommandPalette.astro";
 import Footer from "@/components/Footer.astro";
 import { site } from "@/lib/site";
 
@@ -109,6 +110,9 @@ const ogImageSize = image === OG_IMAGE.src ? OG_IMAGE : null;
       </main>
       <Footer />
     </div>
+
+    {/* Outside the header: its backdrop-blur would trap a fixed overlay. */}
+    <CommandPalette />
   </body>
 </html>
 

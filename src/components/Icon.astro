@@ -1,0 +1,27 @@
+---
+import { iconMarkup } from "./icons";
+
+/**
+ * A lucide icon, drawn on the server. The attributes are lucide's own
+ * defaults, minus width/height — every call site sizes it with a class.
+ */
+interface Props {
+  /** A key in icons.ts. Anything unknown falls back to a blank sheet. */
+  name?: string;
+  class?: string;
+}
+
+const { name, class: className } = Astro.props;
+---
+
+<svg
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+  class={className}
+  set:html={iconMarkup(name)}
+/>
