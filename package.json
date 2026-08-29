@@ -17,7 +17,7 @@
     "dev:multiplayer": "wrangler dev --config workers/multiplayer/wrangler.jsonc --port 8788",
     "deploy:multiplayer": "wrangler deploy --config workers/multiplayer/wrangler.jsonc",
     "check": "astro check",
-    "test": "node --test \"src/**/*.test.ts\"",
+    "test": "node --test \"src/**/*.test.ts\" \"shared/**/*.test.ts\" \"workers/**/*.test.ts\"",
     "lint": "biome lint src/lib src/components/react src/components/icons.ts src/pages/api src/middleware.ts src/content.config.ts workers shared",
     "lint:fix": "npm run lint -- --write",
     "cf-types": "wrangler types",
