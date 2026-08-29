@@ -183,7 +183,7 @@ const pad = (text: string, width: number) => text.padStart(width);
 
 export const COMMANDS: Record<string, Command> = {
   ls: {
-    usage: "ls [-l] [-a] [path...]",
+    usage: "ls [-l] [path...]",
     summary: "list directory contents",
     run: (args, ctx) => {
       const { flags, operands } = parseArgs(args);
@@ -214,7 +214,7 @@ export const COMMANDS: Record<string, Command> = {
   },
 
   sl: {
-    usage: "sl [-l] [-a] [path...]",
+    usage: "sl [-l] [path...]",
     summary: "list directory contents backwards",
     run: (args, ctx) => {
       const { flags, operands } = parseArgs(args);
