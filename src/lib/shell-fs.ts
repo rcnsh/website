@@ -111,5 +111,9 @@ export async function buildFs(): Promise<VDir> {
         ),
       ),
     ),
+    file(
+      ".egg",
+      "hi :p"
+    )
   ]);
 }

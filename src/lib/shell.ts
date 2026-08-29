@@ -181,17 +181,26 @@ function inputLines(
 
 const pad = (text: string, width: number) => text.padStart(width);
 
+/**
+ * A dot-entry, hidden from listings unless -a is given.
+ *
+ * `find` deliberately does not use this — real find walks everything, and the
+ * whole point of `find / -name .egg` is that it can be found deliberately.
+ */
+const hidden = (node: VNode) => node.name.startsWith(".");
+
 export const COMMANDS: Record<string, Command> = {
   ls: {
-    usage: "ls [-l] [path...]",
+    usage: "ls [-l] [-a] [path...]",
     summary: "list directory contents",
     run: (args, ctx) => {
       const { flags, operands } = parseArgs(args);
       const target = operands[0] ?? ".";
       const node = nodeAt(ctx, target, "ls");
 
-      const entries: VNode[] =
-        node.type === "dir" ? [...node.children] : [node];
+      const entries: VNode[] = (
+        node.type === "dir" ? [...node.children] : [node]
+      ).filter((entry) => flags.has("a") || !hidden(entry));
       entries.sort((a, b) => a.name.localeCompare(b.name));
 
       if (!flags.has("l")) {
@@ -214,15 +223,16 @@ export const COMMANDS: Record<string, Command> = {
   },
 
   sl: {
-    usage: "sl [-l] [path...]",
+    usage: "sl [-l] [-a] [path...]",
     summary: "list directory contents backwards",
     run: (args, ctx) => {
       const { flags, operands } = parseArgs(args);
       const target = operands[0] ?? ".";
       const node = nodeAt(ctx, target, "sl");
 
-      const entries: VNode[] =
-        node.type === "dir" ? [...node.children] : [node];
+      const entries: VNode[] = (
+        node.type === "dir" ? [...node.children] : [node]
+      ).filter((entry) => flags.has("a") || !hidden(entry));
 
       entries.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -392,10 +402,10 @@ export const COMMANDS: Record<string, Command> = {
   },
 
   tree: {
-    usage: "tree [path]",
+    usage: "tree [-a] [path]",
     summary: "list contents as a tree",
     run: (args, ctx) => {
-      const { operands } = parseArgs(args);
+      const { flags, operands } = parseArgs(args);
       const target = operands[0] ?? ".";
       const node = nodeAt(ctx, target, "tree");
 
@@ -405,8 +415,11 @@ export const COMMANDS: Record<string, Command> = {
 
       const walk = (current: VNode, prefix: string) => {
         if (current.type !== "dir") return;
-        current.children.forEach((child, index) => {
-          const last = index === current.children.length - 1;
+        const children = current.children.filter(
+          (child) => flags.has("a") || !hidden(child),
+        );
+        children.forEach((child, index) => {
+          const last = index === children.length - 1;
           out.push(
             `${prefix}${last ? "└── " : "├── "}${child.name}${child.type === "dir" ? "/" : ""}`,
           );
@@ -672,8 +685,17 @@ export function complete(
     const parent = lookup(state.root, resolvePath(state.cwd, head || "."));
     if (parent?.type !== "dir") return unchanged;
 
+    /*
+      Dot-entries are offered only once the dot has been typed, the way bash
+      does it. Without this, Tab on an empty prefix would hand back exactly
+      the files `ls` just went to the trouble of hiding.
+    */
     tails = parent.children
-      .filter((child) => child.name.startsWith(prefix))
+      .filter(
+        (child) =>
+          child.name.startsWith(prefix) &&
+          (prefix.startsWith(".") || !hidden(child)),
+      )
       .map((child) => (child.type === "dir" ? `${child.name}/` : child.name))
       .sort();
   }
