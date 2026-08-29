@@ -8,7 +8,17 @@ import { DurableObject } from "cloudflare:workers";
 import {
   FLUSH_INTERVAL_MS,
   MAX_MESSAGES_PER_SECOND,
-} from "../../../shared/multiplayer";
+} from "../../../shared/multiplayer.ts";
+import {
+  Budget,
+  clamp,
+  type Identity,
+  isMove,
+  MAX_PEERS,
+  mint,
+  originAllowed,
+  roomKey,
+} from "./protocol.ts";
 
 /**
  * Live cursors, one Durable Object per page path.
@@ -27,56 +37,6 @@ interface Env {
   ROOMS: DurableObjectNamespace<CursorRoom>;
 }
 
-/** Beyond this the screen is soup, and the fan-out stops being cheap. */
-const MAX_PEERS = 20;
-
-/*
-  Deliberately wider than the site's palette, which is one accent on warm
-  grey — remote cursors have to be told apart at a glance, and they should not
-  read as site chrome. Held at roughly even lightness so no one gets a cursor
-  that disappears against #0d0d0c, and each is named by its colour so the
-  label explains the arrow it is attached to.
-*/
-const COLOURS: ReadonlyArray<readonly [name: string, hex: string]> = [
-  ["amber", "#f2a65a"],
-  ["coral", "#e8705f"],
-  ["rose", "#e05f8f"],
-  ["orchid", "#c479e0"],
-  ["iris", "#8f86e8"],
-  ["azure", "#5f9ce0"],
-  ["cyan", "#4fb8c9"],
-  ["jade", "#46bd94"],
-  ["fern", "#7fc45f"],
-  ["citron", "#c9c14f"],
-  ["clay", "#e8996a"],
-  ["plum", "#d97fb8"],
-];
-
-const ANIMALS = [
-  "fox",
-  "heron",
-  "otter",
-  "lynx",
-  "marten",
-  "ibis",
-  "tapir",
-  "shrike",
-  "badger",
-  "gannet",
-  "wren",
-  "stoat",
-  "kite",
-  "hare",
-  "newt",
-  "vole",
-] as const;
-
-interface Identity {
-  id: number;
-  name: string;
-  colour: string;
-}
-
 /** What a socket carries across a hibernation eviction. */
 type Attachment = Identity;
 
@@ -90,8 +50,8 @@ export class CursorRoom extends DurableObject<Env> {
   private pending = new Map<number, [number, number]>();
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
 
-  /** Rolling per-socket message budget, keyed by identity id. */
-  private budget = new Map<number, { until: number; count: number }>();
+  /** Rolling per-socket message allowance. */
+  private budget = new Budget(MAX_MESSAGES_PER_SECOND);
 
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") {
@@ -107,7 +67,7 @@ export class CursorRoom extends DurableObject<Env> {
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
 
-    const identity = this.mint(this.peers());
+    const identity = mint(this.peers());
 
     // acceptWebSocket, not accept() — the hibernatable form. Duration billing
     // is the real cost of this feature, and an idle room that has not been
@@ -133,7 +93,7 @@ export class CursorRoom extends DurableObject<Env> {
     if (typeof message !== "string" || message.length > 256) return;
 
     const identity = this.identityOf(ws);
-    if (!identity || !this.spend(identity.id)) return;
+    if (!identity || !this.budget.spend(identity.id, Date.now())) return;
 
     let parsed: unknown;
     try {
@@ -193,7 +153,7 @@ export class CursorRoom extends DurableObject<Env> {
     if (!identity) return;
 
     this.pending.delete(identity.id);
-    this.budget.delete(identity.id);
+    this.budget.forget(identity.id);
     this.broadcast(JSON.stringify({ t: "bye", id: identity.id }), identity.id);
   }
 
@@ -218,95 +178,6 @@ export class CursorRoom extends DurableObject<Env> {
   private identityOf(ws: WebSocket): Identity | null {
     const attachment = ws.deserializeAttachment() as Attachment | null;
     return attachment ?? null;
-  }
-
-  /**
-   * A colour nobody in the room is already using, where possible, so two
-   * people are never both "the blue one". Falls back to any colour once the
-   * room is bigger than the palette.
-   */
-  private mint(taken: Identity[]): Identity {
-    const usedColours = new Set(taken.map((peer) => peer.colour));
-    const usedIds = new Set(taken.map((peer) => peer.id));
-
-    const free = COLOURS.filter(([, hex]) => !usedColours.has(hex));
-    const [word, colour] = pick(free.length > 0 ? free : COLOURS);
-
-    let id = 0;
-    do {
-      // Ids are per-room and short-lived; 24 bits is far past collision risk
-      // at MAX_PEERS, and the loop covers the rest.
-      id = 1 + Math.floor(Math.random() * 0xff_ff_ff);
-    } while (usedIds.has(id));
-
-    return { id, name: `${word} ${pick(ANIMALS)}`, colour };
-  }
-
-  /** Returns false when this peer has already spent its second. */
-  private spend(id: number): boolean {
-    const now = Date.now();
-    const window = this.budget.get(id);
-
-    if (!window || now >= window.until) {
-      this.budget.set(id, { until: now + 1000, count: 1 });
-      return true;
-    }
-
-    window.count += 1;
-    return window.count <= MAX_MESSAGES_PER_SECOND;
-  }
-}
-
-function isMove(value: unknown): value is { x: number; y: number } {
-  if (typeof value !== "object" || value === null) return false;
-  const move = value as Record<string, unknown>;
-  return (
-    move.t === "m" &&
-    typeof move.x === "number" &&
-    typeof move.y === "number" &&
-    Number.isFinite(move.x) &&
-    Number.isFinite(move.y)
-  );
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
-function pick<T>(items: readonly T[]): T {
-  return items[Math.floor(Math.random() * items.length)];
-}
-
-/**
- * Rooms are keyed by page path, so the cursor you see is pointing at the same
- * paragraph you are looking at. Normalised hard — a room is an identifier,
- * and `/blog/x`, `/blog/x/` and `/blog/X` should not be three of them.
- */
-function roomKey(raw: string | null): string | null {
-  if (!raw) return null;
-
-  const path = raw.toLowerCase().replace(/\/+$/, "") || "/";
-  if (path.length > 128 || !/^\/[a-z0-9\-._/]*$/.test(path)) return null;
-
-  return path;
-}
-
-/**
- * Same-origin only. The socket is unauthenticated and costs Durable Object
- * duration to hold open, so it is not something to leave open to any page on
- * the internet that fancies a free realtime backend.
- */
-function originAllowed(origin: string | null): boolean {
-  if (!origin) return false;
-  if (origin === "https://rcn.sh") return true;
-
-  try {
-    const { protocol, hostname } = new URL(origin);
-    return (
-      protocol === "http:" && (hostname === "localhost" || hostname === "127.0.0.1")
-    );
-  } catch {
-    return false;
   }
 }
 

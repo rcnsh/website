@@ -9,7 +9,16 @@
  * it is easy to give away by accident, so keep imports out of the eager path.
  */
 
-import { SEND_INTERVAL_MS, SMOOTH_TAU_MS } from "../../shared/multiplayer";
+import { SEND_INTERVAL_MS } from "../../shared/multiplayer.ts";
+import {
+  approach,
+  type Column,
+  isStalled,
+  onScreen,
+  reconnectDelay,
+  toColumn,
+  toScreen,
+} from "./cursors.ts";
 
 /**
  * Whether this device has a pointer worth broadcasting.
@@ -47,28 +56,7 @@ const MOVE_EPSILON = 0.75;
  */
 const IDLE_MS = 4 * 60 * 1000;
 
-const RECONNECT_MIN_MS = 500;
-
-/**
- * Ceiling on the reconnect backoff.
- *
- * Deliberately long. If the room Worker is down, or the network has gone, a
- * client that keeps knocking every fifteen seconds spends the rest of the
- * session writing failures into the console for something that is not coming
- * back on its own — and each attempt is a request. Five minutes still
- * self-heals without the noise, and the paths that suggest conditions have
- * actually changed reset the backoff so recovery stays prompt when someone is
- * there to notice.
- */
-const RECONNECT_MAX_MS = 5 * 60 * 1000;
-
-/**
- * How many failed attempts before the UI stops implying everything is fine.
- * Four is roughly seven seconds of trying: past an ordinary blip, short of
- * making a momentary hiccup look like an outage.
- */
-const STALL_AFTER_ATTEMPTS = 4;
-
+/** A peer's identity, as the room assigns it. */
 interface Identity {
   id: number;
   name: string;
@@ -123,7 +111,7 @@ export interface Session {
  * parked on a heading lands on that heading at any width. x outside 0..1 is
  * the margins, which is why the Worker's clamp allows it.
  */
-function column() {
+function column(): Column {
   const el = document.getElementById("content");
   if (!el) return { left: 0, top: 0, width: Math.max(1, innerWidth) };
 
@@ -230,7 +218,7 @@ export function start(): Session {
     watcher?.({
       live: socket?.readyState === WebSocket.OPEN,
       peers: peers.size,
-      stalled: attempt > STALL_AFTER_ATTEMPTS,
+      stalled: isStalled(attempt),
     });
   }
 
@@ -270,7 +258,7 @@ export function start(): Session {
   function schedule() {
     if (retry !== null || closed) return;
 
-    const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_MIN_MS * 2 ** attempt);
+    const delay = reconnectDelay(attempt);
     attempt += 1;
     // Crossing the stall threshold is a change worth reporting.
     announce();
@@ -420,31 +408,38 @@ export function start(): Session {
     if (peers.size > 0 || socket) frame = requestAnimationFrame(tick);
   }
 
-  function draw(box: ReturnType<typeof column>, dt: number) {
-    // Exponential approach rather than a fixed step, so the smoothing holds
-    // its shape on a 144 Hz screen and through a dropped frame alike.
-    const alpha = reduced ? 1 : 1 - Math.exp(-dt / SMOOTH_TAU_MS);
-
+  function draw(box: Column, dt: number) {
     for (const peer of peers.values()) {
       if (!peer.drawn) peer.drawn = { ...peer.target };
       else {
-        peer.drawn.x += (peer.target.x - peer.drawn.x) * alpha;
-        peer.drawn.y += (peer.target.y - peer.drawn.y) * alpha;
+        // Reduced motion asks for no tween at all, which is tau = 0: land on
+        // the target this frame.
+        peer.drawn.x = approach(
+          peer.drawn.x,
+          peer.target.x,
+          dt,
+          reduced ? 0 : undefined,
+        );
+        peer.drawn.y = approach(
+          peer.drawn.y,
+          peer.target.y,
+          dt,
+          reduced ? 0 : undefined,
+        );
       }
 
-      const x = box.left + peer.drawn.x * box.width - scrollX;
-      const y = box.top + peer.drawn.y - scrollY;
+      const screen = toScreen(peer.drawn, box, { x: scrollX, y: scrollY });
 
+      peer.el.style.transform = `translate3d(${screen.x.toFixed(1)}px, ${screen.y.toFixed(1)}px, 0)`;
       // Off-screen peers keep their state but stop being composited.
-      const visible =
-        x > -80 && y > -40 && x < innerWidth + 40 && y < innerHeight + 40;
-
-      peer.el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
-      peer.el.toggleAttribute("data-shown", visible);
+      peer.el.toggleAttribute(
+        "data-shown",
+        onScreen(screen, { width: innerWidth, height: innerHeight }),
+      );
     }
   }
 
-  function send(now: number, box: ReturnType<typeof column>) {
+  function send(now: number, box: Column) {
     // Receive-only devices never reach here with a position anyway, since the
     // handler below refuses to record one. This is the belt to that braces:
     // some mobile browsers report a stray non-touch pointermove while
@@ -498,11 +493,7 @@ export function start(): Session {
         return;
       }
 
-      const box = column();
-      mine = {
-        x: (event.pageX - box.left) / box.width,
-        y: event.pageY - box.top,
-      };
+      mine = toColumn({ x: event.pageX, y: event.pageY }, column());
       wake();
     },
     { passive: true, signal },
