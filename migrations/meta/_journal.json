@@ -29,6 +29,13 @@
       "when": 1787939323563,
       "tag": "0003_guestbook_country",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1787940000000,
+      "tag": "0004_backfill_guestbook_countries",
+      "breakpoints": true
     }
   ]
 }
