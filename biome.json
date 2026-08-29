@@ -4,6 +4,7 @@
     "includes": [
       "src/**",
       "workers/**",
+      "shared/**",
       "*.ts",
       "*.json",
       "!worker-configuration.d.ts",
