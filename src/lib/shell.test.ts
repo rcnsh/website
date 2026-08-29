@@ -11,6 +11,7 @@ import {
 } from "./shell.ts";
 
 const root = dir("", [
+  file(".hidden", "shh"),
   file("about.txt", "hello\nworld\nastro rules"),
   dir(
     "blog",
@@ -40,6 +41,31 @@ describe("run", () => {
     const result = run(state(), "ls");
     assert.deepEqual(result.output, ["about.txt", "blog/"]);
     assert.equal(result.failed, false);
+  });
+
+  it("hides dot-entries until -a", () => {
+    assert.deepEqual(run(state(), "ls").output, ["about.txt", "blog/"]);
+    assert.deepEqual(run(state(), "ls -a").output, [
+      ".hidden",
+      "about.txt",
+      "blog/",
+    ]);
+  });
+
+  it("hides them in tree too, or hiding them in ls would be moot", () => {
+    assert.ok(!run(state(), "tree").output.some((l) => l.includes(".hidden")));
+    assert.ok(run(state(), "tree -a").output.some((l) => l.includes(".hidden")));
+  });
+
+  it("counts a hidden entry only under -a", () => {
+    assert.deepEqual(run(state(), "ls | wc -l").output, ["      2"]);
+    assert.deepEqual(run(state(), "ls -a | wc -l").output, ["      3"]);
+  });
+
+  it("still finds a dot-entry by name, the way find does", () => {
+    // find walks everything on purpose — being findable deliberately is the
+    // point of hiding it from a plain listing.
+    assert.deepEqual(run(state(), "find / -name .hidden").output, ["/.hidden"]);
   });
 
   it("reverses what ls prints", () => {
@@ -232,6 +258,12 @@ describe("complete", () => {
     assert.equal(result.line, "cat about.txt  | wc -l");
     // Caret lands after the inserted word, not at the end of the line.
     assert.equal(result.cursor, 14);
+  });
+
+  it("offers a dot-entry only once the dot is typed", () => {
+    // Bare Tab must not hand back what ls just hid.
+    assert.ok(!tab("cat ").candidates.includes(".hidden"));
+    assert.equal(tab("cat .hid").line, "cat .hidden ");
   });
 
   it("leaves the line alone when nothing matches", () => {
