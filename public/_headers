@@ -7,6 +7,10 @@
 #
 # The Cloudflare adapter appends its own immutable Cache-Control rule for
 # /_astro/* to this file at build time.
+#
+# wss://rcn.sh is the multiplayer cursor socket. It is same-origin, served by
+# the rcnsh-multiplayer Worker on a route under this zone, but not every
+# browser reads 'self' as covering wss.
 
 /*
   X-Content-Type-Options: nosniff
@@ -14,4 +18,4 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
   Strict-Transport-Security: max-age=63072000; includeSubDomains
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; img-src 'self' data: https://*.scdn.co https://*.spotifycdn.com https://avatars.githubusercontent.com https://upload.rcn.sh; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' wss://rcn.sh; img-src 'self' data: https://*.scdn.co https://*.spotifycdn.com https://avatars.githubusercontent.com https://upload.rcn.sh; upgrade-insecure-requests

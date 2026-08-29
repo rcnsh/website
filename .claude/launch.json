@@ -4,14 +4,31 @@
     {
       "name": "rcnsh-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 4321
     },
     {
       "name": "rcnsh-preview",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["wrangler", "dev", "--port", "8787"],
+      "runtimeArgs": [
+        "wrangler",
+        "dev",
+        "--port",
+        "8787"
+      ],
       "port": 8787
+    },
+    {
+      "name": "rcnsh-multiplayer",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:multiplayer"
+      ],
+      "port": 8788
     }
   ]
 }
