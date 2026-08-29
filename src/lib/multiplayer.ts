@@ -9,18 +9,41 @@
  * it is easy to give away by accident, so keep imports out of the eager path.
  */
 
+import { SEND_INTERVAL_MS } from "../../shared/multiplayer.ts";
+import {
+  approach,
+  type Column,
+  isStalled,
+  onScreen,
+  reconnectDelay,
+  toColumn,
+  toScreen,
+} from "./cursors.ts";
+
+/**
+ * Whether this device has a pointer worth broadcasting.
+ *
+ * `any-pointer: fine` is true when *some* attached pointer is precise — a
+ * mouse, trackpad or stylus. A phone is false; a laptop with a touchscreen and
+ * a tablet with a keyboard case are both true, which is the right answer for
+ * each of them.
+ *
+ * A device that fails this still connects and still draws everyone else. It
+ * simply never sends: there is no cursor on a phone to broadcast, and the last
+ * place a finger touched is not one. Matched live rather than read once,
+ * because a mouse can be plugged into a tablet halfway through a session.
+ */
+const FINE_POINTER = "(any-pointer: fine)";
+
+/*
+  The send rate lives in shared/multiplayer.ts, because the Worker has to agree
+  with it — see the note there. Change CURSOR_HZ, not these.
+*/
+
 /** Room membership is per page path — see the note on roomKey in the Worker. */
 const ENDPOINT = import.meta.env.DEV
   ? "ws://localhost:8788/api/multiplayer"
   : `wss://${location.host}/api/multiplayer`;
-
-/**
- * One send per frame at most, and never more often than this. Every inbound
- * message is a billed Durable Object request, and 20 Hz through the smoothing
- * below is indistinguishable from raw pointermove — which is 60–120 Hz, and
- * would burn a day's free-tier requests in an afternoon.
- */
-const SEND_MS = 50;
 
 /** Below this, the pointer has not really moved. In CSS pixels. */
 const MOVE_EPSILON = 0.75;
@@ -33,12 +56,7 @@ const MOVE_EPSILON = 0.75;
  */
 const IDLE_MS = 4 * 60 * 1000;
 
-/** Time constant for the position smoothing. Roughly one send interval. */
-const SMOOTH_TAU = 55;
-
-const RECONNECT_MIN_MS = 500;
-const RECONNECT_MAX_MS = 15_000;
-
+/** A peer's identity, as the room assigns it. */
 interface Identity {
   id: number;
   name: string;
@@ -53,16 +71,32 @@ interface Peer extends Identity {
   drawn: { x: number; y: number } | null;
 }
 
+/** What the settings panel needs to describe the feature honestly. */
+export interface SessionState {
+  /** Whether the socket is actually open right now. */
+  live: boolean;
+  /** Other people in the room. Only meaningful while `live`. */
+  peers: number;
+  /**
+   * Reconnecting has failed often enough to be worth admitting to. The session
+   * has not given up — it is just trying slowly now.
+   */
+  stalled: boolean;
+}
+
 export interface Session {
   /** Point the session at a different page. No-op if it is already there. */
   setRoom(path: string): void;
   /**
-   * Watch how many other people are in the room. One listener, replaced on
-   * each call rather than added to — the settings markup is rebuilt on every
-   * navigation, and a list here would accumulate closures over detached nodes
-   * for the life of the session.
+   * Watch the room. One listener, replaced on each call rather than added to —
+   * the settings markup is rebuilt on every navigation, and a list here would
+   * accumulate closures over detached nodes for the life of the session.
+   *
+   * Reports connection state and not just a count, because the two are not the
+   * same thing and reporting only the count made a dropped socket look exactly
+   * like an empty room.
    */
-  onPresence(listener: (count: number) => void): void;
+  onState(listener: (state: SessionState) => void): void;
   destroy(): void;
 }
 
@@ -77,7 +111,7 @@ export interface Session {
  * parked on a heading lands on that heading at any width. x outside 0..1 is
  * the margins, which is why the Worker's clamp allows it.
  */
-function column() {
+function column(): Column {
   const el = document.getElementById("content");
   if (!el) return { left: 0, top: 0, width: Math.max(1, innerWidth) };
 
@@ -140,6 +174,7 @@ const ARROW = `<svg viewBox="0 0 15 18" fill="var(--mp-colour)" aria-hidden="tru
 
 export function start(): Session {
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const pointer = matchMedia(FINE_POINTER);
 
   const style = document.createElement("style");
   style.textContent = CURSOR_CSS;
@@ -151,7 +186,7 @@ export function start(): Session {
   document.body.appendChild(layer);
 
   const peers = new Map<number, Peer>();
-  let presence: ((count: number) => void) | null = null;
+  let watcher: ((state: SessionState) => void) | null = null;
 
   let room = path();
   let socket: WebSocket | null = null;
@@ -180,7 +215,11 @@ export function start(): Session {
     // A destroyed session has no business reporting anything — tearing down
     // clears the peers, and that must not read as "nobody else is here".
     if (closed) return;
-    presence?.(peers.size);
+    watcher?.({
+      live: socket?.readyState === WebSocket.OPEN,
+      peers: peers.size,
+      stalled: isStalled(attempt),
+    });
   }
 
   // --- Connection -----------------------------------------------------------
@@ -196,6 +235,7 @@ export function start(): Session {
       attempt = 0;
       // Whatever the pointer was doing while disconnected is the truth now.
       sent = null;
+      announce();
       loop();
     });
 
@@ -218,12 +258,30 @@ export function start(): Session {
   function schedule() {
     if (retry !== null || closed) return;
 
-    const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_MIN_MS * 2 ** attempt);
+    const delay = reconnectDelay(attempt);
     attempt += 1;
+    // Crossing the stall threshold is a change worth reporting.
+    announce();
     retry = setTimeout(() => {
       retry = null;
       connect();
     }, delay);
+  }
+
+  /**
+   * Conditions have plausibly changed — the tab came back, or the reader moved
+   * to another page. Drops the backoff so a stalled session tries again now
+   * rather than sitting out the rest of a five-minute wait.
+   */
+  function revive() {
+    if (closed || socket) return;
+
+    if (retry !== null) {
+      clearTimeout(retry);
+      retry = null;
+    }
+    attempt = 0;
+    connect();
   }
 
   function disconnect() {
@@ -350,33 +408,46 @@ export function start(): Session {
     if (peers.size > 0 || socket) frame = requestAnimationFrame(tick);
   }
 
-  function draw(box: ReturnType<typeof column>, dt: number) {
-    // Exponential approach rather than a fixed step, so the smoothing holds
-    // its shape on a 144 Hz screen and through a dropped frame alike.
-    const alpha = reduced ? 1 : 1 - Math.exp(-dt / SMOOTH_TAU);
-
+  function draw(box: Column, dt: number) {
     for (const peer of peers.values()) {
       if (!peer.drawn) peer.drawn = { ...peer.target };
       else {
-        peer.drawn.x += (peer.target.x - peer.drawn.x) * alpha;
-        peer.drawn.y += (peer.target.y - peer.drawn.y) * alpha;
+        // Reduced motion asks for no tween at all, which is tau = 0: land on
+        // the target this frame.
+        peer.drawn.x = approach(
+          peer.drawn.x,
+          peer.target.x,
+          dt,
+          reduced ? 0 : undefined,
+        );
+        peer.drawn.y = approach(
+          peer.drawn.y,
+          peer.target.y,
+          dt,
+          reduced ? 0 : undefined,
+        );
       }
 
-      const x = box.left + peer.drawn.x * box.width - scrollX;
-      const y = box.top + peer.drawn.y - scrollY;
+      const screen = toScreen(peer.drawn, box, { x: scrollX, y: scrollY });
 
+      peer.el.style.transform = `translate3d(${screen.x.toFixed(1)}px, ${screen.y.toFixed(1)}px, 0)`;
       // Off-screen peers keep their state but stop being composited.
-      const visible =
-        x > -80 && y > -40 && x < innerWidth + 40 && y < innerHeight + 40;
-
-      peer.el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
-      peer.el.toggleAttribute("data-shown", visible);
+      peer.el.toggleAttribute(
+        "data-shown",
+        onScreen(screen, { width: innerWidth, height: innerHeight }),
+      );
     }
   }
 
-  function send(now: number, box: ReturnType<typeof column>) {
+  function send(now: number, box: Column) {
+    // Receive-only devices never reach here with a position anyway, since the
+    // handler below refuses to record one. This is the belt to that braces:
+    // some mobile browsers report a stray non-touch pointermove while
+    // scrolling, and one of those should not put a ghost cursor on everyone
+    // else's screen.
+    if (!pointer.matches) return;
     if (!mine || socket?.readyState !== WebSocket.OPEN) return;
-    if (now - lastSendAt < SEND_MS) return;
+    if (now - lastSendAt < SEND_INTERVAL_MS) return;
 
     // Resting on the page costs nothing. This is most of why an open tab is
     // affordable at all.
@@ -395,26 +466,44 @@ export function start(): Session {
 
   // --- Input ----------------------------------------------------------------
 
+  /**
+   * "Still here" — refreshes the idle timer and brings the socket back if it
+   * has already been dropped.
+   *
+   * pointermove is that signal for anyone holding a mouse, but a phone never
+   * fires one, and a reader who is only *receiving* cursors should not be cut
+   * off after four minutes with no way back. So the ordinary signs of someone
+   * being present count too.
+   */
+  function wake() {
+    lastMoveAt = performance.now();
+    if (idle && !socket && !document.hidden) connect();
+    loop();
+  }
+
   document.addEventListener(
     "pointermove",
     (event) => {
-      // A finger is not a cursor — dragging a touchscreen would broadcast a
-      // pointer that vanishes the moment it lands. Touch users still see
-      // everyone else.
-      if (event.pointerType === "touch") return;
+      // Two gates, and they catch different things. The device check keeps
+      // phones off the wire entirely; the pointerType check covers the
+      // touchscreen on a laptop, which passes the device check on the strength
+      // of its trackpad but should not broadcast a fingertip.
+      if (!pointer.matches || event.pointerType === "touch") {
+        wake();
+        return;
+      }
 
-      const box = column();
-      mine = {
-        x: (event.pageX - box.left) / box.width,
-        y: event.pageY - box.top,
-      };
-      lastMoveAt = performance.now();
-
-      if (idle && !socket) connect();
-      loop();
+      mine = toColumn({ x: event.pageX, y: event.pageY }, column());
+      wake();
     },
     { passive: true, signal },
   );
+
+  for (const name of ["pointerdown", "touchstart", "keydown"] as const) {
+    document.addEventListener(name, wake, { passive: true, signal });
+  }
+  // Also repositions the cursors, which are anchored to the document.
+  window.addEventListener("scroll", wake, { passive: true, signal });
 
   document.addEventListener(
     "visibilitychange",
@@ -424,7 +513,9 @@ export function start(): Session {
       if (document.hidden) disconnect();
       else if (!closed) {
         lastMoveAt = performance.now();
-        connect();
+        // revive, not connect — coming back to the tab is the clearest sign
+        // that a stalled session is worth retrying straight away.
+        revive();
       }
     },
     { signal },
@@ -450,12 +541,12 @@ export function start(): Session {
       mine = null;
       sent = null;
       disconnect();
-      if (!document.hidden) connect();
+      if (!document.hidden) revive();
     },
 
-    onPresence(listener) {
-      presence = listener;
-      listener(peers.size);
+    onState(listener) {
+      watcher = listener;
+      announce();
     },
 
     destroy() {

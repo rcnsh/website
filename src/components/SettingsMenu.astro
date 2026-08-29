@@ -127,7 +127,7 @@ import Icon from "./Icon.astro";
 </style>
 
 <script>
-  import type { Session } from "@/lib/multiplayer";
+  import type { Session, SessionState } from "@/lib/multiplayer";
 
   const STORAGE_KEY = "rcn:multiplayer";
 
@@ -178,14 +178,29 @@ import Icon from "./Icon.astro";
 
     const IDLE_COPY = "Show other readers' cursors on this page.";
 
-    const describe = (count: number) => {
+    /*
+      The dot on the cog means "connected", not "switched on" — so a dropped
+      socket reads as a dropped socket rather than as an empty room, which is
+      what reporting only a peer count used to make it look like.
+    */
+    const describe = (state: SessionState) => {
+      dot.hidden = !state.live;
+
+      if (state.stalled) {
+        status.textContent = "On — can't reach the server. Still trying.";
+        return;
+      }
+      if (!state.live) {
+        status.textContent = "On — connecting…";
+        return;
+      }
+
       status.textContent =
-        count === 0
+        state.peers === 0
           ? "On — nobody else is here yet."
-          : count === 1
+          : state.peers === 1
             ? "On — one other person is here."
-            : `On — ${count} other people are here.`;
-      dot.hidden = false;
+            : `On — ${state.peers} other people are here.`;
     };
 
     const paint = (on: boolean) => {
@@ -213,7 +228,7 @@ import Icon from "./Icon.astro";
         // The switch may have been turned back off while this was in flight.
         if (!stored()) return;
         session = start();
-        session.onPresence(describe);
+        session.onState(describe);
       } catch {
         remember(false);
         paint(false);
@@ -270,7 +285,7 @@ import Icon from "./Icon.astro";
       // presence readout to this copy of the markup.
       if (session) {
         session.setRoom(location.pathname);
-        session.onPresence(describe);
+        session.onState(describe);
       } else {
         void enable();
       }
