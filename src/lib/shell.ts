@@ -213,6 +213,44 @@ export const COMMANDS: Record<string, Command> = {
     },
   },
 
+  sl: {
+  usage: "sl [-l] [-a] [path...]",
+  summary: "list directory contents backwards",
+  run: (args, ctx) => {
+    const { flags, operands } = parseArgs(args);
+    const target = operands[0] ?? ".";
+    const node = nodeAt(ctx, target, "sl");
+
+    const entries: VNode[] =
+      node.type === "dir" ? [...node.children] : [node];
+
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+
+    const reverse = (value: string) =>
+      Array.from(value).reverse().join("");
+
+    if (!flags.has("l")) {
+      return entries.map((entry) => {
+        const name = entry.type === "dir" ? `${entry.name}/` : entry.name;
+        return reverse(name);
+      });
+    }
+
+    const width = Math.max(
+      ...entries.map((entry) => String(sizeOf(entry)).length),
+      1,
+    );
+
+    return entries.map((entry) => {
+      const mode = entry.type === "dir" ? "drwxr-xr-x" : "-rw-r--r--";
+      const name = entry.type === "dir" ? `${entry.name}/` : entry.name;
+
+      return reverse(`${mode} ${pad(String(sizeOf(entry)), width)} ${name}`);
+      });
+    },
+  },
+
+
   cd: {
     usage: "cd [path]",
     summary: "change the working directory",
