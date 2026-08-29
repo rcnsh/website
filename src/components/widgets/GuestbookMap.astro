@@ -1,0 +1,169 @@
+---
+import { TINY_AREA, WORLD_SHAPES, WORLD_VIEWBOX } from "@/lib/world";
+
+/**
+ * Where the guestbook has been signed from.
+ *
+ * The outlines are precomputed by scripts/generate-world.ts, so nothing here
+ * projects anything — it picks a fill per country and emits one <svg>. No
+ * client JavaScript: the hover state is CSS and the tooltips are <title>.
+ */
+
+interface Props {
+  /** ISO 3166-1 alpha-2 to signature count. */
+  counts: Record<string, number>;
+  /** Signatures with no usable country — imported, or Workers didn't say. */
+  unplaced: number;
+}
+
+const { counts, unplaced } = Astro.props;
+
+const placed = Object.values(counts).reduce((total, n) => total + n, 0);
+const busiest = Math.max(1, ...Object.values(counts));
+const countries = Object.keys(counts).length;
+
+/*
+  One accent, so depth carries the count rather than hue. The floor keeps a
+  single signature clearly lit — the difference that matters most on this map
+  is "someone" versus "no one", not 1 versus 2.
+*/
+const opacityFor = (count: number) => 0.4 + 0.6 * (count / busiest);
+
+const named = new Map(
+  WORLD_SHAPES.filter((shape) => shape.code).map((shape) => [
+    shape.code as string,
+    shape.name,
+  ]),
+);
+
+/** Signed countries too small to read as a filled shape at this size. */
+const dotted = WORLD_SHAPES.filter(
+  (shape) =>
+    shape.code && (counts[shape.code] ?? 0) > 0 && shape.area < TINY_AREA,
+);
+
+const label = (name: string, count: number) =>
+  `${name} — ${count} ${count === 1 ? "signature" : "signatures"}`;
+
+const summary = countries
+  ? `${placed} ${placed === 1 ? "signature" : "signatures"} from ${countries} ${
+      countries === 1 ? "country" : "countries"
+    }`
+  : "No signatures placed yet";
+---
+
+<figure class="m-0">
+  <svg
+    viewBox={WORLD_VIEWBOX}
+    class="w-full"
+    role="img"
+    aria-label={`World map. ${summary}.`}
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {
+      WORLD_SHAPES.filter((shape) => shape.d).map((shape) => {
+        const count = shape.code ? (counts[shape.code] ?? 0) : 0;
+
+        return count > 0 ? (
+          <path
+            d={shape.d}
+            class="signed"
+            style={`opacity:${opacityFor(count).toFixed(3)}`}
+          >
+            <title>{label(shape.name, count)}</title>
+          </path>
+        ) : (
+          <path d={shape.d} class="quiet" />
+        );
+      })
+    }
+
+    {
+      /*
+        Drawn after the outlines so they sit on top. A country under TINY_AREA
+        is a speck or nothing at all — Singapore has no polygon at this scale —
+        so the dot is the only thing that would tell you it was signed.
+      */
+    }
+    {
+      dotted.map((shape) => (
+        <circle cx={shape.cx} cy={shape.cy} r="3.5" class="dot">
+          <title>{label(shape.name, counts[shape.code as string] ?? 0)}</title>
+        </circle>
+      ))
+    }
+  </svg>
+
+  <figcaption
+    class="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 font-mono text-[11px] text-ink-faint"
+  >
+    <span>{summary}</span>
+    {
+      unplaced > 0 && (
+        <>
+          <span aria-hidden="true">·</span>
+          {/* The imported entries predate the column, so say so rather than implying nowhere. */}
+          <span>{unplaced} without a location</span>
+        </>
+      )
+    }
+  </figcaption>
+</figure>
+
+{
+  /*
+    Sorted by count so the list reads as a leaderboard, and so the map stays
+    legible to anyone who can't hover — touch has no tooltip.
+  */
+}
+{
+  countries > 0 && (
+    <ul class="mt-4 flex flex-wrap gap-x-5 gap-y-1.5 font-mono text-[11px] text-ink-dim">
+      {Object.entries(counts)
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([code, count]) => (
+          <li>
+            <span class="text-ink">{named.get(code) ?? code}</span>{" "}
+            <span class="text-ink-faint tabular-nums">{count}</span>
+          </li>
+        ))}
+    </ul>
+  )
+}
+
+<style>
+  /* Hairlines, like every other divider here — the fill carries the meaning. */
+  path {
+    stroke: var(--color-line);
+    stroke-width: 0.4;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .quiet {
+    fill: var(--color-raised);
+  }
+
+  .signed {
+    fill: var(--color-brand);
+    transition: opacity 0.2s var(--ease-out-quint);
+  }
+
+  /*
+    Always full strength, unlike the filled countries: 3.5px of circle is far
+    too small to read a difference in opacity as a difference in count, and
+    dimming it only makes the one thing the map must not lose harder to see.
+    A ring in the page colour keeps a dot distinct from a filled neighbour.
+  */
+  .dot {
+    fill: var(--color-brand);
+    stroke: var(--color-base);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  /* Full strength on hover, so pointing at a country confirms the tooltip. */
+  .signed:hover {
+    opacity: 1 !important;
+  }
+</style>
