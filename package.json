@@ -10,6 +10,7 @@
     "dev": "npm run og && astro dev",
     "build": "npm run og && wrangler types && astro check && astro build",
     "og": "node scripts/generate-og.ts",
+    "world": "node scripts/generate-world.ts",
     "marks": "node scripts/generate-brand-marks.ts",
     "preview": "astro build && wrangler dev",
     "deploy": "astro build && wrangler deploy",

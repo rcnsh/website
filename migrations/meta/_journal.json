@@ -22,6 +22,13 @@
       "when": 1787935518978,
       "tag": "0002_import_old_guestbook",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1787939323563,
+      "tag": "0003_guestbook_country",
+      "breakpoints": true
     }
   ]
 }
