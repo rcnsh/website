@@ -1,0 +1,295 @@
+---
+import { BRAND_MARKS } from "@/lib/brand-marks";
+
+/**
+ * One drawing per thing on the diagram.
+ *
+ * Two kinds share a single 96x96 grid so everything sits on a common baseline:
+ *
+ *   - Physical objects are hand-drawn and stroked. A generic laptop glyph
+ *     would say nothing about which laptop.
+ *   - Software uses its real mark from lib/brand-marks.ts, scaled to half the
+ *     grid — a filled shape reads much heavier than an outline, so it needs
+ *     the smaller footprint to carry the same weight.
+ *
+ * Apps whose marks aren't available (VS Code, Terminal, Premiere, Helium) are
+ * drawn here instead. Nothing is a logo reproduced from memory.
+ */
+
+interface Props {
+  name: string;
+  class?: string;
+}
+
+const { name, class: className } = Astro.props;
+
+const mark = BRAND_MARKS[name];
+
+const DRAWN = [
+  "macbook",
+  "pixel",
+  "airpods",
+  "backpack",
+  "mouse",
+  "keyboard",
+  "vscode",
+  "terminal",
+  "premiere",
+  "helium",
+] as const;
+
+const isDrawn = (value: string): value is (typeof DRAWN)[number] =>
+  (DRAWN as readonly string[]).includes(value);
+
+---
+
+<svg
+  viewBox="0 0 96 96"
+  class={className}
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.6"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+>
+  {
+    /* A sourced mark: 24x24 doubled and centred, so it fills half the grid. */
+    mark && (
+      <g transform="translate(24 24) scale(2)" fill="currentColor" stroke="none">
+        <path d={mark.path} />
+      </g>
+    )
+  }
+
+  {
+    name === "macbook" && (
+      <>
+        {/* Lid, with the notch that dates it to this generation. */}
+        <rect x="18" y="20" width="60" height="38" rx="3" />
+        <rect x="21.5" y="23.5" width="53" height="31" rx="1.5" class="screen" />
+        <path d="M42 20h12v3.5H42z" />
+        {/* Base: a shallow wedge, wider than the lid, with the opening lip. */}
+        <path d="M13 58h70l5 7.5a2 2 0 0 1-1.7 3H9.7A2 2 0 0 1 8 65.5L13 58Z" />
+        <path d="M40 62.5h16" />
+      </>
+    )
+  }
+
+  {
+    name === "pixel" && (
+      <>
+        {/*
+          From the back, where the camera island is the whole identity. It is
+          an inset pill, not the edge-to-edge bar of a Pixel 6 through 8 — that
+          inset is the difference between this generation and those.
+        */}
+        <rect x="31" y="11" width="34" height="74" rx="9" />
+        <rect x="34.5" y="18.5" width="27" height="12.5" rx="6.25" />
+
+        {/* The three lenses sit in their own darker pill on the left. */}
+        <rect x="36.5" y="21" width="17" height="7.5" rx="3.75" />
+        <circle cx="40" cy="24.75" r="1.9" />
+        <circle cx="45" cy="24.75" r="1.9" />
+        <circle cx="50" cy="24.75" r="1.9" />
+
+        {/* Flash and sensor stacked on the wider right end of the island. */}
+        <circle cx="57.5" cy="22.5" r="1.5" class="accent" />
+        <circle cx="57.5" cy="27.5" r="1.2" />
+
+        {/* Volume and power — on the left edge when the phone is face down. */}
+        <path d="M31 40h-2.5v9H31" />
+        <path d="M31 53h-2.5v5.5H31" />
+      </>
+    )
+  }
+
+  {
+    name === "airpods" && (
+      <>
+        {/* The pair, drawn as the driver housing and its short Pro stem. */}
+        <circle cx="39" cy="22" r="6.5" />
+        <rect x="36.5" y="27" width="5" height="10" rx="2.5" />
+        <circle cx="57" cy="22" r="6.5" />
+        <rect x="54.5" y="27" width="5" height="10" rx="2.5" />
+        {/* Case below: lid seam across the top, status light on the front. */}
+        <rect x="27" y="46" width="42" height="30" rx="8" />
+        <path d="M27 55h42" />
+        <circle cx="48" cy="66" r="1.5" class="accent" />
+      </>
+    )
+  }
+
+  {
+    name === "backpack" && (
+      <>
+        {/* Body: the squared-off Peak Design silhouette. */}
+        <path d="M26 38c0-5 4-9 9-9h26c5 0 9 4 9 9v36c0 3-2 5-5 5H31c-3 0-5-2-5-5V38Z" />
+        {/* Grab handle, and the seam where the fold-over lid sits. */}
+        <path d="M42 29c0-3 2.5-5 6-5s6 2 6 5" />
+        <path d="M26 46h44" />
+        {/* MagLatch: the strap down the front into its buckle. */}
+        <path d="M48 46v9" class="accent" />
+        <rect x="43.5" y="55" width="9" height="7" rx="1.5" class="accent" />
+        {/* Side compression straps. */}
+        <path d="M26 54h5M65 54h5M26 68h5M65 68h5" />
+      </>
+    )
+  }
+
+  {
+    name === "mouse" && (
+      <>
+        {/* Top-down: the shell, the button split, and the wheel. */}
+        <path d="M48 14c-9.5 0-15.5 7.5-15.5 19v25c0 11 6 18 15.5 18s15.5-7 15.5-18V33c0-11.5-6-19-15.5-19Z" />
+        <path d="M48 15v23" />
+        <rect x="45.5" y="23" width="5" height="10" rx="2.5" class="accent" />
+        {/* A hint of the lattice shell the UltralightX is known for. */}
+        <circle cx="41" cy="50" r="2" />
+        <circle cx="48" cy="54" r="2" />
+        <circle cx="55" cy="50" r="2" />
+        <circle cx="41" cy="60" r="2" />
+        <circle cx="55" cy="60" r="2" />
+      </>
+    )
+  }
+
+  {
+    name === "keyboard" && (
+      <>
+        <rect x="8" y="30" width="80" height="36" rx="4" />
+        {/* Key rows as dashes — individual keys would be noise at this size. */}
+        <path
+          d="M14 38h68M14 46h68M14 54h30M62 54h20"
+          stroke-dasharray="4.5 2.5"
+        />
+        {/* Spacebar, in the accent so the layout reads at a glance. */}
+        <rect x="36" y="58" width="24" height="4" rx="1.5" class="accent" />
+      </>
+    )
+  }
+
+  {
+    name === "vscode" && (
+      <>
+        {/* An editor window: sidebar, and lines of code at varying length. */}
+        <rect x="14" y="24" width="68" height="48" rx="4" />
+        <path d="M32 24v48" />
+        <path d="M19 33h8M19 40h8M19 47h8" class="dim" />
+        <path
+          d="M38 34h16M38 41h28M42 48h22M42 55h14M38 62h20"
+          class="accent-dim"
+        />
+      </>
+    )
+  }
+
+  {
+    name === "terminal" && (
+      <>
+        <rect x="14" y="24" width="68" height="48" rx="4" />
+        <path d="M14 34h68" />
+        <circle cx="21" cy="29" r="1.5" />
+        <circle cx="27" cy="29" r="1.5" />
+        <circle cx="33" cy="29" r="1.5" />
+        {/* The prompt: chevron and cursor. */}
+        <path d="M25 45l7 6-7 6" />
+        <path d="M38 57h14" class="accent" />
+      </>
+    )
+  }
+
+  {
+    name === "premiere" && (
+      <>
+        {/*
+          Adobe has no simple-icons entry, but its icons are genuinely a
+          rounded tile with the app's two letters — so this is the mark, not a
+          stand-in for it.
+        */}
+        <rect x="22" y="22" width="52" height="52" rx="13" />
+        <text
+          x="48"
+          y="49"
+          text-anchor="middle"
+          dominant-baseline="central"
+          class="monogram"
+        >
+          Pr
+        </text>
+      </>
+    )
+  }
+
+  {
+    name === "helium" && (
+      <>
+      {/*
+        The real mark, from the SVG Helium ships, inside the rounded tile its
+        app icon uses — the same 52px tile as Premiere, so the two sit level.
+
+        Not the flat scale(2) the sourced marks take: the glyph is 20.8x24 in
+        its own box, which at 2x would fill the tile edge to edge. Scaled to
+        65% of the tile instead, matching the padding in the real icon, and
+        translated by its own centre rather than the box's so it sits true.
+      */}
+      <rect x="22" y="22" width="52" height="52" rx="13" />
+      <g
+        transform="translate(31.06 30.76) scale(1.408)"
+        fill="currentColor"
+        stroke="none"
+      >
+        <path d="m 14.336641,22.536663 -2.308,1.702 -2.3080004,-1.702 1.0490004,-8.118 -6.5180004,4.966 -2.63,-1.146 0.322,-2.847 7.565,-3.153 -7.565,-3.1529996 -0.321,-2.847 2.63,-1.146 6.5170004,4.9669996 -1.0510004,-8.1209996 2.3100004,-1.69999998 2.308,1.70199998 -1.048,8.1179996 6.518,-4.9669996 2.629,1.147 -0.322,2.847 -7.565,3.1529996 7.566,3.153 0.321,2.847 -2.63,1.146 -6.517,-4.966 z" />
+      </g>
+      </>
+    )
+  }
+
+  {
+    !mark && !isDrawn(name) && (
+      /* A typo in site.json shows up here rather than as a silent gap. */
+      <>
+        <rect x="24" y="24" width="48" height="48" rx="4" stroke-dasharray="4 4" />
+        <path d="M40 48h16" />
+      </>
+    )
+  }
+</svg>
+
+<style>
+  /*
+    The drawings are decoration, not content — dragging across the page should
+    not pick up the "Pr" on Premiere's tile. Set on the whole svg rather than
+    that one label, so a future drawing with text in it inherits the same rule.
+  */
+  svg {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* The screen and accent parts pick up the one accent the site allows. */
+  .screen {
+    stroke: var(--color-line-strong);
+  }
+
+  .accent {
+    stroke: var(--color-brand);
+  }
+
+  .dim {
+    stroke: var(--color-line-strong);
+  }
+
+  .accent-dim {
+    stroke: color-mix(in oklab, var(--color-brand) 60%, transparent);
+  }
+
+  .monogram {
+    font-family: var(--font-mono);
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    fill: currentColor;
+    stroke: none;
+  }
+</style>

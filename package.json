@@ -7,8 +7,11 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "astro dev",
-    "build": "wrangler types && astro check && astro build",
+    "dev": "npm run og && astro dev",
+    "build": "npm run og && wrangler types && astro check && astro build",
+    "og": "node scripts/generate-og.ts",
+    "world": "node scripts/generate-world.ts",
+    "marks": "node scripts/generate-brand-marks.ts",
     "preview": "astro build && wrangler dev",
     "deploy": "astro build && wrangler deploy",
     "check": "astro check",
@@ -36,17 +39,29 @@
     "lucide-react": "^1.31.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "satori": "^0.33.4",
+    "sharp": "^0.35.4",
+    "shell-quote": "^1.10.0",
     "tailwindcss": "^4.3.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
     "@biomejs/biome": "^2.5.8",
+    "@types/d3-geo": "^3.1.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@types/shell-quote": "^1.7.5",
+    "@types/topojson-client": "^3.1.5",
+    "d3-geo": "^3.1.1",
     "drizzle-kit": "^0.31.10",
+    "i18n-iso-countries": "^7.14.0",
+    "simple-icons": "^16.29.0",
+    "topojson-client": "^3.1.0",
     "typescript": "^5.9.3",
-    "wrangler": "^4.121.0"
+    "world-atlas": "^2.0.2",
+    "wrangler": "^4.121.0",
+    "yaml": "^2.9.0"
   },
   "allowScripts": {
     "workerd@1.20260804.1": true,

@@ -40,16 +40,32 @@ const items = [...nav, ...externalLinks].map((item) => ({
     class="card relative w-full max-w-md"
   >
     <div class="flex items-center gap-3 border-b border-line px-4">
-      <Icon name="search" class="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+      <Icon name="search" class="palette-search h-3.5 w-3.5 shrink-0 text-ink-faint" />
+      <span
+        data-palette-prompt
+        hidden
+        class="shrink-0 whitespace-nowrap font-mono text-sm text-brand"></span>
       <input
         type="text"
         data-palette-input
-        placeholder="Jump to…"
+        placeholder="Jump to…  ($ for a shell)"
         aria-label="Search pages and links"
         autocomplete="off"
         class="w-full bg-transparent py-3 text-sm text-ink outline-none placeholder:text-ink-faint"
       />
       <kbd class="shrink-0 font-mono text-[10px] text-ink-faint">esc</kbd>
+    </div>
+
+    {/*
+      Shell scrollback. Empty and hidden until someone types `$` — the engine
+      and the filesystem are both fetched on demand, so the palette costs
+      nothing extra until it is actually used as one.
+    */}
+    <div
+      data-palette-shell
+      hidden
+      class="max-h-[21.5rem] overflow-y-auto px-4 py-3 font-mono text-[12px] leading-[1.65]"
+    >
     </div>
 
     {/* Tall enough that the full, unfiltered list lands without scrolling. */}
@@ -115,6 +131,16 @@ const items = [...nav, ...externalLinks].map((item) => ({
   [data-palette-item][data-active] :global(.palette-icon) {
     color: var(--color-brand);
   }
+
+  /* In shell mode the row list gives way to the scrollback. */
+  [data-palette][data-shell] [data-palette-list],
+  [data-palette][data-shell] :global(.palette-search) {
+    display: none;
+  }
+
+  [data-palette][data-shell] [data-palette-input] {
+    font-family: var(--font-mono);
+  }
 </style>
 
 <script>
@@ -143,6 +169,27 @@ const items = [...nav, ...externalLinks].map((item) => ({
     const rows = Array.from(
       list.querySelectorAll<HTMLAnchorElement>("[data-palette-item]"),
     );
+
+    const shellPane = palette.querySelector<HTMLElement>("[data-palette-shell]");
+    const prompt = palette.querySelector<HTMLElement>("[data-palette-prompt]");
+
+    /**
+     * Shell mode.
+     *
+     * The engine and the filesystem are fetched the first time someone types
+     * `$`, never before — the palette is server-drawn so that an unopened
+     * dialog costs nothing, and loading a shell nobody asked for would give
+     * that straight back.
+     */
+    type Shell = typeof import("../lib/shell");
+    /** The filesystem shape, taken from the engine rather than restated. */
+    type Root = Parameters<Shell["run"]>[0]["root"];
+    let shell: { mod: Shell; root: Root } | null = null;
+    let shellOn = false;
+    let cwd = "/";
+    const history: string[] = [];
+    /** Position while arrowing back through history; -1 is the live input. */
+    let recall = -1;
 
     /** The matching rows, in the order they are drawn. */
     let visible = rows;
@@ -221,8 +268,154 @@ const items = [...nav, ...externalLinks].map((item) => ({
       } else {
         document.body.style.overflow = previousOverflow;
         input.value = "";
-        filter();
+        if (shellOn) exitShell();
+        else filter();
       }
+    };
+
+    const line = (text: string, cls: string) => {
+      const el = document.createElement("div");
+      el.className = cls;
+      el.textContent = text;
+      return el;
+    };
+
+    const setPrompt = () => {
+      if (prompt) prompt.textContent = `${cwd} $`;
+    };
+
+    const enterShell = async () => {
+      if (!shellPane || !prompt) return;
+
+      if (!shell) {
+        // Both land in one round trip, and only ever once per page.
+        const [mod, root] = await Promise.all([
+          import("../lib/shell"),
+          // The one place the filesystem crosses an untyped boundary.
+          fetch("/shell-fs.json").then(
+            (response) => response.json() as Promise<Root>,
+          ),
+        ]);
+        shell = { mod, root };
+        shellPane.appendChild(
+          line(
+            "Type help for the commands, ls to look around. Backspace on an empty line goes back to search.",
+            "text-ink-faint",
+          ),
+        );
+      }
+
+      shellOn = true;
+      palette.setAttribute("data-shell", "");
+      prompt.hidden = false;
+      shellPane.hidden = false;
+      setPrompt();
+      input.value = "";
+      input.placeholder = "";
+    };
+
+    const exitShell = () => {
+      if (!shellPane || !prompt) return;
+      shellOn = false;
+      palette.removeAttribute("data-shell");
+      prompt.hidden = true;
+      shellPane.hidden = true;
+      input.placeholder = "Jump to…  ($ for a shell)";
+      filter();
+    };
+
+    const runCommand = (text: string) => {
+      if (!shell || !shellPane) return;
+
+      const result = shell.mod.run({ root: shell.root, cwd, history }, text);
+      if (text.trim()) history.push(text);
+      recall = -1;
+
+      if (result.cleared) {
+        shellPane.replaceChildren();
+      } else {
+        shellPane.appendChild(line(`${cwd} $ ${text}`, "mt-2.5 text-ink-faint"));
+        if (result.output.length > 0) {
+          shellPane.appendChild(
+            line(
+              result.output.join("\n"),
+              `whitespace-pre-wrap break-words ${
+                result.failed ? "text-red-400/90" : "text-ink-dim"
+              }`,
+            ),
+          );
+        }
+      }
+
+      cwd = result.cwd;
+      setPrompt();
+      input.value = "";
+      shellPane.scrollTop = shellPane.scrollHeight;
+
+      // Let the line land before the browser leaves the page.
+      if (result.navigate) {
+        const href = result.navigate;
+        setTimeout(() => {
+          window.location.href = href;
+        }, 180);
+      }
+    };
+
+    /** Returns true when the key was the shell's to handle. */
+    const shellKey = (event: KeyboardEvent): boolean => {
+      if (!shellOn || !shell) return false;
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        runCommand(input.value);
+        return true;
+      }
+
+      if (event.key === "Tab") {
+        // Never let Tab move focus out of the prompt.
+        event.preventDefault();
+        const at = input.selectionStart ?? input.value.length;
+        const result = shell.mod.complete(
+          { root: shell.root, cwd, history },
+          input.value,
+          at,
+        );
+
+        if (result.candidates.length > 0 && shellPane) {
+          shellPane.appendChild(line(`${cwd} $ ${input.value}`, "mt-2.5 text-ink-faint"));
+          shellPane.appendChild(line(result.candidates.join("  "), "text-ink-dim"));
+          shellPane.scrollTop = shellPane.scrollHeight;
+        } else if (result.line !== input.value) {
+          input.value = result.line;
+          input.setSelectionRange(result.cursor, result.cursor);
+        }
+        return true;
+      }
+
+      if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+        event.preventDefault();
+        if (event.key === "ArrowUp") {
+          const next = recall === -1 ? history.length - 1 : Math.max(recall - 1, 0);
+          if (history[next] !== undefined) {
+            recall = next;
+            input.value = history[next]!;
+          }
+        } else if (recall !== -1) {
+          const next = recall + 1;
+          recall = next >= history.length ? -1 : next;
+          input.value = recall === -1 ? "" : history[recall]!;
+        }
+        return true;
+      }
+
+      // Backspacing off an empty prompt returns to search.
+      if (event.key === "Backspace" && input.value === "") {
+        event.preventDefault();
+        exitShell();
+        return true;
+      }
+
+      return false;
     };
 
     binding = new AbortController();
@@ -234,11 +427,23 @@ const items = [...nav, ...externalLinks].map((item) => ({
 
     backdrop.addEventListener("click", () => setOpen(false), { signal });
 
-    input.addEventListener("input", filter, { signal });
+    input.addEventListener(
+      "input",
+      () => {
+        if (!shellOn && input.value === "$") {
+          void enterShell();
+          return;
+        }
+        if (!shellOn) filter();
+      },
+      { signal },
+    );
 
     input.addEventListener(
       "keydown",
       (event) => {
+        if (shellKey(event)) return;
+
         if (event.key === "ArrowDown") {
           event.preventDefault();
           setActive(active + 1);

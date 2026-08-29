@@ -1,0 +1,1 @@
+ALTER TABLE `guestbook` ADD `country` text;
