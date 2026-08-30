@@ -58,8 +58,13 @@ interface Identity {
 
 interface Peer extends Identity {
   el: HTMLElement;
-  /** Where the peer is, in the sender's content-column space. */
-  target: { x: number; y: number };
+  /**
+   * Where the peer is, in the sender's content-column space. Null until they
+   * have sent a position, which is not the same as being in the room: a phone
+   * joins to watch and never sends one, and a reader who has not moved the
+   * mouse yet has not sent one either. Neither has a cursor worth drawing.
+   */
+  target: { x: number; y: number } | null;
   /** Where we are drawing them — chases `target`. */
   drawn: { x: number; y: number } | null;
 }
@@ -313,7 +318,7 @@ export function start(): Session {
     peers.set(identity.id, {
       ...identity,
       el,
-      target: { x: 0.5, y: 0 },
+      target: null,
       drawn: null,
     });
     loop();
@@ -362,6 +367,14 @@ export function start(): Session {
 
   function draw(box: Column, dt: number) {
     for (const peer of peers.values()) {
+      // Being in the room is not a position. Joining used to seed one — the
+      // top centre of the column — so a peer who had never sent anything was
+      // drawn there anyway, with their name on it. For a reader who has not
+      // reached for the mouse yet that is a blip until they do; for a phone,
+      // which is in the room precisely to watch and never sends, it was
+      // permanent. Both cases end here: no position, no cursor.
+      if (!peer.target) continue;
+
       if (!peer.drawn) peer.drawn = { ...peer.target };
       else {
         // Reduced motion asks for no tween at all, which is tau = 0: land on
