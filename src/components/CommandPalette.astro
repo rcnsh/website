@@ -144,6 +144,8 @@ const items = [...nav, ...externalLinks].map((item) => ({
 </style>
 
 <script>
+  import { closeOnOtherOverlay, overlayOpened } from "@/lib/overlays";
+
   // The palette is re-rendered on every navigation, so each run retires the
   // last one's listeners — the same shape as the nav rail in TopBar.
   let binding: AbortController | null = null;
@@ -197,7 +199,15 @@ const items = [...nav, ...externalLinks].map((item) => ({
     let open = false;
     let previousOverflow = "";
 
-    /** Subsequence match — "gst" finds "Guestbook". Null when it doesn't match. */
+    /**
+     * Subsequence match — "gst" finds "Guestbook". Null when it doesn't match.
+     *
+     * The subsequence walks the label alone, never the keywords. Given a whole
+     * keyword line to cross, almost any short query finds some path through
+     * it: "mus" threads h-o-**m**-e index abo-**u**-t bio **s**tart and drags
+     * Home into a search for Music. Keywords still match above, but only as a
+     * run of characters someone actually typed.
+     */
     const score = (row: HTMLAnchorElement, query: string): number | null => {
       if (!query) return 0;
       const needle = row.dataset.needle ?? "";
@@ -211,7 +221,7 @@ const items = [...nav, ...externalLinks].map((item) => ({
       let cursor = 0;
       let gaps = 0;
       for (const char of query) {
-        const found = haystack.indexOf(char, cursor);
+        const found = needle.indexOf(char, cursor);
         if (found === -1) return null;
         gaps += found - cursor;
         cursor = found + 1;
@@ -262,6 +272,8 @@ const items = [...nav, ...externalLinks].map((item) => ({
       palette.toggleAttribute("inert", !next);
 
       if (next) {
+        // Takes the settings popover down with it — see lib/overlays.
+        overlayOpened("palette");
         previousOverflow = document.body.style.overflow;
         document.body.style.overflow = "hidden";
         requestAnimationFrame(() => input.focus());
@@ -420,6 +432,8 @@ const items = [...nav, ...externalLinks].map((item) => ({
 
     binding = new AbortController();
     const { signal } = binding;
+
+    closeOnOtherOverlay("palette", () => setOpen(false), signal);
 
     for (const trigger of document.querySelectorAll("[data-palette-trigger]")) {
       trigger.addEventListener("click", () => setOpen(true), { signal });

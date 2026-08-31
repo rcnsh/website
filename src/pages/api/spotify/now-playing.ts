@@ -22,24 +22,42 @@ const CACHED_AT = "x-cached-at";
 type Payload = Record<string, unknown> & { state: string };
 
 /**
+ * Serves a cache hit.
+ *
  * A cached `playing` payload carries the progress as it was when Spotify was
  * asked. Left alone it would rewind the client's progress bar on every poll,
  * so it's advanced by the age of the entry on the way out.
+ *
+ * Every path here builds a new Response rather than handing back the one the
+ * Cache API returned, which is not a detail: a cached Response has immutable
+ * headers, and src/middleware.ts sets the security headers on everything the
+ * Worker returns. Passing the hit straight through threw there instead —
+ * a 500 with an empty body, on the paths that skipped the rewrite below.
+ * Which was all of them except playback, so the widget broke precisely when
+ * the music stopped.
  */
-async function withCurrentProgress(hit: Response): Promise<Response> {
-  const body = (await hit.clone().json()) as Payload;
+async function fromCache(hit: Response): Promise<Response> {
+  const body = (await hit.json()) as Payload;
+  const cachedAt = Number(hit.headers.get(CACHED_AT));
 
-  if (body.state !== "playing" || typeof body.progressMs !== "number") {
-    return hit;
+  const moved =
+    body.state === "playing" &&
+    typeof body.progressMs === "number" &&
+    Number.isFinite(cachedAt);
+
+  let payload = body;
+  if (moved) {
+    const duration = typeof body.durationMs === "number" ? body.durationMs : 0;
+    payload = {
+      ...body,
+      progressMs: Math.min(
+        (body.progressMs as number) + (Date.now() - cachedAt),
+        duration,
+      ),
+    };
   }
 
-  const cachedAt = Number(hit.headers.get(CACHED_AT));
-  if (!Number.isFinite(cachedAt)) return hit;
-
-  const duration = typeof body.durationMs === "number" ? body.durationMs : 0;
-  const progress = Math.min(body.progressMs + (Date.now() - cachedAt), duration);
-
-  return new Response(JSON.stringify({ ...body, progressMs: progress }), {
+  return new Response(JSON.stringify(payload), {
     headers: {
       "content-type": "application/json",
       "cache-control": `public, max-age=${CACHE_SECONDS}`,
@@ -55,7 +73,7 @@ export const GET: APIRoute = async ({ request }) => {
   const cache = await caches.open("now-playing");
 
   const hit = await cache.match(cacheKey);
-  if (hit) return withCurrentProgress(hit);
+  if (hit) return fromCache(hit);
 
   const json = (body: unknown) => {
     const response = new Response(JSON.stringify(body), {

@@ -17,13 +17,7 @@ export const GET: APIRoute = async ({ url }) => {
   } catch (error) {
     console.error("[files] list failed", error);
     return new Response(
-      JSON.stringify({
-        prefix,
-        folders: [],
-        files: [],
-        truncated: false,
-        error: "Bucket unavailable",
-      }),
+      JSON.stringify({ folders: [], files: [], error: "Bucket unavailable" }),
       { status: 200, headers: { "content-type": "application/json" } },
     );
   }

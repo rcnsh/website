@@ -10,12 +10,31 @@ import { securityHeaders } from "../shared/security.ts";
  */
 const SECURITY_HEADERS = securityHeaders({ dev: import.meta.env.DEV });
 
-export const onRequest = defineMiddleware(async (_context, next) => {
-  const response = await next();
-
+function harden(response: Response) {
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
     response.headers.set(name, value);
   }
+}
 
-  return response;
+export const onRequest = defineMiddleware(async (_context, next) => {
+  const response = await next();
+
+  try {
+    harden(response);
+    return response;
+  } catch {
+    /*
+      A Response that came back from the Cache API or straight from `fetch()`
+      carries immutable headers, and setting one throws — which surfaces as a
+      500 with an empty body, from a middleware that looks like it cannot fail.
+      /api/spotify/now-playing did exactly that on every cache hit it did not
+      already rewrap.
+      A route handing one of those back is a mistake worth fixing at the route,
+      but it should not cost the whole response: reconstructing it makes the
+      headers mutable, which is Cloudflare's own advice for this.
+    */
+    const copy = new Response(response.body, response);
+    harden(copy);
+    return copy;
+  }
 });
