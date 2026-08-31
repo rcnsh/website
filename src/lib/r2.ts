@@ -1,47 +1,52 @@
 import { env } from "cloudflare:workers";
+import { cached } from "@/lib/cache";
 
 /**
  * R2 listing through the native bucket binding.
  *
- * `listWholeTree()` sends every directory with the page, so expanding a folder
- * costs no network. `listDirectory()` reads one directory at a time — it backs
- * /api/files/list, and takes over once the bucket outgrows the tree.
+ * Listings go over the wire packed: a file is a tuple, and the two longest
+ * strings it used to carry — its full key and its public URL — are rebuilt in
+ * the browser from the prefix it sits under. At a few hundred files those
+ * strings were most of the page's copy of the tree.
+ *
+ * `cachedTree()` is what the page calls: every directory at once, out of KV so
+ * nobody waits on a LIST. `listDirectory()` reads one directory at a time — it
+ * backs /api/files/list, and takes over once the bucket outgrows the tree.
  */
 
-export type R2File = {
-  type: "file";
-  name: string;
-  key: string;
-  size: number;
-  uploaded: string;
-  url: string;
-};
-
-export type R2Folder = {
-  type: "folder";
-  name: string;
-  prefix: string;
-};
+/**
+ * One file: its path, its size in bytes, and when it was uploaded, in whole
+ * seconds since the epoch. The path is relative to the listing it came from,
+ * so it is a bare filename inside a directory listing and a full key in search
+ * results, which are a listing of the root.
+ */
+export type R2File = [path: string, size: number, uploaded: number];
 
 export type R2Listing = {
-  prefix: string;
-  folders: R2Folder[];
+  /** Folder names, relative to this listing's prefix. */
+  folders: string[];
   files: R2File[];
-  truncated: boolean;
+  /** Only present, and only true, when the listing was cut short. */
+  truncated?: boolean;
 };
 
 /** Every directory in the bucket, keyed by prefix ("" is the root). */
 export type R2Tree = Record<string, R2Listing>;
 
-/** Above this the tree is too big to inline (~150 KB gzipped), so lazy-load instead. */
+/** Above this the tree is too big to inline, even packed, so lazy-load instead. */
 const FULL_TREE_MAX_OBJECTS = 5000;
 
-function publicUrlFor(key: string): string {
-  const base = (env.PUBLIC_BUCKET_URL || "").replace(/\/+$/, "");
-  const encoded = key.split("/").map(encodeURIComponent).join("/");
-  return base
-    ? `${base}/${encoded}`
-    : `/api/files/download?key=${encodeURIComponent(key)}`;
+/** KV key for the packed tree. Bump the suffix whenever the packing changes. */
+const TREE_CACHE_KEY = "files:tree:1";
+
+/** How long a cached tree is served before a refresh runs behind the response. */
+const TREE_FRESH_SECONDS = 300;
+
+/** Sorts the way a file manager does: case-blind, and 2 before 10. */
+const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+
+function toEpochSeconds(date: Date): number {
+  return Math.floor(date.getTime() / 1000);
 }
 
 /** Dot-prefixed entries stay hidden, the same way `ls` hides them. */
@@ -67,15 +72,29 @@ export function normalisePrefix(input: string | null | undefined): string {
   return cleaned.endsWith("/") ? cleaned : `${cleaned}/`;
 }
 
-export async function listDirectory(prefix = ""): Promise<R2Listing> {
+/**
+ * The bucket's public origin, trailing slash trimmed, or "" when there isn't
+ * one and downloads have to proxy through the worker. The browser is handed
+ * this once and builds every file's URL from it.
+ */
+export function publicBucketBase(): string {
+  return (env.PUBLIC_BUCKET_URL || "").replace(/\/+$/, "");
+}
+
+function requireBucket(): R2Bucket {
   const bucket = env.BUCKET;
   if (!bucket) {
     throw new Error(
       "R2 binding `BUCKET` is missing. Check the r2_buckets entry in wrangler.jsonc.",
     );
   }
+  return bucket;
+}
 
-  const folders = new Map<string, R2Folder>();
+export async function listDirectory(prefix = ""): Promise<R2Listing> {
+  const bucket = requireBucket();
+
+  const folders = new Set<string>();
   const files: R2File[] = [];
 
   let cursor: string | undefined;
@@ -93,7 +112,7 @@ export async function listDirectory(prefix = ""): Promise<R2Listing> {
     for (const delimited of result.delimitedPrefixes) {
       const name = delimited.slice(prefix.length).replace(/\/$/, "");
       if (!name || isHidden(name)) continue;
-      folders.set(delimited, { type: "folder", name, prefix: delimited });
+      folders.add(name);
     }
 
     for (const object of result.objects) {
@@ -103,14 +122,7 @@ export async function listDirectory(prefix = ""): Promise<R2Listing> {
       if (object.size === 0) continue;
       if (isHidden(name)) continue;
 
-      files.push({
-        type: "file",
-        name,
-        key: object.key,
-        size: object.size,
-        uploaded: object.uploaded.toISOString(),
-        url: publicUrlFor(object.key),
-      });
+      files.push([name, object.size, toEpochSeconds(object.uploaded)]);
     }
 
     if (!result.truncated) break;
@@ -118,14 +130,12 @@ export async function listDirectory(prefix = ""): Promise<R2Listing> {
     if (page === 19) truncated = true;
   }
 
-  const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
-
-  return {
-    prefix,
-    folders: [...folders.values()].sort((a, b) => collator.compare(a.name, b.name)),
-    files: files.sort((a, b) => collator.compare(a.name, b.name)),
-    truncated,
+  const listing: R2Listing = {
+    folders: [...folders].sort(collator.compare),
+    files: files.sort((a, b) => collator.compare(a[0], b[0])),
   };
+  if (truncated) listing.truncated = true;
+  return listing;
 }
 
 /**
@@ -133,18 +143,11 @@ export async function listDirectory(prefix = ""): Promise<R2Listing> {
  * null past FULL_TREE_MAX_OBJECTS, telling the caller to lazy-load instead.
  */
 export async function listWholeTree(): Promise<R2Tree | null> {
-  const bucket = env.BUCKET;
-  if (!bucket) {
-    throw new Error(
-      "R2 binding `BUCKET` is missing. Check the r2_buckets entry in wrangler.jsonc.",
-    );
-  }
+  const bucket = requireBucket();
 
-  const tree: R2Tree = {
-    "": { prefix: "", folders: [], files: [], truncated: false },
-  };
+  const tree: R2Tree = { "": { folders: [], files: [] } };
   const ensure = (prefix: string): R2Listing =>
-    (tree[prefix] ??= { prefix, folders: [], files: [], truncated: false });
+    (tree[prefix] ??= { folders: [], files: [] });
 
   const seenFolders = new Set<string>();
   let count = 0;
@@ -168,42 +171,52 @@ export async function listWholeTree(): Promise<R2Tree | null> {
         const childPrefix = `${prefix}${segment}/`;
         if (!seenFolders.has(childPrefix)) {
           seenFolders.add(childPrefix);
-          ensure(prefix).folders.push({
-            type: "folder",
-            name: segment,
-            prefix: childPrefix,
-          });
+          ensure(prefix).folders.push(segment);
         }
         prefix = childPrefix;
       }
 
-      ensure(prefix).files.push({
-        type: "file",
-        name: fileName,
-        key: object.key,
-        size: object.size,
-        uploaded: object.uploaded.toISOString(),
-        url: publicUrlFor(object.key),
-      });
+      ensure(prefix).files.push([
+        fileName,
+        object.size,
+        toEpochSeconds(object.uploaded),
+      ]);
     }
 
     if (!result.truncated) break;
     cursor = result.cursor;
   }
 
-  const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
   for (const listing of Object.values(tree)) {
-    listing.folders.sort((a, b) => collator.compare(a.name, b.name));
-    listing.files.sort((a, b) => collator.compare(a.name, b.name));
+    listing.folders.sort(collator.compare);
+    listing.files.sort((a, b) => collator.compare(a[0], b[0]));
   }
 
   return tree;
 }
 
-/** Flat search across the whole bucket, used by the browser's search box. */
+/**
+ * The tree the page renders. A LIST over the whole bucket was the slowest
+ * thing on /files and every visitor paid for it, so it goes through the same
+ * stale-while-revalidate cache as Spotify and GitHub: the last tree comes
+ * straight out of KV and the refresh happens after the response.
+ *
+ * Capped at a day of staleness — past that an upload missing from the page is
+ * more confusing than a slow page, so the request blocks on a fresh listing.
+ */
+export async function cachedTree(): Promise<R2Tree | null> {
+  return cached(TREE_CACHE_KEY, TREE_FRESH_SECONDS, listWholeTree, {
+    maxStaleSeconds: 60 * 60 * 24,
+  });
+}
+
+/**
+ * Flat search across the whole bucket, used by the browser's search box once
+ * the bucket has outgrown the tree. Paths are full keys, since the results
+ * span every directory.
+ */
 export async function searchBucket(query: string, limit = 100): Promise<R2File[]> {
-  const bucket = env.BUCKET;
-  if (!bucket) throw new Error("R2 binding `BUCKET` is missing.");
+  const bucket = requireBucket();
 
   const needle = query.trim().toLowerCase();
   if (!needle) return [];
@@ -219,15 +232,7 @@ export async function searchBucket(query: string, limit = 100): Promise<R2File[]
       if (isHiddenKey(object.key)) continue;
       if (!object.key.toLowerCase().includes(needle)) continue;
 
-      matches.push({
-        type: "file",
-        name: object.key.split("/").pop() ?? object.key,
-        key: object.key,
-        size: object.size,
-        uploaded: object.uploaded.toISOString(),
-        url: publicUrlFor(object.key),
-      });
-
+      matches.push([object.key, object.size, toEpochSeconds(object.uploaded)]);
       if (matches.length >= limit) break;
     }
 

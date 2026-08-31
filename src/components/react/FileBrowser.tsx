@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Check,
   ChevronRight,
@@ -15,7 +23,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import type { R2File, R2Folder, R2Listing, R2Tree } from "@/lib/r2";
+import type { R2File, R2Listing, R2Tree } from "@/lib/r2";
 import { cn, fileKind, formatBytes, formatDate } from "@/lib/utils";
 
 const ICONS = {
@@ -29,13 +37,33 @@ const ICONS = {
   file: { Icon: File, colour: "text-ink-faint" },
 } as const;
 
+/**
+ * The bucket's public origin. Constant for the life of the page and wanted by
+ * every row, so it rides a context rather than a sixth drilled prop.
+ */
+const BucketBase = createContext("");
+
+/**
+ * The public URL for a key. Built here rather than sent down with every file,
+ * because at a few hundred files these strings were most of the tree's weight.
+ * Mirrors /api/files/download, which serves the same objects when the bucket
+ * has no public domain of its own.
+ */
+function urlFor(base: string, key: string): string {
+  const encoded = key.split("/").map(encodeURIComponent).join("/");
+  return base
+    ? `${base}/${encoded}`
+    : `/api/files/download?key=${encodeURIComponent(key)}`;
+}
+
 type Props = {
   /** Whole bucket, keyed by prefix. Null once the bucket is too big to inline. */
   tree: R2Tree | null;
   initial: R2Listing | null;
+  bucketUrl: string;
 };
 
-export default function FileBrowser({ tree, initial }: Props) {
+export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   // With a tree, every directory is already here and nothing is ever fetched.
   const complete = tree !== null;
   const [listings, setListings] = useState<Record<string, R2Listing>>(
@@ -98,9 +126,17 @@ export default function FileBrowser({ tree, initial }: Props) {
     });
   };
 
-  // Flat index of every file — only meaningful when the whole tree is present.
+  // Flat index of every file, re-keyed by full path so a match can be shown
+  // with its folder. Only meaningful when the whole tree is present.
   const allFiles = useMemo(
-    () => (complete ? Object.values(listings).flatMap((l) => l.files) : []),
+    () =>
+      complete
+        ? Object.entries(listings).flatMap(([prefix, listing]) =>
+            listing.files.map(
+              ([path, size, uploaded]): R2File => [prefix + path, size, uploaded],
+            ),
+          )
+        : [],
     [complete, listings],
   );
 
@@ -117,7 +153,9 @@ export default function FileBrowser({ tree, initial }: Props) {
     if (complete) {
       const needle = term.toLowerCase();
       setResults(
-        allFiles.filter((f) => f.key.toLowerCase().includes(needle)).slice(0, 100),
+        allFiles
+          .filter(([key]) => key.toLowerCase().includes(needle))
+          .slice(0, 100),
       );
       setSearching(false);
       return;
@@ -149,75 +187,77 @@ export default function FileBrowser({ tree, initial }: Props) {
   const root = listings[""];
 
   return (
-    <div>
-      <div className="relative mb-1">
-        <Search className="pointer-events-none absolute left-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint" />
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search the whole bucket…"
-          aria-label="Search files"
-          className="w-full border-b border-line bg-transparent py-2.5 pl-6 pr-6 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-brand [&::-webkit-search-cancel-button]:hidden"
-        />
-        {searching && (
-          <span className="absolute right-0 top-1/2 -translate-y-1/2 font-mono text-[10px] text-ink-faint">
-            …
-          </span>
-        )}
-        {!searching && query && (
-          <button
-            type="button"
-            onClick={() => setQuery("")}
-            aria-label="Clear search"
-            className="absolute right-0 top-1/2 -translate-y-1/2 text-ink-faint transition-colors hover:text-ink"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
+    <BucketBase value={bucketUrl}>
+      <div>
+        <div className="relative mb-1">
+          <Search className="pointer-events-none absolute left-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search the whole bucket…"
+            aria-label="Search files"
+            className="w-full border-b border-line bg-transparent py-2.5 pl-6 pr-6 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-brand [&::-webkit-search-cancel-button]:hidden"
+          />
+          {searching && (
+            <span className="absolute right-0 top-1/2 -translate-y-1/2 font-mono text-[10px] text-ink-faint">
+              …
+            </span>
+          )}
+          {!searching && query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Clear search"
+              className="absolute right-0 top-1/2 -translate-y-1/2 text-ink-faint transition-colors hover:text-ink"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
 
-      <div className="border-b border-line">
-        {results !== null ? (
-          <SearchResults results={results} query={query} />
-        ) : rootError ? (
-          <p className="py-8 text-sm text-ink-faint">
-            Couldn't reach the bucket. Check the{" "}
-            <code className="font-mono text-ink-dim">BUCKET</code> binding in
-            wrangler.jsonc.
-          </p>
-        ) : !root ? (
-          <div className="py-2">
-            {/* biome-ignore-start lint/suspicious/noArrayIndexKey: a fixed-length
+        <div className="border-b border-line">
+          {results !== null ? (
+            <SearchResults results={results} query={query} />
+          ) : rootError ? (
+            <p className="py-8 text-sm text-ink-faint">
+              Couldn't reach the bucket. Check the{" "}
+              <code className="font-mono text-ink-dim">BUCKET</code> binding in
+              wrangler.jsonc.
+            </p>
+          ) : !root ? (
+            <div className="py-2">
+              {/* biome-ignore-start lint/suspicious/noArrayIndexKey: a fixed-length
                 skeleton — the rows are identical and never reorder. */}
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="placeholder-block my-1.5 h-4 rounded-xs" />
-            ))}
-            {/* biome-ignore-end lint/suspicious/noArrayIndexKey: skeleton */}
-          </div>
-        ) : root.folders.length === 0 && root.files.length === 0 ? (
-          <p className="py-8 text-sm text-ink-faint">The bucket is empty.</p>
-        ) : (
-          <div className="py-1">
-            <Level
-              prefix=""
-              depth={0}
-              listings={listings}
-              expanded={expanded}
-              mounted={mounted}
-              loading={loading}
-              onToggle={toggle}
-            />
-          </div>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="placeholder-block my-1.5 h-4 rounded-xs" />
+              ))}
+              {/* biome-ignore-end lint/suspicious/noArrayIndexKey: skeleton */}
+            </div>
+          ) : root.folders.length === 0 && root.files.length === 0 ? (
+            <p className="py-8 text-sm text-ink-faint">The bucket is empty.</p>
+          ) : (
+            <div className="py-1">
+              <Level
+                prefix=""
+                depth={0}
+                listings={listings}
+                expanded={expanded}
+                mounted={mounted}
+                loading={loading}
+                onToggle={toggle}
+              />
+            </div>
+          )}
+        </div>
+
+        {root?.truncated && (
+          <p className="mt-3 font-mono text-[11px] text-ink-faint">
+            Showing the first 20,000 objects in this folder.
+          </p>
         )}
       </div>
-
-      {root?.truncated && (
-        <p className="mt-3 font-mono text-[11px] text-ink-faint">
-          Showing the first 20,000 objects in this folder.
-        </p>
-      )}
-    </div>
+    </BucketBase>
   );
 }
 
@@ -248,29 +288,34 @@ function Level({
 
   return (
     <>
-      {listing.folders.map((folder) => (
-        <FolderRow
-          key={folder.prefix}
-          folder={folder}
-          depth={depth}
-          isOpen={expanded.has(folder.prefix)}
-          isLoading={loading.has(folder.prefix)}
-          listings={listings}
-          expanded={expanded}
-          mounted={mounted}
-          loading={loading}
-          onToggle={onToggle}
-        />
-      ))}
+      {listing.folders.map((name) => {
+        const childPrefix = `${prefix}${name}/`;
+        return (
+          <FolderRow
+            key={childPrefix}
+            name={name}
+            prefix={childPrefix}
+            depth={depth}
+            isOpen={expanded.has(childPrefix)}
+            isLoading={loading.has(childPrefix)}
+            listings={listings}
+            expanded={expanded}
+            mounted={mounted}
+            loading={loading}
+            onToggle={onToggle}
+          />
+        );
+      })}
       {listing.files.map((file) => (
-        <FileRow key={file.key} file={file} depth={depth} />
+        <FileRow key={file[0]} file={file} parent={prefix} depth={depth} />
       ))}
     </>
   );
 }
 
 function FolderRow({
-  folder,
+  name,
+  prefix,
   depth,
   isOpen,
   isLoading,
@@ -280,7 +325,8 @@ function FolderRow({
   loading,
   onToggle,
 }: {
-  folder: R2Folder;
+  name: string;
+  prefix: string;
   depth: number;
   isOpen: boolean;
   isLoading: boolean;
@@ -289,7 +335,7 @@ function FolderRow({
     <div>
       <button
         type="button"
-        onClick={() => onToggle(folder.prefix)}
+        onClick={() => onToggle(prefix)}
         aria-expanded={isOpen}
         className="group flex w-full items-center gap-2 py-1 text-left"
         style={{ paddingLeft: `${depth * 16}px` }}
@@ -310,7 +356,7 @@ function FolderRow({
         )}
 
         <span className="truncate font-mono text-[0.8125rem] text-ink-dim transition-colors group-hover:text-ink">
-          {folder.name}
+          {name}
         </span>
 
         {isLoading && (
@@ -341,9 +387,9 @@ function FolderRow({
                 React would mount every file row on first paint and reconcile
                 them all on every keystroke.
               */}
-              {mounted.has(folder.prefix) && (
+              {mounted.has(prefix) && (
                 <Level
-                  prefix={folder.prefix}
+                  prefix={prefix}
                   depth={depth + 1}
                   listings={listings}
                   expanded={expanded}
@@ -360,8 +406,20 @@ function FolderRow({
   );
 }
 
-function FileRow({ file, depth }: { file: R2File; depth: number }) {
-  const { Icon, colour } = ICONS[fileKind(file.name)];
+function FileRow({
+  file,
+  parent,
+  depth,
+}: {
+  file: R2File;
+  /** Prefix of the listing this row came from, which makes up the rest of its key. */
+  parent: string;
+  depth: number;
+}) {
+  const [name, size, uploaded] = file;
+  const base = useContext(BucketBase);
+  const key = parent + name;
+  const { Icon, colour } = ICONS[fileKind(name)];
 
   return (
     <div
@@ -372,22 +430,22 @@ function FileRow({ file, depth }: { file: R2File; depth: number }) {
       <Icon className={cn("h-4 w-4 shrink-0", colour)} />
 
       <a
-        href={file.url}
+        href={urlFor(base, key)}
         target="_blank"
         rel="noopener noreferrer"
         className="min-w-0 flex-1 truncate font-mono text-[0.8125rem] text-ink-dim transition-colors hover:text-brand"
-        title={file.key}
+        title={key}
       >
-        {file.name}
+        {name}
       </a>
 
-      <CopyLink url={file.url} />
+      <CopyLink url={urlFor(base, key)} />
 
       <span className="hidden shrink-0 font-mono text-[11px] text-ink-faint sm:block">
-        {formatDate(file.uploaded)}
+        {formatDate(new Date(uploaded * 1000))}
       </span>
       <span className="w-14 shrink-0 text-right font-mono text-[11px] tabular-nums text-ink-faint">
-        {formatBytes(file.size)}
+        {formatBytes(size)}
       </span>
     </div>
   );
@@ -426,6 +484,8 @@ function CopyLink({ url }: { url: string }) {
 }
 
 function SearchResults({ results, query }: { results: R2File[]; query: string }) {
+  const base = useContext(BucketBase);
+
   if (results.length === 0) {
     return (
       <p className="py-8 text-sm text-ink-faint">Nothing matches “{query}”.</p>
@@ -437,26 +497,29 @@ function SearchResults({ results, query }: { results: R2File[]; query: string })
       <p className="py-1.5 font-mono text-[11px] text-ink-faint">
         {results.length} match{results.length === 1 ? "" : "es"}
       </p>
-      {results.map((file) => {
-        const { Icon, colour } = ICONS[fileKind(file.name)];
-        const folder = file.key.slice(0, file.key.length - file.name.length);
+      {/* Results span the bucket, so a path here is a whole key. */}
+      {results.map(([key, size]) => {
+        const name = key.split("/").pop() ?? key;
+        const folder = key.slice(0, key.length - name.length);
+        const { Icon, colour } = ICONS[fileKind(name)];
+        const url = urlFor(base, key);
 
         return (
-          <div key={file.key} className="group flex items-center gap-2 py-1">
+          <div key={key} className="group flex items-center gap-2 py-1">
             <Icon className={cn("h-4 w-4 shrink-0", colour)} />
             <a
-              href={file.url}
+              href={url}
               target="_blank"
               rel="noopener noreferrer"
               className="min-w-0 flex-1 truncate font-mono text-[0.8125rem] transition-colors hover:text-brand"
-              title={file.key}
+              title={key}
             >
               {folder && <span className="text-ink-faint">{folder}</span>}
-              <span className="text-ink-dim">{file.name}</span>
+              <span className="text-ink-dim">{name}</span>
             </a>
-            <CopyLink url={file.url} />
+            <CopyLink url={url} />
             <span className="w-14 shrink-0 text-right font-mono text-[11px] tabular-nums text-ink-faint">
-              {formatBytes(file.size)}
+              {formatBytes(size)}
             </span>
           </div>
         );

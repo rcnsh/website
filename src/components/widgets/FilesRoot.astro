@@ -1,6 +1,12 @@
 ---
 import FileBrowser from "@/components/react/FileBrowser";
-import { listDirectory, listWholeTree, type R2Listing, type R2Tree } from "@/lib/r2";
+import {
+  cachedTree,
+  listDirectory,
+  publicBucketBase,
+  type R2Listing,
+  type R2Tree,
+} from "@/lib/r2";
 
 /*
  * Server island. Ships the whole directory tree with the page, or — once the
@@ -11,11 +17,16 @@ let tree: R2Tree | null = null;
 let root: R2Listing | null = null;
 
 try {
-  tree = await listWholeTree();
+  tree = await cachedTree();
   root = tree ? (tree[""] ?? null) : await listDirectory("");
 } catch (error) {
   console.error("[files] listing failed", error);
 }
 ---
 
-<FileBrowser client:load tree={tree} initial={root} />
+<FileBrowser
+  client:load
+  tree={tree}
+  initial={root}
+  bucketUrl={publicBucketBase()}
+/>
