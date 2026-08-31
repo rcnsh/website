@@ -9,7 +9,7 @@ import { getDb, schema } from "@/lib/db";
 import { containsProfanity } from "@/lib/profanity";
 import { nextAllowedAt, WINDOW_MS } from "@/lib/rate-limit";
 import { relativeTime } from "@/lib/utils";
-import { pages } from "@/lib/site";
+import { pageOgHref, pages } from "@/lib/site";
 
 // Needs the request's cookies, so it can't be prerendered.
 export const prerender = false;
@@ -160,7 +160,11 @@ if (session && Astro.request.method !== "POST") {
 }
 ---
 
-<Layout title={page.title} description={page.description}>
+<Layout
+  title={page.title}
+  description={page.description}
+  image={pageOgHref("guestbook")}
+>
   <header class="animate-rise pb-10">
     <h1 class="display-face text-[2.25rem] text-ink">{page.title}</h1>
   </header>

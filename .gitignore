@@ -3,6 +3,10 @@ dist/
 .astro/
 # Share cards, redrawn by `npm run og` ahead of every dev run and build.
 public/og/
+# Written by `npm run headers` from shared/security.ts.
+public/_headers
+# Written by `npm run rooms` from the site's own pages.
+shared/rooms.generated.ts
 
 # dependencies
 node_modules/
