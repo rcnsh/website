@@ -146,6 +146,7 @@ import Icon from "./Icon.astro";
 
 <script>
   import type { Session, SessionState } from "@/lib/multiplayer";
+  import { closeOnOtherOverlay, overlayOpened } from "@/lib/overlays";
 
   const STORAGE_KEY = "rcn:multiplayer";
 
@@ -327,9 +328,13 @@ import Icon from "./Icon.astro";
     };
 
     const setOpen = (open: boolean) => {
+      // Takes the command palette down with it — see lib/overlays.
+      if (open) overlayOpened("settings");
       panel.hidden = !open;
       trigger.setAttribute("aria-expanded", String(open));
     };
+
+    closeOnOtherOverlay("settings", () => setOpen(false), signal);
 
     // Arrow consts rather than declarations, like everything else in here —
     // a hoisted `function` does not inherit the null-narrowing from the guard

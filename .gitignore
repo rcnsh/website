@@ -34,3 +34,4 @@ pnpm-debug.log*
 !.vscode/extensions.json
 .idea/
 .impeccable/
+shared/rooms.generated.ts
