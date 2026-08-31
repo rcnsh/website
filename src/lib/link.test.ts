@@ -564,3 +564,89 @@ describe("one socket at a time", () => {
     assert.equal(s.opens, 1);
   });
 });
+
+/*
+  A refusal is not a failure. The room saying "full" or "there is no room for
+  this page" is an answer, and knocking at it every few seconds for the rest of
+  the session gets the same answer back — which is what a refused handshake
+  used to buy, since a browser reports a rejected upgrade and a dead server as
+  the same nothing.
+*/
+describe("being told no", () => {
+  test("puts the socket down and does not knock again", () => {
+    const s = session();
+    s.accept();
+    s.connection.halt();
+
+    assert.equal(s.connection.live, false);
+    assert.equal(s.socket.closes, 1);
+    assert.equal(s.queued, null);
+
+    s.advance(RECONNECT_MAX_MS * 2);
+    assert.equal(s.opens, 1);
+  });
+
+  test("says so, so the panel can stop saying 'connecting'", () => {
+    const s = session();
+    s.accept();
+    s.connection.halt();
+
+    assert.equal(s.states.at(-1)?.live, false);
+    assert.equal(s.connection.halted, true);
+  });
+
+  test("is not stalled — nothing is being retried", () => {
+    const s = session();
+    s.collapse(STALL_AFTER_ATTEMPTS + 2);
+    assert.equal(s.connection.stalled, true);
+
+    s.connection.halt();
+    assert.equal(s.connection.stalled, false);
+  });
+
+  /*
+    The difference from sleep(). A sleeping link is one nobody is looking at,
+    and the pointer moving is news; a halted one has been told the answer, and
+    the pointer moving is not.
+  */
+  test("a sign of life does not undo it", () => {
+    const s = session();
+    s.accept();
+    s.connection.halt();
+
+    s.connection.wake();
+    assert.equal(s.opens, 1);
+  });
+
+  test("but coming back to the tab does", () => {
+    const s = session();
+    s.accept();
+    s.connection.halt();
+
+    s.connection.revive();
+
+    assert.equal(s.opens, 2);
+    assert.equal(s.connection.halted, false);
+  });
+
+  test("still reports the refusal when there was no socket to close", () => {
+    const s = session();
+    s.fail();
+    const before = s.states.length;
+
+    s.connection.halt();
+
+    assert.ok(s.states.length > before, "the change went unreported");
+    assert.equal(s.queued, null, "a reconnect was left queued");
+  });
+
+  test("destroy still wins", () => {
+    const s = session();
+    s.accept();
+    s.connection.halt();
+    s.connection.destroy();
+    s.connection.revive();
+
+    assert.equal(s.opens, 1);
+  });
+});

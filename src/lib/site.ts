@@ -129,6 +129,15 @@ export const site = {
   spotifyUser: config.accounts.spotify,
 } as const;
 
+/**
+ * A page's own share card, drawn into public/ by scripts/generate-og.ts.
+ *
+ * Home is not among them — it keeps the static /og.png, which is the card for
+ * the site rather than for a page.
+ */
+export const pageOgHref = (key: keyof typeof config.pages) =>
+  `/og/pages/${key}.png`;
+
 export const clock = config.clock;
 export const home = config.home;
 export const pages = config.pages;

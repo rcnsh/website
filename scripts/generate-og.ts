@@ -6,7 +6,8 @@ import { renderOgImage } from "../src/lib/og.ts";
 import { readingTime } from "../src/lib/utils.ts";
 
 /**
- * Draws a share card per post into public/og/blog/.
+ * Draws a share card per post into public/og/blog/, and one per page into
+ * public/og/pages/.
  *
  * This is a prebuild step rather than an Astro endpoint because @astrojs/
  * cloudflare prerenders inside workerd, where neither sharp's native binding
@@ -20,7 +21,9 @@ import { readingTime } from "../src/lib/utils.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const POSTS_DIR = path.join(ROOT, "src/content/blog");
+const SITE_JSON = path.join(ROOT, "src/content/site.json");
 const OUT_DIR = path.join(ROOT, "public/og/blog");
+const PAGES_OUT_DIR = path.join(ROOT, "public/og/pages");
 
 /** Touching either of these restyles every card, so both invalidate all of them. */
 const LAYOUT_SOURCES = [
@@ -131,21 +134,86 @@ async function prune(dir: string, keep: Set<string>, prefix = "") {
   }
 }
 
+type Page = { key: string; href: string; title: string; description: string };
+
+/**
+ * The site's own pages, from the config that already describes them.
+ *
+ * Posts have had their own cards for a while; every other page fell back to
+ * the one static /og.png, so a link to /uses and a link to /music shared a
+ * picture that named neither. The titles and descriptions are the ones in the
+ * <head> already — there is nothing new to write, only something to draw.
+ *
+ * Home keeps the static card: it is the card for the site, and this is the one
+ * page where that is the right answer.
+ */
+async function readPages(): Promise<Page[]> {
+  const site = JSON.parse(await readFile(SITE_JSON, "utf8")) as {
+    nav: { href: string }[];
+    pages: Record<string, { title: string; description: string }>;
+  };
+
+  return site.nav
+    .filter((entry) => entry.href !== "/")
+    .flatMap((entry) => {
+      const key = entry.href.replace(/^\//, "");
+      const page = site.pages[key];
+      if (!page) return [];
+
+      return [
+        {
+          key,
+          href: entry.href,
+          title: page.title,
+          description: page.description,
+        },
+      ];
+    });
+}
+
+async function drawPages(layoutChangedAt: number): Promise<void> {
+  const pages = await readPages();
+  const configChangedAt = Math.max(layoutChangedAt, await mtime(SITE_JSON));
+
+  let drawn = 0;
+
+  for (const page of pages) {
+    const out = path.join(PAGES_OUT_DIR, `${page.key}.png`);
+    if ((await mtime(out)) > configChangedAt) continue;
+
+    const png = await renderOgImage({
+      title: page.title,
+      description: page.description,
+      meta: [`rcn.sh${page.href}`],
+    });
+
+    await mkdir(path.dirname(out), { recursive: true });
+    await writeFile(out, Buffer.from(png));
+    drawn += 1;
+    console.log(`[og] drew pages/${page.key}.png`);
+  }
+
+  await prune(PAGES_OUT_DIR, new Set(pages.map((page) => page.key)));
+  console.log(`[og] ${drawn} page cards drawn, ${pages.length - drawn} current`);
+}
+
 async function main() {
+  const layoutChangedAt = Math.max(
+    ...(await Promise.all(LAYOUT_SOURCES.map(mtime))),
+  );
+
+  await drawPages(layoutChangedAt);
+
   const ids = await findPosts(POSTS_DIR);
   const posts = (await Promise.all(ids.map(readPost))).filter(
     (post): post is Post => post !== null,
   );
 
   if (posts.length === 0) {
-    console.log("[og] no published posts — nothing to draw");
+    console.log("[og] no published posts — no post cards to draw");
     await prune(OUT_DIR, new Set());
     return;
   }
-
-  const layoutChangedAt = Math.max(
-    ...(await Promise.all(LAYOUT_SOURCES.map(mtime))),
-  );
 
   let drawn = 0;
 

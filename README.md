@@ -116,6 +116,7 @@ env.DB; // D1   env.BUCKET; // R2   env.CACHE; // KV
 | --- | --- |
 | `npm run dev` | Dev server in workerd, with local D1/R2/KV |
 | `npm run build` | `astro check`, then a production build |
+| `npm run generate` | Share cards, the cursor room list and `public/_headers` — derived files git does not carry. Already inside `dev`, `build` and `preview`; run it alone after a fresh clone if your editor wants the imports resolved |
 | `npm test` | Unit tests, via the Node test runner — no framework to install |
 | `npm run lint` / `lint:fix` | Biome across the codebase |
 | `npm run preview` | Build, then serve with wrangler |
