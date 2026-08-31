@@ -2,7 +2,7 @@
 import Layout from "@/layouts/Layout.astro";
 import PostList from "@/components/PostList.astro";
 import { getPosts } from "@/lib/blog";
-import { pages } from "@/lib/site";
+import { pageOgHref, pages } from "@/lib/site";
 
 const page = pages.blog;
 const posts = await getPosts();
@@ -11,7 +11,11 @@ const posts = await getPosts();
 const years = [...new Set(posts.map((post) => post.data.pubDate.getFullYear()))];
 ---
 
-<Layout title={page.title} description={page.description}>
+<Layout
+  title={page.title}
+  description={page.description}
+  image={pageOgHref("blog")}
+>
   <header class="animate-rise pb-10">
     <h1 class="display-face text-[2.25rem] text-ink">{page.title}</h1>
   </header>

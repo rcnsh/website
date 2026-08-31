@@ -1,46 +1,14 @@
 import { defineMiddleware } from "astro:middleware";
+import { securityHeaders } from "../shared/security.ts";
 
 /**
  * Security headers for anything the Worker renders — /guestbook, /api/*, and
  * server islands. Prerendered pages are served straight from the asset store
- * without invoking the Worker, so they are covered by public/_headers instead.
- * The two lists are the same on purpose and want changing together.
- *
- * `unsafe-inline` is in script-src because Astro emits inline scripts to
- * hydrate islands and drive the view transitions. The policy still pins every
- * external origin, which is what it is here to do — nothing renders raw HTML,
- * so there is no injection point for it to backstop.
+ * without invoking the Worker, so they are covered by public/_headers, which
+ * scripts/generate-headers.ts writes from the same source this reads. The set
+ * itself, and why it says what it says, lives in shared/security.ts.
  */
-const SECURITY_HEADERS: Record<string, string> = {
-  "X-Content-Type-Options": "nosniff",
-  "X-Frame-Options": "DENY",
-  "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
-  "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
-  "Content-Security-Policy": [
-    "default-src 'self'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "frame-ancestors 'none'",
-    "object-src 'none'",
-    "script-src 'self' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline'",
-    "font-src 'self'",
-    /*
-      The multiplayer cursor socket. Same origin — it is a Worker route under
-      rcn.sh, not a second hostname — but `'self'` covering ws/wss is a CSP3
-      clarification some browsers were late to, so the scheme is spelled out.
-      In dev the Durable Object Worker runs on its own port under
-      `npm run dev:multiplayer`, which is a different origin and needs saying.
-    */
-    `connect-src 'self' wss://rcn.sh${import.meta.env.DEV ? " ws://localhost:8788" : ""}`,
-    // Spotify spreads art across several scdn.co subdomains (i, mosaic,
-    // image-cdn-*), so the wildcard rather than the one host that shows up
-    // most. Still scoped to Spotify.
-    "img-src 'self' data: https://*.scdn.co https://*.spotifycdn.com https://avatars.githubusercontent.com https://upload.rcn.sh",
-    "upgrade-insecure-requests",
-  ].join("; "),
-};
+const SECURITY_HEADERS = securityHeaders({ dev: import.meta.env.DEV });
 
 export const onRequest = defineMiddleware(async (_context, next) => {
   const response = await next();
