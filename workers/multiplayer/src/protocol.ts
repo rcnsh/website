@@ -17,6 +17,23 @@ export interface Identity {
 /** Beyond this the screen is soup, and the fan-out stops being cheap. */
 export const MAX_PEERS = 20;
 
+/**
+ * Why a room hung up on purpose.
+ *
+ * Both of these are answers rather than failures, and the difference matters
+ * to the reader: a full room is worth coming back to, a page with no room is
+ * not. Neither is worth reconnecting at, which is what a refused handshake
+ * gets you — the browser tells a failed upgrade and a dead server apart not at
+ * all, so the client backs off and knocks for the rest of the session at
+ * something that was never going to change its mind.
+ *
+ * So a refusal is a socket that opens, says one word and closes.
+ */
+export type ShutReason = "full" | "unknown";
+
+/** Application close codes start at 4000; anything below is the protocol's. */
+export const CLOSE_SHUT = 4001;
+
 /*
   Deliberately wider than the site's palette, which is one accent on warm
   grey — remote cursors have to be told apart at a glance, and they should not
@@ -93,11 +110,20 @@ export function isMove(value: unknown): value is { t: "m" } & Move {
  * paragraph you are looking at. Normalised hard — a room is an identifier, and
  * `/blog/x`, `/blog/x/` and `/blog/X` should not be three of them.
  *
- * Returns null for anything that is not a plausible path on this site. Each
- * distinct key is a Durable Object that can be made to exist by asking for it,
- * so this is what stops a stranger conjuring unbounded numbers of them.
+ * Returns null for anything that is not a page on this site.
+ *
+ * `known` is the list of paths the site actually has, generated at build time
+ * into shared/rooms.generated.ts. It is not decoration: each distinct key is a
+ * Durable Object that comes into existence by being asked for, and the shape
+ * checks below pass `/aaa`, `/aab` and every other spelling a script cares to
+ * try. The Origin check in front only binds clients that respect it. Called
+ * without a list — as the generator itself does, to normalise the entries
+ * going into one — it checks the shape and nothing else.
  */
-export function roomKey(raw: string | null): string | null {
+export function roomKey(
+  raw: string | null,
+  known?: ReadonlySet<string>,
+): string | null {
   if (!raw) return null;
 
   // Repeated slashes collapse rather than being rejected: a doubled slash in
@@ -117,6 +143,8 @@ export function roomKey(raw: string | null): string | null {
   if (path.split("/").some((segment) => segment === "." || segment === "..")) {
     return null;
   }
+
+  if (known && !known.has(path)) return null;
 
   return path;
 }
@@ -176,23 +204,68 @@ export class Budget {
 }
 
 /**
+ * An opaque client-supplied token, or null for anything that is not one.
+ *
+ * Untrusted by construction: all it decides is which arrow and which animal
+ * someone is given, so there is nothing to be had by borrowing another's. The
+ * bounds are because it is a string from a stranger that gets hashed, and a
+ * hash is a poor place to discover you were handed a megabyte.
+ */
+export function sessionSeed(raw: string | null): string | null {
+  if (!raw) return null;
+  return /^[a-z0-9]{1,64}$/i.test(raw) ? raw : null;
+}
+
+/**
+ * FNV-1a, 32-bit. Not a security property — it is here to turn a token into
+ * the same two small numbers every time, so a reader keeps their cursor across
+ * a reconnection and a walk to the next page.
+ */
+function hash(text: string): number {
+  let value = 0x81_1c_9d_c5;
+  for (let index = 0; index < text.length; index++) {
+    value ^= text.charCodeAt(index);
+    value = Math.imul(value, 0x01_00_01_93);
+  }
+  return value >>> 0;
+}
+
+/**
  * A colour nobody in the room is already using, where possible, so two people
  * are never both "the blue one". Falls back to the whole palette once the room
  * is bigger than it.
  *
  * `random` is injected rather than reached for, so the choice can be pinned in
  * a test.
+ *
+ * `seed` is the caller's session token, and it is what stops one reader
+ * looking like a crowd. Identity used to be minted per socket, and the socket
+ * is dropped on every idle timeout, tab switch and navigation — so one person
+ * reading three posts arrived and left three times, under three names, in a
+ * room where two of those names were the only other thing on screen.
+ *
+ * The animal is the stable half: it comes from the seed and nothing else, so
+ * you are the same fox all session. The colour is preferred from the seed but
+ * gives way to a free one when your colour is already in the room, because
+ * telling two cursors apart is what the colours are for, and the name follows
+ * the colour so the label never describes an arrow of some other shade.
  */
 export function mint(
   taken: readonly Identity[],
   random: () => number = Math.random,
+  seed: string | null = null,
 ): Identity {
   const usedColours = new Set(taken.map((peer) => peer.colour));
   const usedIds = new Set(taken.map((peer) => peer.id));
 
   const free = COLOURS.filter(([, hex]) => !usedColours.has(hex));
   const palette = free.length > 0 ? free : COLOURS;
-  const [word, colour] = palette[Math.floor(random() * palette.length)];
+  const seeded = seed === null ? null : hash(seed);
+
+  const [word, colour] =
+    seeded === null
+      ? palette[Math.floor(random() * palette.length)]
+      : preferred(seeded, usedColours, palette);
 
   /*
     Ids are per-room and short-lived, so 24 bits is far past collision risk at
@@ -203,6 +276,12 @@ export function mint(
     worth betting a hang on.
   */
   let id = 0;
+  if (seeded !== null) {
+    // Same reader, same id — which is what makes a "bye" from the old socket
+    // and a "join" from the new one recognisable as one person moving.
+    const candidate = 1 + (seeded % 0xff_ff_ff);
+    if (!usedIds.has(candidate)) id = candidate;
+  }
   for (let attempt = 0; attempt < 8 && (id === 0 || usedIds.has(id)); attempt++) {
     id = 1 + Math.floor(random() * 0xff_ff_ff);
   }
@@ -211,9 +290,20 @@ export function mint(
     while (usedIds.has(id)) id += 1;
   }
 
-  return {
-    id,
-    name: `${word} ${ANIMALS[Math.floor(random() * ANIMALS.length)]}`,
-    colour,
-  };
+  const animal =
+    seeded === null
+      ? ANIMALS[Math.floor(random() * ANIMALS.length)]
+      : ANIMALS[(seeded >>> 8) % ANIMALS.length];
+
+  return { id, name: `${word} ${animal}`, colour };
+}
+
+/** The seeded colour, or a free one when the room already has that arrow. */
+function preferred(
+  seeded: number,
+  usedColours: ReadonlySet<string>,
+  palette: typeof COLOURS,
+): (typeof COLOURS)[number] {
+  const first = COLOURS[seeded % COLOURS.length];
+  return usedColours.has(first[1]) ? palette[seeded % palette.length] : first;
 }

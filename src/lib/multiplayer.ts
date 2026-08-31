@@ -42,12 +42,51 @@ const ENDPOINT = import.meta.env.DEV
 const MOVE_EPSILON = 0.75;
 
 /**
- * A held-open socket bills Durable Object duration for as long as it is open,
- * whether or not anyone is moving. A tab left on a monitor overnight is the
- * expensive case, so it drops the connection and picks it back up on the next
- * movement.
+ * A tab left open on a monitor overnight is the expensive case, so the socket
+ * is dropped and picked back up on the next movement.
+ *
+ * Deliberately not shortened for someone alone in a room, tempting as that
+ * looks. The room is hibernatable and this client says nothing while it is
+ * alone, so a solo socket costs approximately nothing to hold — and holding it
+ * is the entire mechanism by which anyone finds out that somebody else has
+ * arrived. Dropping it early would save nothing and cost the feature.
  */
 const IDLE_MS = 4 * 60 * 1000;
+
+/** Where the reader's session token is kept. See `token`. */
+const TOKEN_KEY = "rcn:mp-session";
+
+/** Why the room hung up on us, when it did so on purpose. */
+type Refusal = "full" | "unknown";
+
+/**
+ * A stable, opaque name for this tab, minted once and kept for the session.
+ *
+ * Identity is assigned by the room, and it used to be assigned per socket —
+ * which meant a new colour and a new animal after every idle drop, every tab
+ * switch and every navigation. One person reading three posts looked like
+ * three people coming and going. The room seeds the choice off this instead.
+ *
+ * sessionStorage rather than localStorage on purpose: two tabs on the same
+ * page are two cursors, and they should not both be the amber fox. Private
+ * browsing throws, in which case the room mints at random as it always did.
+ */
+function token(): string | null {
+  try {
+    const existing = sessionStorage.getItem(TOKEN_KEY);
+    if (existing) return existing;
+
+    const bytes = crypto.getRandomValues(new Uint8Array(8));
+    const minted = [...bytes]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+
+    sessionStorage.setItem(TOKEN_KEY, minted);
+    return minted;
+  } catch {
+    return null;
+  }
+}
 
 /** A peer's identity, as the room assigns it. */
 interface Identity {
@@ -75,6 +114,12 @@ export interface SessionState {
    * has not given up — it is just trying slowly now.
    */
   stalled: boolean;
+  /**
+   * The room said no, and why. Not a failure and not worth retrying — a full
+   * room and a page with no room both stay that way until something changes,
+   * and the reader is owed the actual reason rather than a spinner.
+   */
+  refused: Refusal | null;
 }
 
 export interface Session {
@@ -183,6 +228,8 @@ export function start(): Session {
 
   let room = path();
   let closed = false;
+  /** Set when the room has told us not to bother. Cleared on every open. */
+  let refused: Refusal | null = null;
 
   /** Latest local pointer position, in column space. Null until it moves. */
   let mine: { x: number; y: number } | null = null;
@@ -208,6 +255,7 @@ export function start(): Session {
       live: connection.live,
       peers: peers.size,
       stalled: connection.stalled,
+      refused,
     });
   }
 
@@ -222,7 +270,10 @@ export function start(): Session {
   */
   const connection = link({
     open(handlers) {
-      const ws = new WebSocket(`${ENDPOINT}?room=${encodeURIComponent(room)}`);
+      const seed = token();
+      const ws = new WebSocket(
+        `${ENDPOINT}?room=${encodeURIComponent(room)}${seed ? `&id=${seed}` : ""}`,
+      );
 
       ws.addEventListener("open", () => handlers.opened());
       ws.addEventListener("message", (event) => {
@@ -242,6 +293,7 @@ export function start(): Session {
     onOpen() {
       // Whatever the pointer was doing while disconnected is the truth now.
       sent = null;
+      refused = null;
       loop();
     },
 
@@ -257,6 +309,7 @@ export function start(): Session {
       peers?: Identity[];
       peer?: Identity;
       id?: number;
+      why?: string;
       p?: [number, number, number][];
     };
     try {
@@ -289,6 +342,18 @@ export function start(): Session {
           if (peer) peer.target = { x, y };
         }
         break;
+
+      /*
+        A deliberate no: the room is full, or this page has no room at all.
+        Either way the socket that opened to say so is about to close, and
+        reconnecting would get the same sentence back. Stop, and let the panel
+        say which it was. A navigation or the reader coming back to the tab
+        calls revive(), which is the only thing that undoes this.
+      */
+      case "shut":
+        refused = message.why === "full" ? "full" : "unknown";
+        connection.halt();
+        break;
     }
   }
 
@@ -316,6 +381,12 @@ export function start(): Session {
       target: { x: 0.5, y: 0 },
       drawn: null,
     });
+
+    // Nothing has been sent while the room was empty, so `sent` describes a
+    // position from before the silence — clearing it means the next frame
+    // tells the new arrival where the pointer actually is rather than waiting
+    // for it to move.
+    sent = null;
     loop();
   }
 
@@ -392,6 +463,18 @@ export function start(): Session {
   }
 
   function send(now: number, box: Column) {
+    /*
+      Nobody to send to.
+
+      Every inbound message is a billed Durable Object request, and being alone
+      on a page is not the edge case — on a personal site it is very nearly
+      every reader, every time. Without this the commonest thing the feature
+      does is pay full rate to describe a pointer to an empty room. It is also
+      what lets the room hibernate, which is what makes holding the socket open
+      while alone affordable in the first place.
+    */
+    if (peers.size === 0) return;
+
     // Receive-only devices never reach here with a position anyway, since the
     // handler below refuses to record one. This is the belt to that braces:
     // some mobile browsers report a stray non-touch pointermove while
@@ -490,6 +573,8 @@ export function start(): Session {
       room = key;
       mine = null;
       sent = null;
+      // Whatever the last room said no about, this is a different room.
+      refused = null;
       connection.drop();
       if (!document.hidden) connection.revive();
     },

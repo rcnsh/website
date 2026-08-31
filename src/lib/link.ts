@@ -75,6 +75,8 @@ export interface Link {
    * The link has not given up — it is just trying slowly now.
    */
   readonly stalled: boolean;
+  /** Whether the link has been told no and stopped. See `halt`. */
+  readonly halted: boolean;
   /** Sends on the open socket. Does nothing when there is not one. */
   send(data: string): void;
   /**
@@ -99,6 +101,16 @@ export interface Link {
    * signal will not revive it; the caller is expected to say when.
    */
   drop(): void;
+  /**
+   * Stop. The other end has answered, and the answer was no.
+   *
+   * Stronger than `sleep`, which any sign of life undoes — a room that is full
+   * or a page that has no room will say the same thing to the next socket and
+   * the one after, and moving the mouse is not new information about either.
+   * Only `revive` comes back from this, which is to say a navigation or the
+   * reader returning to the tab.
+   */
+  halt(): void;
   /** Permanent. Nothing opens another socket after this. */
   destroy(): void;
 }
@@ -108,6 +120,7 @@ export function link(options: LinkOptions): Link {
   let attempt = 0;
   let cancelWait: (() => void) | null = null;
   let asleep = false;
+  let halted = false;
   let done = false;
 
   /**
@@ -123,7 +136,7 @@ export function link(options: LinkOptions): Link {
   let generation = 0;
 
   function connect() {
-    if (done || socket) return;
+    if (done || halted || socket) return;
 
     asleep = false;
     const mine = ++generation;
@@ -206,7 +219,13 @@ export function link(options: LinkOptions): Link {
     },
 
     get stalled() {
-      return isStalled(attempt);
+      // Halted is not stalled: nothing is being retried, so there is nothing
+      // to be slow about, and the reader is owed the actual reason instead.
+      return !halted && isStalled(attempt);
+    },
+
+    get halted() {
+      return halted;
     },
 
     send(data) {
@@ -220,7 +239,7 @@ export function link(options: LinkOptions): Link {
     },
 
     wake() {
-      if (done || socket || !asleep) return;
+      if (done || halted || socket || !asleep) return;
       connect();
     },
 
@@ -229,10 +248,27 @@ export function link(options: LinkOptions): Link {
 
       stopWaiting();
       attempt = 0;
+      // Fresh evidence that conditions may have changed is exactly the thing a
+      // refusal was waiting for.
+      halted = false;
       connect();
     },
 
     drop,
+
+    halt() {
+      if (halted) return;
+      halted = true;
+
+      // drop() reports the change on its way past, but only when there was a
+      // socket to put down — a refusal arriving while one is queued has to say
+      // so itself, or the reader is left reading "connecting…" forever.
+      if (socket) drop();
+      else {
+        stopWaiting();
+        options.onState?.();
+      }
+    },
 
     destroy() {
       done = true;
