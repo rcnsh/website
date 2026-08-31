@@ -9,6 +9,7 @@ import {
   mint,
   originAllowed,
   roomKey,
+  sessionSeed,
 } from "./protocol.ts";
 
 describe("roomKey", () => {
@@ -228,5 +229,116 @@ describe("mint", () => {
     for (const r of [0, 0.5, 0.999999]) {
       assert.ok(mint([], () => r).id > 0);
     }
+  });
+});
+
+describe("known rooms", () => {
+  const known = new Set(["/", "/blog", "/blog/a-post"]);
+
+  test("admits a page the site has", () => {
+    assert.equal(roomKey("/blog/a-post", known), "/blog/a-post");
+    assert.equal(roomKey("/Blog/A-Post/", known), "/blog/a-post");
+    assert.equal(roomKey("/", known), "/");
+  });
+
+  /*
+    The shape checks pass anything spelled like a path, which is every string a
+    script cares to generate — and each distinct key it got through would be a
+    Durable Object brought into existence by the asking. The Origin check in
+    front of this only binds clients that choose to send an honest one.
+  */
+  test("refuses a path that is not a page, however well-formed", () => {
+    for (const bad of ["/aaa", "/blog/not-a-post", "/blog/a-post/extra"]) {
+      assert.equal(roomKey(bad, known), null, `should have refused ${bad}`);
+    }
+  });
+
+  test("still checks the shape first", () => {
+    assert.equal(roomKey("/hello world", known), null);
+    assert.equal(roomKey(null, known), null);
+  });
+
+  // The generator normalises its own entries by calling this without a list.
+  test("checks shape alone when there is no list", () => {
+    assert.equal(roomKey("/anything"), "/anything");
+  });
+});
+
+describe("sessionSeed", () => {
+  test("takes an opaque token", () => {
+    assert.equal(sessionSeed("a1b2c3d4e5f60718"), "a1b2c3d4e5f60718");
+  });
+
+  test("refuses anything that is not one", () => {
+    for (const bad of [null, "", "has-dashes", "has space", "*", `${"x".repeat(65)}`]) {
+      assert.equal(
+        sessionSeed(bad),
+        null,
+        `should have refused ${JSON.stringify(bad)}`,
+      );
+    }
+  });
+});
+
+describe("mint, seeded", () => {
+  const seed = "a1b2c3d4e5f60718";
+  const other = "0f1e2d3c4b5a6978";
+
+  /*
+    The whole point. Identity used to be minted per socket, and the socket goes
+    down on every idle timeout, tab switch and navigation — so one reader
+    walking between posts arrived and left under a different name each time.
+  */
+  test("gives the same reader the same cursor every time", () => {
+    const first = mint([], () => 0.1, seed);
+    const again = mint([], () => 0.9, seed);
+
+    assert.deepEqual(first, again);
+  });
+
+  test("gives different readers different ones", () => {
+    assert.notEqual(mint([], Math.random, seed).name, mint([], Math.random, other).name);
+  });
+
+  test("gives way when the room already has that colour", () => {
+    const wanted = mint([], Math.random, seed);
+    const taken = [{ id: 999, name: "someone", colour: wanted.colour }];
+
+    const minted = mint(taken, () => 0, seed);
+    assert.notEqual(minted.colour, wanted.colour);
+  });
+
+  /*
+    The label names the colour of the arrow it is attached to, so a cursor that
+    had to change colour has to change its name with it — otherwise the amber
+    fox is drawn in coral and the label is simply wrong.
+  */
+  test("the name follows the colour it settled on", () => {
+    const wanted = mint([], Math.random, seed);
+    const taken = [{ id: 999, name: "someone", colour: wanted.colour }];
+
+    const minted = mint(taken, () => 0, seed);
+    const [word] = COLOURS.find(([, hex]) => hex === minted.colour)!;
+
+    assert.ok(minted.name.startsWith(`${word} `), `got ${minted.name}`);
+  });
+
+  test("the animal survives a change of colour", () => {
+    const wanted = mint([], Math.random, seed);
+    const taken = [{ id: 999, name: "someone", colour: wanted.colour }];
+
+    const minted = mint(taken, () => 0, seed);
+    assert.equal(minted.name.split(" ")[1], wanted.name.split(" ")[1]);
+  });
+
+  test("never collides with an id already in the room", () => {
+    const wanted = mint([], Math.random, seed);
+    const taken = [{ id: wanted.id, name: "someone", colour: "#000" }];
+
+    assert.notEqual(mint(taken, () => 0.5, seed).id, wanted.id);
+  });
+
+  test("a room with no token behaves exactly as it did", () => {
+    assert.equal(mint([], () => 0, null).colour, COLOURS[0][1]);
   });
 });
