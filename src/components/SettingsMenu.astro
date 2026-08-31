@@ -21,8 +21,26 @@ import Icon from "./Icon.astro";
     data-settings-trigger
     aria-label="Settings"
     aria-expanded="false"
-    class="relative -m-2 flex items-center p-2 text-ink-faint transition-colors hover:text-ink-dim"
+    class="relative -m-2 flex items-center gap-1.5 p-2 text-ink-faint transition-colors hover:text-ink-dim"
   >
+    {/*
+      How many people are in this page's room with cursors on, when multiplayer
+      is off and the answer is not none.
+
+      The feature could not be found before this. It only shows anything once
+      two people have independently turned it on over the same paragraph at the
+      same moment, so the ordinary experience of trying it was an empty screen
+      and a reasonable conclusion that it was broken. A number on the cog is
+      the smallest honest thing that says otherwise — and it is one cached
+      request, not a held-open socket.
+
+      Replaced by the dot below once connected, which is the better signal.
+    */}
+    <span
+      data-settings-count
+      hidden
+      class="font-mono text-[0.6875rem] leading-none text-brand"></span>
+
     {/*
       The cog is 14px to sit level with the ⌘K label beside it, which is far
       too small to aim at. The padding grows the hit target to ~30px and the
@@ -141,6 +159,29 @@ import Icon from "./Icon.astro";
   let starting = false;
   let bindings: AbortController | null = null;
 
+  /**
+   * The presence count, and which page it was counted on.
+   *
+   * Module scope for the same reason the session is: a navigation rebuilds the
+   * markup but not this module, and re-asking on every page-load event for a
+   * page already counted is a request for nothing. Ten seconds matches the
+   * cache the Worker puts on the answer, so asking sooner cannot learn anything
+   * newer anyway.
+   */
+  let countedRoom = "";
+  let countedAt = 0;
+  let counted = 0;
+
+  const COUNT_TTL_MS = 10_000;
+
+  /* Dev runs the cursor Worker on its own port; production is a route here. */
+  const COUNT_ENDPOINT = import.meta.env.DEV
+    ? "http://localhost:8788/api/multiplayer/count"
+    : "/api/multiplayer/count";
+
+  /** The room key, normalised the way the Worker normalises it. */
+  const room = () => location.pathname.replace(/\/+$/, "") || "/";
+
   /** Private browsing throws on the first read; the feature is just off there. */
   function stored(): boolean {
     try {
@@ -171,12 +212,17 @@ import Icon from "./Icon.astro";
     const toggle = root.querySelector<HTMLButtonElement>("[data-settings-toggle]");
     const status = root.querySelector<HTMLElement>("[data-settings-status]");
     const dot = root.querySelector<HTMLElement>("[data-settings-dot]");
-    if (!trigger || !panel || !toggle || !status || !dot) return;
+    const count = root.querySelector<HTMLElement>("[data-settings-count]");
+    if (!trigger || !panel || !toggle || !status || !dot || !count) return;
 
     bindings = new AbortController();
     const { signal } = bindings;
 
     const IDLE_COPY = "Show other readers' cursors on this page.";
+
+    /** "one other person" / "3 other people" — the count, said in words. */
+    const others = (n: number) =>
+      n === 1 ? "one other person" : `${n} other people`;
 
     /*
       The dot on the cog means "connected", not "switched on" — so a dropped
@@ -185,6 +231,23 @@ import Icon from "./Icon.astro";
     */
     const describe = (state: SessionState) => {
       dot.hidden = !state.live;
+      // The socket is the better authority on who is here, so the polled
+      // count gets out of its way entirely while there is one.
+      count.hidden = true;
+
+      /*
+        A refusal is not a failure and must not be dressed as one. Both of
+        these stay true until something changes, so "still trying" would be a
+        lie about what the session is doing as well as about why.
+      */
+      if (state.refused === "full") {
+        status.textContent = "On — this page is full. Try again in a bit.";
+        return;
+      }
+      if (state.refused === "unknown") {
+        status.textContent = "On — cursors aren't available on this page.";
+        return;
+      }
 
       if (state.stalled) {
         status.textContent = "On — can't reach the server. Still trying.";
@@ -198,17 +261,69 @@ import Icon from "./Icon.astro";
       status.textContent =
         state.peers === 0
           ? "On — nobody else is here yet."
-          : state.peers === 1
-            ? "On — one other person is here."
-            : `On — ${state.peers} other people are here.`;
+          : `On — ${others(state.peers)} ${state.peers === 1 ? "is" : "are"} here.`;
+    };
+
+    /** What the cog and the panel say while multiplayer is switched off. */
+    const describeIdle = () => {
+      count.hidden = counted < 1 || countedRoom !== room();
+      count.textContent = String(counted);
+
+      trigger.setAttribute(
+        "aria-label",
+        count.hidden ? "Settings" : `Settings — ${others(counted)} here`,
+      );
+
+      status.textContent = count.hidden
+        ? IDLE_COPY
+        : counted === 1
+          ? "One other person here has cursors on."
+          : `${counted} other people here have cursors on.`;
     };
 
     const paint = (on: boolean) => {
       toggle.setAttribute("aria-checked", String(on));
       if (!on) {
-        status.textContent = IDLE_COPY;
         dot.hidden = true;
+        describeIdle();
       }
+    };
+
+    /**
+     * How many people are in this page's room, for someone who has not joined
+     * it. One request, and the Worker caches the answer at the edge — see the
+     * note on the markup above for why the feature needs it at all.
+     */
+    const refreshCount = async (force = false) => {
+      if (session || document.hidden) return;
+
+      const here = room();
+      const fresh = countedRoom === here && Date.now() - countedAt < COUNT_TTL_MS;
+      if (fresh && !force) {
+        describeIdle();
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${COUNT_ENDPOINT}?room=${encodeURIComponent(here)}`,
+          { credentials: "omit", signal },
+        );
+        // A page with no room answers 400, which is a legitimate zero.
+        const body = response.ok
+          ? ((await response.json()) as { peers?: unknown })
+          : null;
+
+        counted = typeof body?.peers === "number" ? body.peers : 0;
+        countedRoom = here;
+        countedAt = Date.now();
+      } catch {
+        // Offline, blocked, or navigated away mid-flight. Say nothing rather
+        // than something wrong; the next page-load asks again.
+        counted = 0;
+      }
+
+      if (!stored()) describeIdle();
     };
 
     const setOpen = (open: boolean) => {
@@ -249,18 +364,47 @@ import Icon from "./Icon.astro";
         const on = toggle.getAttribute("aria-checked") !== "true";
         remember(on);
         paint(on);
-        if (on) void enable();
-        else disable();
+
+        if (on) {
+          void enable();
+        } else {
+          disable();
+          // The room carries on without us, and the count is now a page older
+          // than it looks. Ask again rather than showing a number from before.
+          void refreshCount(true);
+        }
       },
       { signal },
     );
 
-    trigger.addEventListener("click", () => setOpen(panel.hidden), { signal });
+    trigger.addEventListener(
+      "click",
+      () => {
+        setOpen(panel.hidden);
+        // Opening the panel is the moment the number in it starts mattering.
+        if (!panel.hidden) void refreshCount();
+      },
+      { signal },
+    );
 
     document.addEventListener(
       "pointerdown",
       (event) => {
         if (!panel.hidden && !root.contains(event.target as Node)) setOpen(false);
+      },
+      { signal },
+    );
+
+    /*
+      A link opened in a background tab loads hidden, and a hidden page is not
+      asked for a count — there is nobody looking at the answer, and the room
+      it describes will have moved on by the time there is. So ask when the
+      reader actually arrives.
+    */
+    document.addEventListener(
+      "visibilitychange",
+      () => {
+        if (!document.hidden && !stored()) void refreshCount();
       },
       { signal },
     );
@@ -279,6 +423,9 @@ import Icon from "./Icon.astro";
 
     const on = stored();
     paint(on);
+
+    // Nothing to poll for while the socket is doing better than polling.
+    if (!on) void refreshCount();
 
     if (on) {
       // Already running from a previous page — re-point it and re-attach the

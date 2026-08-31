@@ -1,0 +1,48 @@
+name: Build
+
+# The full build, which CI cannot run: prerendering opens a remote connection
+# for the `remote: true` R2 binding and reads .dev.vars, so it needs Cloudflare
+# credentials and the Spotify/GitHub secrets. A pull request from a fork cannot
+# have those, which is why this is a workflow of its own rather than a job in
+# ci.yml.
+#
+# Weekly rather than per-push: what it catches is drift — an expired token, a
+# provider that changed a response shape, a share card generator that stopped
+# producing cards — and drift does not arrive with a commit. Which is precisely
+# why finding out at `npm run deploy` is finding out too late.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Sunday, early. Nothing here is urgent.
+    - cron: "0 6 * * 0"
+
+jobs:
+  build:
+    # Forks have none of the secrets below, so a scheduled run there would only
+    # ever be a red cross nobody can fix.
+    if: github.repository == 'rcnsh/rcnsh-new'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # The build reads these the same way local development does. Held in one
+      # secret rather than six because it is one file, and because the list of
+      # what goes in it is .dev.vars.example's business, not this workflow's.
+      - name: Write .dev.vars
+        run: printf '%s\n' "$DEV_VARS" > .dev.vars
+        env:
+          DEV_VARS: ${{ secrets.DEV_VARS }}
+
+      - run: npm run build
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
