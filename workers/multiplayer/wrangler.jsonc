@@ -17,6 +17,23 @@
   */
   "routes": [{ "pattern": "rcn.sh/api/multiplayer*", "zone_name": "rcn.sh" }],
 
+  /*
+    The room list this Worker imports is generated, not committed — see
+    scripts/generate-rooms.ts. Cloudflare Workers Builds deploys this Worker
+    straight from a push with no build command of its own: it clones, runs
+    `npm clean-install`, and goes directly to `wrangler versions upload`. So
+    the one thing that knows this Worker cannot be bundled without that file
+    has to be this file.
+
+    Runs from the repository root, where the script and its package.json are.
+    Wrangler runs it ahead of bundling for `dev`, `deploy` and `versions
+    upload` alike, which is every path that needs it.
+  */
+  "build": {
+    "command": "npm run rooms",
+    "cwd": "../.."
+  },
+
   // One instance per page path. `new_sqlite_classes` is not optional — the
   // key-value backend is Workers Paid only, and nothing here is stored anyway.
   "durable_objects": {
