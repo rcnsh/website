@@ -10,6 +10,13 @@ export default defineConfig({
   site: "https://rcn.sh",
   trailingSlash: "never",
 
+  // page.html rather than page/index.html — keeps static routes' served URLs
+  // (Cloudflare's asset host auto-redirects /page/ -> /page for a flat file)
+  // aligned with trailingSlash "never", which SSR routes already enforce.
+  build: {
+    format: "file",
+  },
+
   // Static by default. Live data arrives via server islands, or routes that
   // opt out with `export const prerender = false`.
   output: "static",
