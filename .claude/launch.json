@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "rcnsh-dev",
+      "name": "website-dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "run",
@@ -11,7 +11,7 @@
       "port": 4321
     },
     {
-      "name": "rcnsh-preview",
+      "name": "website-preview",
       "runtimeExecutable": "npx",
       "runtimeArgs": [
         "wrangler",
@@ -22,7 +22,7 @@
       "port": 8787
     },
     {
-      "name": "rcnsh-multiplayer",
+      "name": "website-multiplayer",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "run",
