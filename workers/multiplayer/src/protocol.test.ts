@@ -258,7 +258,6 @@ describe("known rooms", () => {
     assert.equal(roomKey(null, known), null);
   });
 
-  // The generator normalises its own entries by calling this without a list.
   test("checks shape alone when there is no list", () => {
     assert.equal(roomKey("/anything"), "/anything");
   });
