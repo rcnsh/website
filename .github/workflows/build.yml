@@ -21,7 +21,7 @@ jobs:
   build:
     # Forks have none of the secrets below, so a scheduled run there would only
     # ever be a red cross nobody can fix.
-    if: github.repository == 'rcnsh/rcnsh-new'
+    if: github.repository == 'rcnsh/website'
     runs-on: ubuntu-latest
 
     steps:
