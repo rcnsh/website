@@ -221,13 +221,20 @@ if (session && Astro.request.method !== "POST") {
               )}
             </>
           ) : (
-            <a
-              href="/api/auth/login"
-              class="inline-flex items-center gap-2.5 text-[0.9375rem] text-ink underline decoration-line-strong underline-offset-[4px] transition-colors hover:decoration-brand"
-            >
-              <GithubIcon className="h-4 w-4" />
-              Sign in with GitHub to leave a message
-            </a>
+            <>
+              <a
+                href="/api/auth/login"
+                class="inline-flex items-center gap-2.5 text-[0.9375rem] text-ink underline decoration-line-strong underline-offset-[4px] transition-colors hover:decoration-brand"
+              >
+                <GithubIcon className="h-4 w-4" />
+                Sign in with GitHub to leave a message
+              </a>
+              <p class="mt-2 text-xs text-ink-faint">
+                Signing in stores your GitHub username, avatar, and approximate
+                country with your message, shown publicly below. You can
+                delete your own entry any time.
+              </p>
+            </>
           )}
 
           {error && ERRORS[error] && (
@@ -289,6 +296,20 @@ if (session && Astro.request.method !== "POST") {
                       <time datetime={entry.createdAt.toISOString()}>
                         {relativeTime(entry.createdAt)}
                       </time>
+                      {session && session.githubId === entry.githubId && (
+                        <>
+                          {" · "}
+                          <form method="POST" action="/api/guestbook/delete" class="inline">
+                            <input type="hidden" name="id" value={entry.id} />
+                            <button
+                              type="submit"
+                              class="text-ink-faint underline decoration-line-strong underline-offset-[3px] transition-colors hover:text-red-400/90"
+                            >
+                              delete
+                            </button>
+                          </form>
+                        </>
+                      )}
                     </p>
                   </div>
                 </li>
