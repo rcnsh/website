@@ -25,13 +25,15 @@
     the one thing that knows this Worker cannot be bundled without that file
     has to be this file.
 
-    Runs from the repository root, where the script and its package.json are.
+    No `cwd`: Wrangler resolves it against the directory it was invoked from,
+    not against this file, so `../..` overshot the repository root entirely.
+    The default is that same invocation directory — the repository root, where
+    the script and its package.json are — which is what this needs anyway.
     Wrangler runs it ahead of bundling for `dev`, `deploy` and `versions
     upload` alike, which is every path that needs it.
   */
   "build": {
-    "command": "npm run rooms",
-    "cwd": "../.."
+    "command": "npm run rooms"
   },
 
   // One instance per page path. `new_sqlite_classes` is not optional — the
