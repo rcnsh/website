@@ -6,20 +6,35 @@ const data = await getContributions();
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+// A column is a 10px cell plus the 3px gap that follows it.
+const COLUMN = 13;
+// Roughly the width of a three-character label at font-mono/10px.
+const LABEL_WIDTH = 20;
+
 // Month labels sit above the first week that starts a new month.
-const monthLabels: { index: number; label: string }[] = [];
+const monthStarts: { index: number; label: string }[] = [];
 if (data) {
   let previous = -1;
   data.weeks.forEach((week, index) => {
     const first = week[0];
     if (!first) return;
-    const month = new Date(first.date).getMonth();
+    const month = new Date(first.date).getUTCMonth();
     if (month !== previous && index < data.weeks.length - 1) {
-      monthLabels.push({ index, label: MONTHS[month]! });
+      monthStarts.push({ index, label: MONTHS[month]! });
       previous = month;
     }
   });
 }
+
+// The year starts mid-month, so the leading month often owns a single column
+// and its label would run into the next one. Drop a label when the following
+// month starts before the label has room to finish — a whole month spans at
+// least four columns, so this only ever discards that opening sliver.
+const monthLabels = monthStarts.filter((start, position) => {
+  const next = monthStarts[position + 1];
+  if (!next) return true;
+  return (next.index - start.index) * COLUMN >= LABEL_WIDTH;
+});
 ---
 
 {
@@ -31,7 +46,7 @@ if (data) {
             {monthLabels.map(({ index, label }) => (
               <span
                 class="absolute font-mono text-[10px] text-ink-faint"
-                style={`left: ${index * 13}px`}
+                style={`left: ${index * COLUMN}px`}
               >
                 {label}
               </span>
@@ -49,21 +64,30 @@ if (data) {
               <span class="h-2.5" />
             </div>
 
-            {data.weeks.map((week) => (
-              <div class="flex flex-col gap-[3px]">
-                {Array.from({ length: 7 }, (_, day) => {
-                  const cell = week[day];
-                  if (!cell) return <span class="h-2.5 w-2.5" />;
-                  return (
-                    <span
-                      class="h-2.5 w-2.5 rounded-[1px]"
-                      data-level={cell.level}
-                      title={`${cell.count} contribution${cell.count === 1 ? "" : "s"} on ${cell.date}`}
-                    />
-                  );
-                })}
-              </div>
-            ))}
+            {data.weeks.map((week) => {
+              // Placed by each day's own weekday rather than by its position
+              // in the week, so a week that is short at either end — the last
+              // one stops at today — still lines up with the Mon/Wed/Fri
+              // labels instead of sliding up a row.
+              const byWeekday = new Map(
+                week.map((day) => [new Date(day.date).getUTCDay(), day]),
+              );
+              return (
+                <div class="flex flex-col gap-[3px]">
+                  {Array.from({ length: 7 }, (_, day) => {
+                    const cell = byWeekday.get(day);
+                    if (!cell) return <span class="h-2.5 w-2.5" />;
+                    return (
+                      <span
+                        class="h-2.5 w-2.5 rounded-[1px]"
+                        data-level={cell.level}
+                        title={`${cell.count} contribution${cell.count === 1 ? "" : "s"} on ${cell.date}`}
+                      />
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
