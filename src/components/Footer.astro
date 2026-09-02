@@ -6,8 +6,34 @@ const year = new Date().getFullYear();
 
 <footer class="mt-20 border-t border-line">
   <div
-    class="mx-auto flex max-w-3xl flex-col gap-3 px-5 py-7 font-mono text-xs text-ink-faint sm:flex-row sm:items-center sm:px-6"
+    class="mx-auto flex max-w-3xl flex-col gap-4 px-5 py-7 font-mono text-xs text-ink-faint sm:flex-row sm:items-center sm:gap-5 sm:px-6"
   >
+    {
+      /*
+        The 88x31 button, drawn by `npm run badge`. It links to the file rather
+        than to anywhere on the site: someone in the footer of my own page
+        already knows where they are, and the only reason to click a button
+        here is to take it. Intrinsic width and height are declared because
+        this is the one image on the site whose size is the whole point.
+      */
+    }
+    <a
+      href="/badge.png"
+      title="88×31 button — take it"
+      class="inline-flex w-fit shrink-0 opacity-90 transition-opacity duration-200 hover:opacity-100"
+    >
+      <img
+        src="/badge.png"
+        srcset="/badge.png 1x, /badge@2x.png 2x"
+        width="88"
+        height="31"
+        loading="lazy"
+        decoding="async"
+        alt="rcn.sh"
+        class="block"
+      />
+    </a>
+
     <p>&copy; {year} {site.author}</p>
     <nav class="flex flex-wrap gap-x-5 gap-y-2 sm:ml-auto">
       {

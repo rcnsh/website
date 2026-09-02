@@ -1,4 +1,11 @@
 ---
+import {
+  LOGO_PLATE,
+  LOGO_PLATE_VIEWBOX,
+  LOGO_POLYGONS,
+  LOGO_VIEWBOX,
+} from "@/lib/logo";
+
 interface Props {
   class?: string;
   /** Renders the dark rounded plate behind the glyph, like a favicon. */
@@ -8,11 +15,11 @@ interface Props {
 const { class: className, plate = false } = Astro.props;
 
 /**
- * The viewBox is cropped to the mark's real bounds (≈3.46:1), so `h-8` means
+ * The cropped viewBox is the mark's real bounds (≈3.46:1), so `h-8` means
  * eight units of logo rather than of mostly-empty canvas. Size by height, width
  * auto. The plate variant keeps the full square.
  */
-const viewBox = plate ? "0 0 1080 1080" : "132.33 422.31 815.34 235.38";
+const viewBox = plate ? LOGO_PLATE_VIEWBOX : LOGO_VIEWBOX;
 ---
 
 <svg
@@ -22,15 +29,12 @@ const viewBox = plate ? "0 0 1080 1080" : "132.33 422.31 815.34 235.38";
   aria-label="rcn.sh"
   class={className}
 >
-  {plate && <rect width="1080" height="1080" rx="220" fill="#181818" />}
+  {plate && <rect width="1080" height="1080" rx="220" fill={LOGO_PLATE} />}
   <g>
-    <polygon
-      fill="#5b66af"
-      points="947.67 500.78 902.38 579.22 857.08 657.67 766.48 657.67 811.77 579.22 857.07 500.78 766.48 500.78 721.19 579.22 675.88 657.67 585.3 657.67 630.59 579.22 539.99 579.22 585.28 500.78 675.88 500.78 675.88 500.76 721.17 422.31 902.38 422.31 902.38 422.33 947.67 500.78"
-    ></polygon>
-    <polygon
-      fill="#305b99"
-      points="494.7 500.78 449.41 579.22 494.7 657.67 494.7 657.69 404.1 657.69 404.1 657.67 358.81 579.22 404.1 500.78 313.52 500.78 268.23 579.22 222.92 657.69 132.33 657.69 177.62 579.24 177.64 579.22 222.93 500.78 268.23 422.33 268.23 422.31 539.99 422.31 494.7 500.78"
-    ></polygon>
+    {
+      LOGO_POLYGONS.map((polygon) => (
+        <polygon fill={polygon.fill} points={polygon.points} />
+      ))
+    }
   </g>
 </svg>
