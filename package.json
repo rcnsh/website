@@ -9,10 +9,11 @@
   "scripts": {
     "dev": "npm run generate && astro dev",
     "build": "npm run generate && wrangler types && astro check && astro build",
-    "generate": "npm run og && npm run rooms && npm run headers",
+    "generate": "npm run og && npm run rooms && npm run headers && npm run badge",
     "og": "node scripts/generate-og.ts",
     "rooms": "node scripts/generate-rooms.ts",
     "headers": "node scripts/generate-headers.ts",
+    "badge": "node scripts/generate-badge.ts",
     "world": "node scripts/generate-world.ts",
     "marks": "node scripts/generate-brand-marks.ts",
     "preview": "npm run generate && astro build && wrangler dev",

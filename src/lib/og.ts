@@ -42,12 +42,18 @@ const FONT_FILES = {
   monoBold: "GeistMono-Bold.ttf",
 } as const;
 
-type Font = { name: string; data: Buffer; weight: 400 | 700; style: "normal" };
+export type Font = {
+  name: string;
+  data: Buffer;
+  weight: 400 | 700;
+  style: "normal";
+};
 
 // Read once per build rather than once per card.
 let fontsPromise: Promise<Font[]> | null = null;
 
-function loadFonts(): Promise<Font[]> {
+/** Exported for lib/badge.ts, which draws with the same two faces. */
+export function loadFonts(): Promise<Font[]> {
   fontsPromise ??= (async () => {
     const dir = path.join(process.cwd(), "src/assets/fonts");
     const [sans, mono, monoBold] = await Promise.all(
