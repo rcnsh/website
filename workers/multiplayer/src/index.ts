@@ -147,7 +147,36 @@ export class CursorRoom extends DurableObject<Env> {
     if (typeof message !== "string" || message.length > 256) return;
 
     const identity = this.identityOf(ws);
-    if (!identity || !this.budget.spend(identity.id, Date.now())) return;
+    if (!identity) return;
+
+    /*
+      Over budget: hang up rather than drop the frame.
+
+      Reaching this handler at all is the billed event — the runtime charges a
+      Durable Object request for every inbound WebSocket message, before any of
+      this runs. So ignoring the excess costs exactly as much as acting on it,
+      and a client that ignores the send cap would go on being charged for as
+      long as it cared to keep sending. Closing the socket is the only lever
+      here that ends that, and it puts a flooder on the reconnect path, which
+      is one request rather than a hundred a second.
+
+      An honest client cannot get here: the allowance is half again over the
+      rate the client paces itself at.
+    */
+    if (!this.budget.spend(identity.id, Date.now())) {
+      this.budget.forget(identity.id);
+      try {
+        // Said out loud first, for the same reason a refused handshake is:
+        // a bare close leaves the client unable to tell "you were hung up on"
+        // from "the network went away", and it would reconnect into the same
+        // wall all session. One frame buys a client that knows to stop.
+        ws.send(JSON.stringify({ t: "shut", why: "flood" satisfies ShutReason }));
+        ws.close(CLOSE_SHUT, "flood");
+      } catch {
+        // Already going down; webSocketClose will tidy up either way.
+      }
+      return;
+    }
 
     let parsed: unknown;
     try {

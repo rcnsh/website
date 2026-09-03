@@ -17,6 +17,10 @@ on:
     # Sunday, early. Nothing here is urgent.
     - cron: "0 6 * * 0"
 
+# The build reads secrets but writes nothing back to the repository.
+permissions:
+  contents: read
+
 jobs:
   build:
     # Forks have none of the secrets below, so a scheduled run there would only

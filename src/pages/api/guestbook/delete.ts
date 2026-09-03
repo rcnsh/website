@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import type { APIRoute } from "astro";
 import { getSession } from "@/lib/auth";
 import { getDb, schema } from "@/lib/db";
+import { invalidate } from "@/lib/guestbook";
 
 export const prerender = false;
 
@@ -28,6 +29,12 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
         eq(schema.guestbook.githubId, session.githubId),
       ),
     );
+
+  // The cached first page and totals may both name the row that just went.
+  // Unconditional: the delete is scoped, so a request for someone else's id
+  // removes nothing, and dropping two keys is cheaper than asking whether it
+  // did before deciding.
+  await invalidate();
 
   return redirect("/guestbook", 302);
 };
