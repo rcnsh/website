@@ -64,10 +64,8 @@ export function baseDirectives(dev = false): string[] {
       clarification some browsers were late to, so the scheme is spelled out.
     */
     `connect-src 'self' wss://rcn.sh${dev ? ` ${DEV_MULTIPLAYER}` : ""}`,
-    // Spotify spreads art across several scdn.co subdomains (i, mosaic,
-    // image-cdn-*), so the wildcard rather than the one host that shows up
-    // most. Still scoped to Spotify.
-    "img-src 'self' data: https://*.scdn.co https://*.spotifycdn.com https://avatars.githubusercontent.com https://upload.rcn.sh",
+    // Spotify spreads art across several scdn.co subdomains, hence wildcards.
+    "img-src 'self' data: https://*.scdn.co https://*.spotifycdn.com https://avatars.githubusercontent.com https://upload.rcn.sh https://static.cloudflareinsights.com",
     "upgrade-insecure-requests",
   ];
 }
