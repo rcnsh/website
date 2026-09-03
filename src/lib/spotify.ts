@@ -9,7 +9,30 @@ import { cached } from "./cache";
 
 const TOKEN_CACHE_KEY = "spotify:access_token";
 
-const imageSchema = z.array(z.object({ url: z.string() })).default([]);
+const imageSchema = z
+  .array(z.object({ url: z.string(), width: z.number().nullish() }))
+  .default([]);
+
+/**
+ * The smallest cover at least `minWidth` across, falling back to the largest
+ * on offer. Spotify hands back 640px art for every one of these, and the
+ * biggest it is ever drawn at here is 56px.
+ */
+function artwork(
+  images: z.infer<typeof imageSchema>,
+  minWidth: number,
+): string | null {
+  const wide = images.filter((i) => (i.width ?? 0) >= minWidth);
+  const pick = wide.length
+    ? wide.reduce((a, b) => ((a.width ?? 0) <= (b.width ?? 0) ? a : b))
+    : images[0];
+  return pick?.url ?? null;
+}
+
+/** Track art is drawn at 56px at most, so 2x on the densest screen worth it. */
+const TRACK_ART = 128;
+/** Artist tiles are a grid column wide — around 160px on a phone. */
+const ARTIST_ART = 320;
 const artistSchema = z.object({
   name: z.string(),
   external_urls: z.object({ spotify: z.string() }).optional(),
@@ -72,7 +95,7 @@ function normaliseTrack(raw: z.infer<typeof trackSchema>): Track {
     title: raw.name,
     artists: raw.artists.map((a) => a.name).join(", "),
     album: raw.album?.name ?? null,
-    image: raw.album?.images?.[0]?.url ?? null,
+    image: artwork(raw.album?.images ?? [], TRACK_ART),
     url: raw.external_urls?.spotify ?? null,
     durationMs: raw.duration_ms ?? null,
   };
@@ -206,7 +229,7 @@ export async function getTopArtists(range: TimeRange, limit = 12): Promise<Artis
     if (!parsed.success) return [];
     return parsed.data.items.map((item) => ({
       name: item.name,
-      image: item.images?.[0]?.url ?? null,
+      image: artwork(item.images, ARTIST_ART),
       url: item.external_urls?.spotify ?? null,
     }));
   });
