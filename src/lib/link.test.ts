@@ -28,13 +28,8 @@ interface Wait {
 }
 
 /**
- * A link wired to a hand-cranked clock and hand-cranked sockets.
- *
- * Nothing here waits for anything: time only passes when a test says so, and a
- * socket only connects or fails when a test says so. That is the whole reason
- * the state machine was pulled out of multiplayer.ts — reproducing a
- * five-minute backoff or a socket that reports the same failure twice is a
- * line of code here and a stopwatch and a lot of luck in a browser.
+ * A link wired to a hand-cranked clock and hand-cranked sockets. Nothing waits:
+ * time passes and sockets connect only when a test says so.
  */
 function session() {
   const sockets: Fake[] = [];
@@ -565,13 +560,7 @@ describe("one socket at a time", () => {
   });
 });
 
-/*
-  A refusal is not a failure. The room saying "full" or "there is no room for
-  this page" is an answer, and knocking at it every few seconds for the rest of
-  the session gets the same answer back — which is what a refused handshake
-  used to buy, since a browser reports a rejected upgrade and a dead server as
-  the same nothing.
-*/
+/* A refusal is an answer, not a failure — knocking again gets the same one. */
 describe("being told no", () => {
   test("puts the socket down and does not knock again", () => {
     const s = session();

@@ -2,30 +2,17 @@
 import Icon from "./Icon.astro";
 
 /**
- * The cog in the header, and the popover it opens.
+ * The cog in the header, and the popover it opens. Every row turns down
+ * something the page does on its own; a setting that adds behaviour wants a
+ * different home.
  *
- * A dropdown rather than switches in the bar: these are settings most visitors
- * will never open, and they should not cost a permanent piece of chrome. The
- * cog is the affordance; the explanations live inside.
- *
- * Everything here is a way to turn down something the page does on its own —
- * broadcast a cursor, keep asking what is playing, animate. That shared shape
- * is the bar for a fourth row; a setting that adds behaviour rather than
- * removing it wants a different home.
- *
- * The only thing this ships eagerly is the popover markup and the script
- * below. src/lib/multiplayer.ts — the socket, the render loop and its CSS — is
- * behind a dynamic import that only runs when the switch is turned on, so a
- * visitor who leaves it alone pays for nothing beyond a button.
+ * Only the markup and this script are eager — src/lib/multiplayer.ts is behind
+ * a dynamic import that runs when the switch is turned on.
  */
 
 /**
- * The rows, in the order they appear.
- *
- * `key` is both the name lib/prefs.ts stores under and the hook the script
- * binds by, so a new setting is an entry here and a line of wiring rather than
- * another hand-written block of markup. Multiplayer is the one row whose
- * description is rewritten at runtime — see `describe` below.
+ * The rows, in order. `key` is both the lib/prefs.ts storage name and the hook
+ * the script binds by. Multiplayer's description is rewritten at runtime.
  */
 const settings = [
   {
@@ -55,28 +42,17 @@ const settings = [
     class="relative -m-2 flex items-center gap-1.5 p-2 text-ink-faint transition-colors hover:text-ink-dim"
   >
     {/*
-      How many people are in this page's room with cursors on, when multiplayer
-      is off and the answer is not none.
-
-      The feature could not be found before this. It only shows anything once
-      two people have independently turned it on over the same paragraph at the
-      same moment, so the ordinary experience of trying it was an empty screen
-      and a reasonable conclusion that it was broken. A number on the cog is
-      the smallest honest thing that says otherwise — and it is one cached
-      request, not a held-open socket.
-
-      Replaced by the dot below once connected, which is the better signal.
+      How many people here have cursors on, while multiplayer is off. Without
+      it the feature only shows itself when two people switch it on over the
+      same paragraph at once, and otherwise looks broken. Replaced by the dot
+      below once connected.
     */}
     <span
       data-settings-count
       hidden
       class="font-mono text-[0.6875rem] leading-none text-brand"></span>
 
-    {/*
-      The cog is 14px to sit level with the ⌘K label beside it, which is far
-      too small to aim at. The padding grows the hit target to ~30px and the
-      negative margin takes the space back out of the layout.
-    */}
+    {/* 14px to sit level with the ⌘K label; padding grows the hit target. */}
     <Icon name="settings" class="h-3.5 w-3.5" />
     {/* Lit while multiplayer is connected, so the state is legible from the bar. */}
     <span
@@ -112,11 +88,7 @@ const settings = [
               </p>
             </div>
 
-            {/*
-              A real switch rather than a checkbox: there is no form here and
-              no submit, and role="switch" is what tells a screen reader that
-              flipping it takes effect immediately.
-            */}
+            {/* role="switch", not a checkbox: no form, and it applies at once. */}
             <button
               type="button"
               id={`setting-${setting.key}`}
@@ -176,9 +148,7 @@ const settings = [
     background: var(--color-ink);
   }
 
-  /* The attribute rather than the media query — the switch itself has to obey
-     the switch. Nothing draws this panel without script, so the answer is
-     always already on <html> by the time it is on screen. */
+  /* The attribute, not the media query — the switch has to obey the switch. */
   :root[data-motion="reduce"] .switch,
   :root[data-motion="reduce"] .switch-knob {
     transition: none;
@@ -199,24 +169,15 @@ const settings = [
     writePref,
   } from "@/lib/prefs";
 
-  /*
-    Module scope, not per-page. Astro's view transitions swap the document but
-    do not re-evaluate a module that has already loaded, so the session — and
-    with it the socket and the peers already on screen — survives a navigation.
-    setupSettings() below only ever re-binds the new markup to it.
-  */
+  /* Module scope, not per-page: view transitions swap the document without
+     re-evaluating a loaded module, so the session survives a navigation. */
   let session: Session | null = null;
   let starting = false;
   let bindings: AbortController | null = null;
 
   /**
-   * The presence count, and which page it was counted on.
-   *
-   * Module scope for the same reason the session is: a navigation rebuilds the
-   * markup but not this module, and re-asking on every page-load event for a
-   * page already counted is a request for nothing. Ten seconds matches the
-   * cache the Worker puts on the answer, so asking sooner cannot learn anything
-   * newer anyway.
+   * The presence count, and which page it was counted on. Module scope so a
+   * navigation does not re-ask; the TTL matches the Worker's edge cache.
    */
   let countedRoom = "";
   let countedAt = 0;
@@ -270,22 +231,15 @@ const settings = [
     const others = (n: number) =>
       n === 1 ? "one other person" : `${n} other people`;
 
-    /*
-      The dot on the cog means "connected", not "switched on" — so a dropped
-      socket reads as a dropped socket rather than as an empty room, which is
-      what reporting only a peer count used to make it look like.
-    */
+    /* The dot means "connected", not "switched on", so a dropped socket does
+       not read as an empty room. */
     const describe = (state: SessionState) => {
       dot.hidden = !state.live;
-      // The socket is the better authority on who is here, so the polled
-      // count gets out of its way entirely while there is one.
+      // The socket knows better than the poll, so the poll gets out of the way.
       count.hidden = true;
 
-      /*
-        A refusal is not a failure and must not be dressed as one. Both of
-        these stay true until something changes, so "still trying" would be a
-        lie about what the session is doing as well as about why.
-      */
+      /* A refusal is not a failure. Both stay true until something changes,
+         so "still trying" would be a lie twice over. */
       if (state.refused === "full") {
         status.textContent = "On — this page is full. Try again in a bit.";
         return;
@@ -294,7 +248,7 @@ const settings = [
         status.textContent = "On — cursors aren't available on this page.";
         return;
       }
-      // Not a thing a working client can provoke; see Refusal in lib/multiplayer.
+      // Not something a working client can provoke.
       if (state.refused === "flood") {
         status.textContent = "On — disconnected for sending too fast.";
         return;
@@ -340,11 +294,7 @@ const settings = [
       }
     };
 
-    /**
-     * How many people are in this page's room, for someone who has not joined
-     * it. One request, and the Worker caches the answer at the edge — see the
-     * note on the markup above for why the feature needs it at all.
-     */
+    /** Who is in this page's room, for someone who has not joined it. */
     const refreshCount = async (force = false) => {
       if (session || document.hidden) return;
 
@@ -369,8 +319,7 @@ const settings = [
         countedRoom = here;
         countedAt = Date.now();
       } catch {
-        // Offline, blocked, or navigated away mid-flight. Say nothing rather
-        // than something wrong; the next page-load asks again.
+        // Offline, blocked, or navigated away. The next page-load asks again.
         counted = 0;
       }
 
@@ -386,9 +335,8 @@ const settings = [
 
     closeOnOtherOverlay("settings", () => setOpen(false), signal);
 
-    // Arrow consts rather than declarations, like everything else in here —
-    // a hoisted `function` does not inherit the null-narrowing from the guard
-    // above, and re-checking each element inside would be noise.
+    // Arrow consts, not declarations: a hoisted `function` would not inherit
+    // the null-narrowing from the guard above.
     const enable = async () => {
       // Two clicks before the chunk lands should not open two sockets.
       if (session || starting) return;
@@ -424,8 +372,7 @@ const settings = [
           void enable();
         } else {
           disable();
-          // The room carries on without us, and the count is now a page older
-          // than it looks. Ask again rather than showing a number from before.
+          // The count is stale the moment we leave the room. Ask again.
           void refreshCount(true);
         }
       },
@@ -433,12 +380,8 @@ const settings = [
     );
 
     /**
-     * The two switches that are nothing but a stored boolean.
-     *
-     * Neither one reaches for the thing it affects. The clock, the now-playing
-     * island and the stylesheet all read their own preference and listen for
-     * the change lib/prefs announces, which is what lets this component stay
-     * ignorant of every one of them.
+     * The two switches that are nothing but a stored boolean. Neither reaches
+     * for what it affects — each consumer listens to lib/prefs itself.
      */
     const bindPlain = (
       button: HTMLButtonElement,
@@ -461,12 +404,8 @@ const settings = [
     bindPlain(live, liveUpdates, setLiveUpdates);
     bindPlain(motion, motionReduced, setMotionReduced);
 
-    /*
-      Until someone touches it, the motion switch is reporting the OS setting
-      — so it has to move when the OS setting moves. Once there is a choice
-      stored, motionReduced() ignores the query and this becomes a no-op that
-      repaints the same value.
-    */
+    /* Untouched, the motion switch reports the OS setting, so it has to move
+       with it. Once a choice is stored this repaints the same value. */
     matchMedia(REDUCED_MOTION_QUERY).addEventListener(
       "change",
       () => {
@@ -494,12 +433,8 @@ const settings = [
       { signal },
     );
 
-    /*
-      A link opened in a background tab loads hidden, and a hidden page is not
-      asked for a count — there is nobody looking at the answer, and the room
-      it describes will have moved on by the time there is. So ask when the
-      reader actually arrives.
-    */
+    /* A background tab loads hidden and is not asked for a count, so ask when
+       the reader actually arrives. */
     document.addEventListener(
       "visibilitychange",
       () => {
@@ -527,8 +462,7 @@ const settings = [
     if (!on) void refreshCount();
 
     if (on) {
-      // Already running from a previous page — re-point it and re-attach the
-      // presence readout to this copy of the markup.
+      // Already running from a previous page — re-point it at this markup.
       if (session) {
         session.setRoom(location.pathname);
         session.onState(describe);

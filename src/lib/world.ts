@@ -15,11 +15,7 @@ export type WorldShape = {
   d: string;
 };
 
-/**
- * Under this many square px a filled country reads as noise or nothing at all.
- * Singapore lands around 1, Luxembourg around 20; Belgium, the smallest shape
- * that still reads as a shape, is comfortably above it.
- */
+/** Below this a filled country reads as noise. Belgium is comfortably above. */
 export const TINY_AREA = 45;
 
 export const WORLD_VIEWBOX = "0 0 820 400" as const;

@@ -4,18 +4,9 @@ import { cached } from "./cache";
 import { getDb, schema } from "./db";
 
 /**
- * Reading the guestbook.
- *
- * The page used to select the latest 200 rows on every request, uncached, on a
- * route the Worker renders for anyone who asks. Two things were wrong with
- * that. The obvious one is that most of those rows were never looked at — the
- * list sits below a map and nobody scrolls to the bottom of it. The one that
- * matters is that D1 bills rows read, the allowance is a daily one, and 200
- * rows a view means a few minutes of scripted traffic exhausts it for the
- * whole database — taking sessions, and therefore signing in, down with it.
- *
- * So the list is paginated and the first page is cached. A visitor who reads
- * the top of the page costs a KV read; one who scrolls pays a page at a time.
+ * Reading the guestbook. Paginated with the first page cached: D1 bills rows
+ * read against a daily allowance, so an uncached 200-row select per view is a
+ * few minutes of scripted traffic away from taking sessions down with it.
  */
 
 /** Rows per page. Roughly two screens on a phone. */
@@ -27,13 +18,7 @@ const FRESH_SECONDS = 60;
 const FIRST_PAGE_KEY = "guestbook:page:1";
 const STATS_KEY = "guestbook:stats";
 
-/**
- * One entry, in the shape that survives a trip through JSON.
- *
- * `createdAt` is epoch seconds rather than a Date because these go into KV and
- * come back out of `fetch`, and a Date survives neither. The browser needs a
- * number to format anyway.
- */
+/** One entry. `createdAt` is epoch seconds, since a Date survives neither KV nor fetch. */
 export type GuestbookEntry = {
   id: number;
   githubId: number;
@@ -45,14 +30,11 @@ export type GuestbookEntry = {
 };
 
 /**
- * A cursor is the sort key of the last row handed out: newest first by time,
- * with the id breaking ties.
+ * The sort key of the last row handed out: newest first, id breaking ties.
  *
- * Not an offset. Rows are inserted while people are reading, and an offset
- * would show one entry twice and skip another the moment anything was signed
- * between two pages. Not the id alone either — migration 0002 imported the old
- * guestbook with backdated timestamps, so id order and time order are not the
- * same order, and paginating on the wrong one silently strands those entries.
+ * Not an offset — rows are inserted while people read. Not the id alone
+ * either: migration 0002 backdated the imported entries, so id order and time
+ * order differ, and paginating on the wrong one strands them.
  */
 export type Cursor = { createdAt: number; id: number };
 
@@ -77,11 +59,8 @@ export function encodeCursor(cursor: Cursor): string {
 }
 
 /**
- * Parses a cursor, or null for anything that is not one.
- *
- * Strict, because it arrives from a stranger and becomes two numbers in a
- * WHERE clause. Non-negative integers only; nothing else is a position in this
- * list, and a malformed cursor should start from the top rather than error.
+ * Parses a cursor, or null. Strict — it arrives from a stranger and becomes
+ * two numbers in a WHERE clause. A malformed one starts from the top.
  */
 export function decodeCursor(raw: string | null): Cursor | null {
   if (!raw) return null;
@@ -109,10 +88,7 @@ async function readPage(after: Cursor | null): Promise<GuestbookPage> {
   const db = getDb();
   const at = after ? new Date(after.createdAt * 1000) : null;
 
-  /*
-    One row more than the page, so "is there another page" is answered by the
-    query that fetched this one rather than by a second COUNT.
-  */
+  // One row over the page, so "is there another" needs no second COUNT.
   const rows = await db
     .select()
     .from(schema.guestbook)
@@ -143,12 +119,8 @@ async function readPage(after: Cursor | null): Promise<GuestbookPage> {
 }
 
 /**
- * A page of entries.
- *
- * Only the first page goes through KV. Every visitor lands on it, so it is the
- * one worth collapsing into a single read; deeper pages are asked for by
- * people who are actually scrolling, and caching them would mean a KV entry
- * per cursor — a set the caller picks from, not one this code controls.
+ * A page of entries. Only the first goes through KV — every visitor lands on
+ * it, and caching deeper ones would mean a KV entry per caller-chosen cursor.
  */
 export async function getPage(after: Cursor | null = null): Promise<GuestbookPage> {
   if (after) return readPage(after);
@@ -167,8 +139,7 @@ export async function getStats(): Promise<GuestbookStats> {
 
     for (const row of rows) {
       stats.total += row.n;
-      // `T1` is Tor's placeholder and the imported rows have no country at
-      // all. The map treats both the same — not placed.
+      // `T1` is Tor's placeholder; imported rows have no country. Both unplaced.
       if (row.country && row.country !== "T1" && /^[A-Z]{2}$/.test(row.country)) {
         stats.counts[row.country] = (stats.counts[row.country] ?? 0) + row.n;
       } else {
@@ -181,15 +152,9 @@ export async function getStats(): Promise<GuestbookStats> {
 }
 
 /**
- * Drops the cached first page and totals.
- *
- * Called after a signature is added or removed, so the writer sees their own
- * change on the redirect that follows rather than up to a minute later. Both
- * keys go together: a new entry moves the list and the totals at once, and
- * half-fresh is worse than either.
- *
- * Failures are swallowed. The write is already committed, the cache expires on
- * its own within the minute, and a stale list is not worth a 500 over.
+ * Drops the cached first page and totals together, so a writer sees their own
+ * change on the redirect. Failures are swallowed — the write is committed and
+ * the cache expires within the minute anyway.
  */
 export async function invalidate(): Promise<void> {
   const kv = env.CACHE;
@@ -203,11 +168,8 @@ export async function invalidate(): Promise<void> {
 }
 
 /**
- * When this signer last posted, for the rate limit.
- *
- * Its own query rather than a scan of the rendered page: the list is 25 rows
- * now and the signer's last message is very often not among them. Covered by
- * the (github_id, created_at) index, so it reads one row.
+ * When this signer last posted, for the rate limit. Its own query, since a
+ * 25-row page usually will not contain it. Indexed, so it reads one row.
  */
 export async function lastPostedAt(githubId: number): Promise<Date | null> {
   const [row] = await getDb()
