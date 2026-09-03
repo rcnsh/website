@@ -312,18 +312,41 @@
   }
 }
 
+/* --- Reduce motion ---
+   The switch in the settings menu decides this, not the OS alone: lib/prefs.ts
+   folds the stored choice and `prefers-reduced-motion` into one answer and
+   stamps it on <html> before the first paint. The attribute is therefore the
+   authority whenever there is script, and the media query below is what is
+   left when there is not — which is why it only applies while the attribute is
+   absent. Both blocks say the same thing; there is no way in CSS to hang one
+   declaration off a media query *or* a selector, and the alternative is
+   letting the two states disagree. */
+:root[data-motion="reduce"] *,
+:root[data-motion="reduce"] *::before,
+:root[data-motion="reduce"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+:root[data-motion="reduce"]::view-transition-group(*),
+:root[data-motion="reduce"]::view-transition-old(*),
+:root[data-motion="reduce"]::view-transition-new(*) {
+  animation: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  :root:not([data-motion]) *,
+  :root:not([data-motion]) *::before,
+  :root:not([data-motion]) *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  ::view-transition-group(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) {
+  :root:not([data-motion])::view-transition-group(*),
+  :root:not([data-motion])::view-transition-old(*),
+  :root:not([data-motion])::view-transition-new(*) {
     animation: none !important;
   }
 }

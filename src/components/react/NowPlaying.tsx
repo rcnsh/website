@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { SpotifyIcon } from "./BrandIcons";
+import { liveUpdates, onPrefChange } from "@/lib/prefs";
 import { cn, formatDuration, relativeTime } from "@/lib/utils";
 
 type Payload =
@@ -15,6 +16,22 @@ export default function NowPlaying() {
   // Interpolated between polls so the bar moves every second, not every 20.
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
+
+  /*
+    The live-updates switch. Read lazily rather than in an effect so that a
+    reader who has turned it off never gets the one poll that mounting with the
+    default would have fired. The island is server-rendered, where there is no
+    localStorage to read — lib/prefs answers `true` there, which is both the
+    default and what the server markup already assumes, so hydration matches.
+  */
+  const [live, setLive] = useState(liveUpdates);
+
+  useEffect(() => {
+    const bindings = new AbortController();
+    setLive(liveUpdates());
+    onPrefChange("live", () => setLive(liveUpdates()), bindings.signal);
+    return () => bindings.abort();
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -38,7 +55,21 @@ export default function NowPlaying() {
       }
     };
 
+    /*
+      One request either way — an empty panel would be a worse answer to
+      "don't keep updating this" than a stale one. What the switch buys is
+      everything after: no interval, and no refetch on every tab focus. The
+      clock can afford to redraw itself when it is looked at again because
+      that costs nothing; this cannot.
+    */
     load();
+    if (!live) {
+      return () => {
+        alive = false;
+        controller.abort();
+      };
+    }
+
     const poll = setInterval(load, POLL_MS);
 
     // Re-sync as soon as the tab is looked at again.
@@ -51,16 +82,19 @@ export default function NowPlaying() {
       clearInterval(poll);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [live]);
 
   useEffect(() => {
-    if (data?.state !== "playing") return;
+    // Interpolating a progress bar is exactly the kind of motion-without-news
+    // the switch is there to stop, and it would drift away from a reading that
+    // is no longer being refreshed anyway.
+    if (!live || data?.state !== "playing") return;
     const tick = setInterval(() => {
       progressRef.current = Math.min(progressRef.current + 1000, data.durationMs);
       setProgress(progressRef.current);
     }, 1000);
     return () => clearInterval(tick);
-  }, [data]);
+  }, [data, live]);
 
   if (!data) {
     // Mirrors the loaded layout row for row, so real data doesn't move anything.

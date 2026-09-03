@@ -24,6 +24,8 @@ import { clock } from "@/lib/site";
 </div>
 
 <script>
+  import { liveUpdates, onPrefChange } from "@/lib/prefs";
+
   const start = () => {
     const node = document.querySelector<HTMLElement>("[data-clock]");
     if (!node) return;
@@ -41,13 +43,46 @@ import { clock } from "@/lib/site";
       node.textContent = format.format(new Date());
     };
 
-    render();
-    const id = window.setInterval(render, 1000);
+    // Everything this page-load binds, retired together before the next swap.
+    const bindings = new AbortController();
+    let id = 0;
+
+    /**
+     * Start or stop the tick, according to the live-updates switch.
+     *
+     * Ticking is the entire point of a clock, so turning updates off cannot
+     * just stop the interval and walk away — that leaves a wrong time on
+     * screen, which reads as broken rather than as paused. The reading is
+     * redrawn whenever the tab is looked at again, so the case that would
+     * genuinely mislead — a page left open for an hour and come back to —
+     * cannot happen. What is left is a second hand that stands still while
+     * someone who asked for that watches it.
+     */
+    const sync = () => {
+      window.clearInterval(id);
+      id = 0;
+      render();
+      if (liveUpdates()) id = window.setInterval(render, 1000);
+    };
+
+    document.addEventListener(
+      "visibilitychange",
+      () => {
+        if (!document.hidden && !liveUpdates()) render();
+      },
+      { signal: bindings.signal },
+    );
+
+    onPrefChange("live", sync, bindings.signal);
+    sync();
 
     // Clear before the next transition so intervals don't stack up.
     document.addEventListener(
       "astro:before-swap",
-      () => window.clearInterval(id),
+      () => {
+        window.clearInterval(id);
+        bindings.abort();
+      },
       { once: true },
     );
   };

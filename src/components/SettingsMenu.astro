@@ -4,15 +4,46 @@ import Icon from "./Icon.astro";
 /**
  * The cog in the header, and the popover it opens.
  *
- * A dropdown rather than a bare switch in the bar: multiplayer is one setting
- * and it should not cost a permanent piece of chrome that most visitors will
- * never use. The cog is the affordance; the explanation lives inside.
+ * A dropdown rather than switches in the bar: these are settings most visitors
+ * will never open, and they should not cost a permanent piece of chrome. The
+ * cog is the affordance; the explanations live inside.
+ *
+ * Everything here is a way to turn down something the page does on its own —
+ * broadcast a cursor, keep asking what is playing, animate. That shared shape
+ * is the bar for a fourth row; a setting that adds behaviour rather than
+ * removing it wants a different home.
  *
  * The only thing this ships eagerly is the popover markup and the script
  * below. src/lib/multiplayer.ts — the socket, the render loop and its CSS — is
  * behind a dynamic import that only runs when the switch is turned on, so a
  * visitor who leaves it alone pays for nothing beyond a button.
  */
+
+/**
+ * The rows, in the order they appear.
+ *
+ * `key` is both the name lib/prefs.ts stores under and the hook the script
+ * binds by, so a new setting is an entry here and a line of wiring rather than
+ * another hand-written block of markup. Multiplayer is the one row whose
+ * description is rewritten at runtime — see `describe` below.
+ */
+const settings = [
+  {
+    key: "multiplayer",
+    label: "Multiplayer",
+    description: "Show other readers' cursors on this page.",
+  },
+  {
+    key: "live",
+    label: "Live updates",
+    description: "Pause UI updates.",
+  },
+  {
+    key: "motion",
+    label: "Reduce motion",
+    description: "Disable animations and transitions",
+  },
+];
 ---
 
 <div class="relative" data-settings>
@@ -62,34 +93,43 @@ import Icon from "./Icon.astro";
   >
     <p class="label mb-2 text-ink-faint">Settings</p>
 
-    <div class="flex items-start gap-3">
-      <div class="min-w-0 flex-1">
-        <label
-          for="setting-multiplayer"
-          class="block cursor-pointer text-sm text-ink"
-        >
-          Multiplayer
-        </label>
-        <p data-settings-status class="mt-0.5 text-xs leading-snug text-ink-faint">
-          Show other readers' cursors on this page.
-        </p>
-      </div>
+    <div class="flex flex-col gap-3.5">
+      {
+        settings.map((setting) => (
+          <div class="flex items-start gap-3">
+            <div class="min-w-0 flex-1">
+              <label
+                for={`setting-${setting.key}`}
+                class="block cursor-pointer text-sm text-ink"
+              >
+                {setting.label}
+              </label>
+              <p
+                data-settings-status={setting.key}
+                class="mt-0.5 text-xs leading-snug text-ink-faint"
+              >
+                {setting.description}
+              </p>
+            </div>
 
-      {/*
-        A real switch rather than a checkbox: there is no form here and no
-        submit, and role="switch" is what tells a screen reader that flipping
-        it takes effect immediately.
-      */}
-      <button
-        type="button"
-        id="setting-multiplayer"
-        role="switch"
-        aria-checked="false"
-        data-settings-toggle
-        class="switch mt-0.5 shrink-0"
-      >
-        <span class="switch-knob"></span>
-      </button>
+            {/*
+              A real switch rather than a checkbox: there is no form here and
+              no submit, and role="switch" is what tells a screen reader that
+              flipping it takes effect immediately.
+            */}
+            <button
+              type="button"
+              id={`setting-${setting.key}`}
+              role="switch"
+              aria-checked="false"
+              data-settings-toggle={setting.key}
+              class="switch mt-0.5 shrink-0"
+            >
+              <span class="switch-knob" />
+            </button>
+          </div>
+        ))
+      }
     </div>
   </div>
 </div>
@@ -136,19 +176,28 @@ import Icon from "./Icon.astro";
     background: var(--color-ink);
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .switch,
-    .switch-knob {
-      transition: none;
-    }
+  /* The attribute rather than the media query — the switch itself has to obey
+     the switch. Nothing draws this panel without script, so the answer is
+     always already on <html> by the time it is on screen. */
+  :root[data-motion="reduce"] .switch,
+  :root[data-motion="reduce"] .switch-knob {
+    transition: none;
   }
 </style>
 
 <script>
   import type { Session, SessionState } from "@/lib/multiplayer";
   import { closeOnOtherOverlay, overlayOpened } from "@/lib/overlays";
-
-  const STORAGE_KEY = "rcn:multiplayer";
+  import {
+    applyMotion,
+    liveUpdates,
+    motionReduced,
+    readPref,
+    REDUCED_MOTION_QUERY,
+    setLiveUpdates,
+    setMotionReduced,
+    writePref,
+  } from "@/lib/prefs";
 
   /*
     Module scope, not per-page. Astro's view transitions swap the document but
@@ -184,22 +233,9 @@ import Icon from "./Icon.astro";
   const room = () => location.pathname.replace(/\/+$/, "") || "/";
 
   /** Private browsing throws on the first read; the feature is just off there. */
-  function stored(): boolean {
-    try {
-      return localStorage.getItem(STORAGE_KEY) === "on";
-    } catch {
-      return false;
-    }
-  }
+  const stored = () => readPref("multiplayer") === "on";
 
-  function remember(on: boolean) {
-    try {
-      if (on) localStorage.setItem(STORAGE_KEY, "on");
-      else localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // Nothing to do — the preference simply will not survive the tab.
-    }
-  }
+  const remember = (on: boolean) => writePref("multiplayer", on ? "on" : null);
 
   function setupSettings() {
     bindings?.abort();
@@ -210,11 +246,20 @@ import Icon from "./Icon.astro";
 
     const trigger = root.querySelector<HTMLButtonElement>("[data-settings-trigger]");
     const panel = root.querySelector<HTMLElement>("[data-settings-panel]");
-    const toggle = root.querySelector<HTMLButtonElement>("[data-settings-toggle]");
-    const status = root.querySelector<HTMLElement>("[data-settings-status]");
     const dot = root.querySelector<HTMLElement>("[data-settings-dot]");
     const count = root.querySelector<HTMLElement>("[data-settings-count]");
-    if (!trigger || !panel || !toggle || !status || !dot || !count) return;
+
+    const switchFor = (key: string) =>
+      root.querySelector<HTMLButtonElement>(`[data-settings-toggle="${key}"]`);
+
+    const toggle = switchFor("multiplayer");
+    const live = switchFor("live");
+    const motion = switchFor("motion");
+    const status = root.querySelector<HTMLElement>(
+      '[data-settings-status="multiplayer"]',
+    );
+    if (!trigger || !panel || !dot || !count) return;
+    if (!toggle || !live || !motion || !status) return;
 
     bindings = new AbortController();
     const { signal } = bindings;
@@ -378,6 +423,50 @@ import Icon from "./Icon.astro";
           // than it looks. Ask again rather than showing a number from before.
           void refreshCount(true);
         }
+      },
+      { signal },
+    );
+
+    /**
+     * The two switches that are nothing but a stored boolean.
+     *
+     * Neither one reaches for the thing it affects. The clock, the now-playing
+     * island and the stylesheet all read their own preference and listen for
+     * the change lib/prefs announces, which is what lets this component stay
+     * ignorant of every one of them.
+     */
+    const bindPlain = (
+      button: HTMLButtonElement,
+      read: () => boolean,
+      write: (on: boolean) => void,
+    ) => {
+      button.setAttribute("aria-checked", String(read()));
+
+      button.addEventListener(
+        "click",
+        () => {
+          const on = button.getAttribute("aria-checked") !== "true";
+          write(on);
+          button.setAttribute("aria-checked", String(on));
+        },
+        { signal },
+      );
+    };
+
+    bindPlain(live, liveUpdates, setLiveUpdates);
+    bindPlain(motion, motionReduced, setMotionReduced);
+
+    /*
+      Until someone touches it, the motion switch is reporting the OS setting
+      — so it has to move when the OS setting moves. Once there is a choice
+      stored, motionReduced() ignores the query and this becomes a no-op that
+      repaints the same value.
+    */
+    matchMedia(REDUCED_MOTION_QUERY).addEventListener(
+      "change",
+      () => {
+        applyMotion();
+        motion.setAttribute("aria-checked", String(motionReduced()));
       },
       { signal },
     );
