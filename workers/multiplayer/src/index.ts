@@ -280,12 +280,18 @@ export default {
   ): Promise<Response> {
     const url = new URL(request.url);
     const wantsSocket = request.headers.get("Upgrade") === "websocket";
+    const counting = url.pathname === "/api/multiplayer/count";
 
-    if (!originAllowed(request.headers.get("Origin"))) {
+    // A same-origin GET sends no Origin header, which in production is every
+    // count request — in development it is cross-origin and does. Only the
+    // count tolerates an unlabelled request: a browser always labels an
+    // upgrade, and the socket is the half billed by duration.
+    const origin = request.headers.get("Origin");
+    const vouched = origin ? originAllowed(origin) : counting && !wantsSocket;
+    if (!vouched) {
       return new Response("Forbidden", { status: 403 });
     }
 
-    const counting = url.pathname === "/api/multiplayer/count";
     if (!counting && url.pathname !== "/api/multiplayer") {
       return new Response("Not found", { status: 404 });
     }
