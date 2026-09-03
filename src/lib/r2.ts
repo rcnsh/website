@@ -211,15 +211,54 @@ export async function cachedTree(): Promise<R2Tree | null> {
 }
 
 /**
- * Flat search across the whole bucket, used by the browser's search box once
- * the bucket has outgrown the tree. Paths are full keys, since the results
+ * Flat search across the whole bucket. Paths are full keys, since the results
  * span every directory.
+ *
+ * Answered out of the cached tree, not out of R2. The endpoint behind this is
+ * unauthenticated and its query string is the caller's to choose, so there is
+ * no cache key upstream that a stranger cannot walk straight past — which used
+ * to mean every request, however many of them arrived, paid for a fresh pass
+ * over the whole bucket. Twenty LISTs and the best part of a second, per
+ * request, on a route anyone can call as fast as they like.
+ *
+ * The tree is the same data with a key nobody else gets to pick: one entry in
+ * KV, refreshed behind a response rather than in front of one. Searching it is
+ * a string comparison per file over something already in memory.
+ *
+ * Past FULL_TREE_MAX_OBJECTS there is no tree and this falls back to listing —
+ * see searchByListing, which is the old path, kept for that case alone.
  */
 export async function searchBucket(query: string, limit = 100): Promise<R2File[]> {
-  const bucket = requireBucket();
-
   const needle = query.trim().toLowerCase();
   if (!needle) return [];
+
+  const tree = await cachedTree();
+  if (!tree) return searchByListing(needle, limit);
+
+  const matches: R2File[] = [];
+
+  for (const [prefix, listing] of Object.entries(tree)) {
+    for (const [name, size, uploaded] of listing.files) {
+      const key = `${prefix}${name}`;
+      if (!key.toLowerCase().includes(needle)) continue;
+
+      matches.push([key, size, uploaded]);
+      if (matches.length >= limit) return matches;
+    }
+  }
+
+  return matches;
+}
+
+/**
+ * The pre-tree search: a bounded walk over the bucket itself.
+ *
+ * Only reached when the bucket is too big to hold a tree for, which is also
+ * the point at which this becomes the expensive thing it always was. Keep the
+ * rate limit in front of /api/files/search for exactly that day.
+ */
+async function searchByListing(needle: string, limit: number): Promise<R2File[]> {
+  const bucket = requireBucket();
 
   const matches: R2File[] = [];
   let cursor: string | undefined;
@@ -241,4 +280,19 @@ export async function searchBucket(query: string, limit = 100): Promise<R2File[]
   }
 
   return matches;
+}
+
+/**
+ * One directory, out of the cached tree where there is one.
+ *
+ * Same reasoning as searchBucket: `?prefix=` is the caller's to choose and the
+ * set of spellings is unbounded, so a live LIST per request is a bucket scan
+ * anyone can start. A prefix the tree has never heard of is an empty listing,
+ * which is the truthful answer and costs nothing to give.
+ */
+export async function cachedDirectory(prefix = ""): Promise<R2Listing> {
+  const tree = await cachedTree();
+  if (!tree) return listDirectory(prefix);
+
+  return tree[prefix] ?? { folders: [], files: [] };
 }
