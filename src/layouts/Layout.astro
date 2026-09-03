@@ -2,6 +2,10 @@
 import { ClientRouter } from "astro:transitions";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
+/* The two subsets an English page actually uses, so they can be preloaded —
+   Vite rewrites these to the same hashed files the stylesheet asks for. */
+import geistSans from "@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url";
+import geistMono from "@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2?url";
 import "@/styles/global.css";
 
 import TopBar from "@/components/TopBar.astro";
@@ -54,6 +58,18 @@ const ogImage = new URL(image, site.url).toString();
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    {
+      /*
+        Without these the fonts are found only once the stylesheet has parsed
+        and layout has run, and the first paragraph paints twice — once in the
+        fallback, once in Geist. `crossorigin` because a font is fetched in CORS
+        mode even from this origin, and a preload that does not match is a
+        second download.
+      */
+    }
+    <link rel="preload" href={geistSans} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={geistMono} as="font" type="font/woff2" crossorigin />
     <title>{pageTitle}</title>
     <meta name="description" content={metaDescription} />
     <link rel="canonical" href={canonical} />
