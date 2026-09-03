@@ -12,6 +12,7 @@
 import { SEND_INTERVAL_MS } from "../../shared/multiplayer.ts";
 import { approach, type Column, onScreen, toColumn, toScreen } from "./cursors.ts";
 import { link } from "./link.ts";
+import { motionReduced } from "./prefs.ts";
 
 /**
  * Whether this device has a pointer worth broadcasting.
@@ -208,15 +209,19 @@ const CURSOR_CSS = `
   background: var(--mp-colour);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
 }
-@media (prefers-reduced-motion: reduce) {
-  .mp-cursor { transition: none; }
-}
+/* The attribute, not the media query: the settings menu can turn motion down
+   past the OS setting or back up over it, and this layer only ever exists on a
+   page with script, where lib/prefs has already stamped the answer on <html>. */
+:root[data-motion="reduce"] .mp-cursor { transition: none; }
 `;
 
 const ARROW = `<svg viewBox="0 0 15 18" fill="var(--mp-colour)" aria-hidden="true"><path d="M1 1.3v14.2a.6.6 0 0 0 1 .43l3.2-3.1 2.1 4.5a.9.9 0 0 0 1.7-.75l-2-4.4h4.3a.6.6 0 0 0 .43-1.03L2 .9A.6.6 0 0 0 1 1.3Z"/></svg>`;
 
 export function start(): Session {
-  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  /* Asked each time rather than read once at start: the switch can be flipped
+     while the socket is open, and a session that outlives several navigations
+     would otherwise be stuck with whatever was true when it connected. */
+  const reduced = motionReduced;
   const pointer = matchMedia(FINE_POINTER);
 
   const style = document.createElement("style");
@@ -402,7 +407,7 @@ export function start(): Session {
     peers.delete(id);
     peer.el.removeAttribute("data-shown");
     // Let the fade finish before the node goes.
-    setTimeout(() => peer.el.remove(), reduced ? 0 : 200);
+    setTimeout(() => peer.el.remove(), reduced() ? 0 : 200);
   }
 
   function clearPeers() {
@@ -454,13 +459,13 @@ export function start(): Session {
           peer.drawn.x,
           peer.target.x,
           dt,
-          reduced ? 0 : undefined,
+          reduced() ? 0 : undefined,
         );
         peer.drawn.y = approach(
           peer.drawn.y,
           peer.target.y,
           dt,
-          reduced ? 0 : undefined,
+          reduced() ? 0 : undefined,
         );
       }
 
