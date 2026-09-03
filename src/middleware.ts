@@ -22,20 +22,15 @@ const FRAME_ANCESTORS = "frame-ancestors 'none'";
 function harden(response: Response) {
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
     /*
-      Astro sets its own Content-Security-Policy on on-demand routes.
+      Never clobber a Content-Security-Policy a route already set.
 
-      With `security.csp` on, Astro hashes the inline scripts and styles it
-      emits and publishes the policy naming those hashes — as a `<meta>` for a
-      prerendered page, and as this header for a route rendered per request.
-      /guestbook is the only page here that is rendered per request, and it is
-      also the only one that renders anything a stranger typed, so it is the
-      one where a strict script-src is worth the most.
-
-      Overwriting it is what this loop used to do, and it silently cost exactly
-      that page the protection: the header below carries 'unsafe-inline',
-      because it is written ahead of time and has no hashes to offer. Astro's
-      is strictly better wherever it exists, so it wins, and all this adds is
-      the one directive Astro left out.
+      Nothing sets one today: Astro's `security.csp` would, for on-demand
+      routes, but it is off because its <meta> half is incompatible with
+      <ClientRouter /> — astro.config.ts explains that at length. The guard
+      stays because the failure it prevents is silent and was expensive to
+      find: overwriting a per-response policy that carries script hashes with
+      this pre-written one, which carries 'unsafe-inline', downgrades exactly
+      the routes that had the better policy, and nothing errors.
     */
     if (name === CSP) {
       const existing = response.headers.get(CSP);
