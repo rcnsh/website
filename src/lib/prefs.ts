@@ -1,19 +1,11 @@
 /**
- * The switches in the settings menu, and the storage behind them.
+ * The switches in the settings menu, and the storage behind them. Four
+ * components read these without importing each other, so both the value and
+ * the change announcement live here.
  *
- * Four things read these — the menu that sets them, the clock, the now-playing
- * island and the cursor layer — and none of them import each other, so both
- * the value and the announcement that it changed live here.
- *
- * Deliberately free of dependencies and deliberately small: ClockTile and the
- * React island both pull this into their eager bundles, and neither should pay
- * more than a few hundred bytes for the privilege of honouring a preference.
- *
- * Every read is guarded. Private browsing throws on the first localStorage
- * access rather than returning null, and a preference that cannot be stored is
- * not worth taking a page down for — the defaults below are all "behave the
- * way the site did before there was a switch", so failing to read one is
- * indistinguishable from never having touched it.
+ * Dependency-free and small — this lands in eager bundles. Every read is
+ * guarded: private browsing throws, and every default is "behave as the site
+ * did before there was a switch".
  */
 
 const EVENT = "rcn:pref";
@@ -35,18 +27,15 @@ export function writePref(key: PrefKey, value: string | null) {
     if (value === null) localStorage.removeItem(`rcn:${key}`);
     else localStorage.setItem(`rcn:${key}`, value);
   } catch {
-    // Nothing to do — the choice simply will not survive the tab. It still
-    // takes effect now, which is the part the reader asked for.
+    // The choice will not survive the tab, but it still takes effect now.
   }
 
   document.dispatchEvent(new CustomEvent<PrefKey>(EVENT, { detail: key }));
 }
 
 /**
- * Run `changed` whenever `key` is set, so a switch takes effect on the page
- * behind the panel rather than on the next navigation. Bound to the caller's
- * AbortController, like every other listener in these components, so a view
- * transition retires it with the rest.
+ * Run `changed` whenever `key` is set, so a switch takes effect behind the
+ * panel. Bound to the caller's signal, so a view transition retires it.
  */
 export function onPrefChange(
   key: PrefKey,
@@ -67,13 +56,8 @@ export function onPrefChange(
 export const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 /**
- * Whether animation should be cut, taking the OS setting as the default and
- * letting an explicit choice here win in either direction.
- *
- * Both directions matter. Someone on a machine whose accessibility settings
- * are not theirs to change — a work laptop, a library, a borrowed desk — has
- * no other way to turn motion down, and someone whose OS says "reduce" for
- * reasons that have nothing to do with this page can turn it back up.
+ * Whether to cut animation. The OS setting is the default; an explicit choice
+ * here wins in either direction, since not everyone controls their OS setting.
  */
 export function motionReduced(): boolean {
   const stored = readPref("motion");
@@ -88,10 +72,8 @@ export function setMotionReduced(reduce: boolean) {
 }
 
 /**
- * Stamps the effective answer on <html>, which is where global.css reads it.
- *
- * The same three lines run inline in the document head before anything paints
- * — see the note in Layout.astro for why that copy has to exist.
+ * Stamps the answer on <html>, where global.css reads it. Duplicated inline in
+ * the document head so it lands before first paint — see Layout.astro.
  */
 export function applyMotion() {
   document.documentElement.dataset.motion = motionReduced() ? "reduce" : "full";
@@ -99,11 +81,7 @@ export function applyMotion() {
 
 // --- Live updates ---
 
-/**
- * Whether the clock and the now-playing poll should keep running. On unless
- * someone has said otherwise, because a page that quietly stops updating is a
- * worse default than one that costs a request every twenty seconds.
- */
+/** Whether the clock and now-playing poll keep running. On unless told otherwise. */
 export function liveUpdates(): boolean {
   return readPref("live") !== "off";
 }

@@ -3,28 +3,12 @@ import { isStalled, reconnectDelay } from "./cursors.ts";
 /**
  * The connection half of the cursor engine: one socket, kept up.
  *
- * multiplayer.ts had all of this inline, and it is the part that went wrong
- * twice — once knocking at a room that was never coming back every fifteen
- * seconds for the rest of the session, once telling the reader they were
- * connected while the socket was shut. Both were small mistakes in state that
- * could not be run outside a browser, so neither surfaced until somebody
- * happened to be watching the right corner of the screen.
- *
- * So the machine lives here instead, and the two things it needs from the
- * outside world are handed to it: how to open a socket, and how to wait.
- * Nothing below mentions the DOM, a WebSocket or a timer, which is the whole
- * reason the thing can be checked.
- *
- * The timing itself — how long to wait, when the waiting is worth admitting to
- * — stays next door in cursors.ts with the rest of the arithmetic, where it
- * was already pinned by tests.
+ * Opening a socket and waiting are both injected, so nothing below mentions
+ * the DOM, a WebSocket or a timer and the state machine can be tested. The
+ * timing itself lives in cursors.ts.
  */
 
-/**
- * WebSocket's "open" readyState, written out rather than read off the global.
- * Node has a WebSocket of its own now, so `WebSocket.OPEN` would even resolve
- * under the tests — which is a worse dependency to carry than a named number.
- */
+/** WebSocket's "open" readyState, so nothing here depends on the global. */
 const OPEN = 1;
 
 /** As much of a WebSocket as any of this touches. */
@@ -34,12 +18,7 @@ export interface Socket {
   close(): void;
 }
 
-/**
- * How a socket reports back.
- *
- * The link makes a fresh set of these per attempt and the caller wires them to
- * whatever a socket is on its platform. Nothing here knows what an event is.
- */
+/** How a socket reports back. A fresh set per attempt. */
 export interface LinkHandlers {
   opened(): void;
   received(data: string): void;
@@ -49,11 +28,8 @@ export interface LinkHandlers {
 
 export interface LinkOptions {
   /**
-   * Opens a socket and wires it to `handlers`. Called once per attempt, and
-   * never while one is already up.
-   *
-   * The handlers fire after it returns: a real socket cannot dispatch an event
-   * synchronously, and a stand-in must not either.
+   * Opens a socket and wires it to `handlers`, once per attempt. They must
+   * fire after it returns, as a real socket's would.
    */
   open(handlers: LinkHandlers): Socket;
   /** Waits `ms`, then calls `fn`. Returns a function that cancels the wait. */
@@ -70,45 +46,26 @@ export interface LinkOptions {
 export interface Link {
   /** Whether there is an open socket right now. */
   readonly live: boolean;
-  /**
-   * Whether reconnecting has failed often enough to be worth admitting to.
-   * The link has not given up — it is just trying slowly now.
-   */
+  /** Reconnecting has failed enough to admit to. Still trying, just slowly. */
   readonly stalled: boolean;
   /** Whether the link has been told no and stopped. See `halt`. */
   readonly halted: boolean;
   /** Sends on the open socket. Does nothing when there is not one. */
   send(data: string): void;
-  /**
-   * Hangs up on purpose, and stays down. Nothing but `wake` brings it back,
-   * so this is the one for a connection that is costing more than it is worth
-   * — an open tab nobody is looking at.
-   */
+  /** Hangs up and stays down until `wake`. For an idle tab. */
   sleep(): void;
   /** A sign of life. Reconnects, but only from `sleep`. */
   wake(): void;
   /**
-   * Connect now, from the bottom of the backoff.
-   *
-   * For anything suggesting conditions have plausibly changed — the tab coming
-   * back, the reader moving to another page. A stalled session should not sit
-   * out the rest of a five-minute wait when there is fresh evidence that it
-   * might work.
+   * Connect now, from the bottom of the backoff. For anything suggesting
+   * conditions have changed — a tab regaining focus, a navigation.
    */
   revive(): void;
-  /**
-   * Puts the socket down without arranging to come back. Unlike `sleep` a wake
-   * signal will not revive it; the caller is expected to say when.
-   */
+  /** Puts the socket down for good. Unlike `sleep`, `wake` will not revive it. */
   drop(): void;
   /**
-   * Stop. The other end has answered, and the answer was no.
-   *
-   * Stronger than `sleep`, which any sign of life undoes — a room that is full
-   * or a page that has no room will say the same thing to the next socket and
-   * the one after, and moving the mouse is not new information about either.
-   * Only `revive` comes back from this, which is to say a navigation or the
-   * reader returning to the tab.
+   * Stop — the other end answered no, and will say the same to the next
+   * socket. Stronger than `sleep`; only `revive` comes back from it.
    */
   halt(): void;
   /** Permanent. Nothing opens another socket after this. */
@@ -124,14 +81,9 @@ export function link(options: LinkOptions): Link {
   let done = false;
 
   /**
-   * Which attempt the live handlers belong to.
-   *
-   * A socket does not stop talking because we have stopped listening. A real
-   * one reports `error` and then `close` for a single failure, and one we
-   * closed ourselves still reports the close afterwards. Handlers carry the
-   * number they were made under and say nothing once it has moved on, so a
-   * connection we are finished with can neither schedule a reconnect nor
-   * clear a live one.
+   * Which attempt the live handlers belong to. A socket keeps talking after we
+   * stop listening — one failure is `error` then `close` — so handlers carry
+   * their generation and go quiet once it moves on.
    */
   let generation = 0;
 
@@ -145,9 +97,7 @@ export function link(options: LinkOptions): Link {
       opened() {
         if (mine !== generation) return;
 
-        // A connection that worked is not evidence of a problem, so the next
-        // failure starts the backoff from the bottom rather than from
-        // wherever the last run of them left off.
+        // A connection that worked resets the backoff.
         attempt = 0;
         options.onOpen?.();
         options.onState?.();
@@ -198,8 +148,7 @@ export function link(options: LinkOptions): Link {
 
     const going = socket;
     socket = null;
-    // Nothing this socket says from here on is ours to act on, including the
-    // close event that closing it is about to produce.
+    // Ignore whatever this socket says next, including its own close event.
     generation += 1;
 
     if (!going) return;
@@ -208,9 +157,8 @@ export function link(options: LinkOptions): Link {
     options.onState?.();
   }
 
-  // Connecting is what a link is for; there is no state in which one exists
-  // and is not trying. Sockets open asynchronously, so the caller's own
-  // wiring is long since in place by the time anything arrives.
+  // A link that exists is a link that is trying. Sockets open asynchronously,
+  // so the caller's wiring is in place before anything arrives.
   connect();
 
   return {
@@ -219,8 +167,7 @@ export function link(options: LinkOptions): Link {
     },
 
     get stalled() {
-      // Halted is not stalled: nothing is being retried, so there is nothing
-      // to be slow about, and the reader is owed the actual reason instead.
+      // Halted is not stalled — nothing is being retried.
       return !halted && isStalled(attempt);
     },
 
@@ -248,8 +195,7 @@ export function link(options: LinkOptions): Link {
 
       stopWaiting();
       attempt = 0;
-      // Fresh evidence that conditions may have changed is exactly the thing a
-      // refusal was waiting for.
+      // Fresh evidence is what a refusal was waiting for.
       halted = false;
       connect();
     },
@@ -260,9 +206,8 @@ export function link(options: LinkOptions): Link {
       if (halted) return;
       halted = true;
 
-      // drop() reports the change on its way past, but only when there was a
-      // socket to put down — a refusal arriving while one is queued has to say
-      // so itself, or the reader is left reading "connecting…" forever.
+      // drop() reports the change, but only if there was a socket to put down;
+      // a refusal arriving mid-backoff has to say so itself.
       if (socket) drop();
       else {
         stopWaiting();

@@ -44,10 +44,8 @@ const ICONS = {
 const BucketBase = createContext("");
 
 /**
- * The public URL for a key. Built here rather than sent down with every file,
- * because at a few hundred files these strings were most of the tree's weight.
- * Mirrors /api/files/download, which serves the same objects when the bucket
- * has no public domain of its own.
+ * The public URL for a key, built here rather than sent with every file.
+ * Mirrors /api/files/download, for a bucket with no public domain.
  */
 function urlFor(base: string, key: string): string {
   const encoded = key.split("/").map(encodeURIComponent).join("/");
