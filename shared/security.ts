@@ -43,7 +43,7 @@ function baseDirectives(dev = false): string[] {
     // clarification some browsers were late to, so spell out the scheme.
     `connect-src 'self' wss://rcn.sh${dev ? ` ${DEV_MULTIPLAYER}` : ""}`,
     // Spotify spreads art across several scdn.co subdomains, hence wildcards.
-    "img-src 'self' data: https://*.scdn.co https://*.spotifycdn.com https://avatars.githubusercontent.com https://upload.rcn.sh https://static.cloudflareinsights.com",
+    "img-src 'self' data: https://*.scdn.co https://*.spotifycdn.com https://avatars.githubusercontent.com https://upload.rcn.sh",
     "upgrade-insecure-requests",
   ];
 }
@@ -61,7 +61,11 @@ function contentSecurityPolicy(dev: boolean): string {
   return [
     ...baseDirectives(dev),
     "frame-ancestors 'none'",
-    "script-src 'self' 'unsafe-inline'",
+    // Cloudflare injects the Web Analytics beacon at the edge. The host and not
+    // the file, because the injected URL carries a version after it, and a CSP
+    // path without a trailing slash has to match exactly. It reports back to
+    // /cdn-cgi/rum here, which connect-src 'self' already covers.
+    "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com",
     "style-src 'self' 'unsafe-inline'",
   ].join("; ");
 }
