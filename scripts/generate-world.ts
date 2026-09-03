@@ -9,23 +9,13 @@ import atlas from "world-atlas/countries-110m.json" with { type: "json" };
 import detailed from "world-atlas/countries-50m.json" with { type: "json" };
 
 /**
- * Projects Natural Earth's 110m country outlines once and writes them to
- * src/lib/world.ts as flat SVG path data.
+ * Projects Natural Earth's country outlines once into src/lib/world.ts as flat
+ * SVG path data. Run by hand (`npm run world`); committing the output keeps
+ * d3-geo and topojson out of the Worker.
  *
- * Run by hand (`npm run world`), not by the build: the coastlines change about
- * as often as the coastlines do. Committing the output keeps d3-geo and
- * topojson out of the Worker entirely — at request time the map is a lookup
- * from country code to a string, and the only work left is choosing fills.
- *
- * Equal Earth because a choropleth compares areas, and Mercator would hand
- * Greenland the visual weight of Africa.
- *
- * 110m for the outlines, because the whole map is inlined into the guestbook
- * response and the 50m set is four times the bytes. But 110m has no polygon
- * at all for the smallest countries — Singapore among them, which is where
- * this site's author currently lives. So 50m is loaded purely to take their
- * centroids: those countries ship as a marker with no outline, and the map
- * draws them as a dot. Nothing here is a hand-typed coordinate.
+ * Equal Earth, because a choropleth compares areas. 110m for the outlines,
+ * since the map is inlined into the guestbook response — plus 50m centroids
+ * for the countries 110m has no polygon for, which ship as dots.
  */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -36,22 +26,14 @@ const WIDTH = 820;
 const HEIGHT = 400;
 
 /**
- * world-atlas keys countries by ISO 3166-1 *numeric*; `request.cf.country`
- * gives alpha-2. Node's ICU data carries no numeric mapping, and a hand-written
- * crosswalk quietly loses whichever countries it forgot — so the full table
- * comes from the ISO registry instead. Dev-only: this never reaches the Worker.
- *
- * The handful of Natural Earth polygons with no ISO code (Kosovo, disputed
- * areas) come back null, and are drawn as background that never lights up.
+ * world-atlas keys by ISO 3166-1 numeric; `request.cf.country` gives alpha-2.
+ * Polygons with no ISO code (Kosovo, disputed areas) come back null and are
+ * drawn as background that never lights up.
  */
 const alpha2For = (numeric: string): string | null =>
   isoCountries.numericToAlpha2(numeric) ?? null;
 
-/**
- * Antarctica: a wide strip along the bottom edge that no one will ever sign
- * from, costing the map a fifth of its height. Checked in both passes — the
- * marker pass would otherwise put it straight back as a dot.
- */
+/** Antarctica costs a fifth of the map's height. Skipped in both passes. */
 const SKIP_NUMERIC = new Set(["010"]);
 
 type Country = { id: string; name: string };
@@ -66,11 +48,7 @@ async function main() {
   // fitSize once over the whole collection, so every path shares one transform.
   const projection = geoEqualEarth().fitSize([WIDTH, HEIGHT], collection);
 
-  /*
-    One decimal place. The map is 820px across and scales down from there, so
-    the second decimal is a hundredth of a pixel — it costs about 70 KB of
-    Worker bundle to render nothing at all.
-  */
+  // One decimal place: the second is a hundredth of a pixel and ~70 KB.
   const toPath = geoPath(projection).digits(1);
 
   const shapes: string[] = [];
@@ -94,12 +72,7 @@ async function main() {
 
     const { name } = (country.properties ?? {}) as Partial<Country>;
 
-    /*
-      Projected area and centroid, so the map can mark a country too small to
-      see. Singapore is a handful of square pixels at this size — without a
-      dot it would be lit and still invisible, and the caption would count a
-      country the reader cannot find.
-    */
+    // Area and centroid, so the map can dot a country too small to see.
     const [cx, cy] = toPath.centroid(country);
     const area = toPath.area(country);
 
@@ -110,12 +83,8 @@ async function main() {
     );
   }
 
-  /*
-    Countries the 110m set has no polygon for. They get a centroid from 50m and
-    an empty `d` — the map renders them as a dot and nothing else. Without this
-    a signature from Singapore, Malta or Bahrain would be counted in the
-    caption and be nowhere on the map.
-  */
+  // Countries 110m has no polygon for: a 50m centroid and an empty `d`, so
+  // the map draws a dot. Singapore, Malta and Bahrain among them.
   const fine = feature(
     detailed as unknown as Topology,
     (detailed as unknown as Topology).objects.countries!,
@@ -146,12 +115,8 @@ async function main() {
 
   shapes.push(...markers);
 
-  /*
-    Anything Cloudflare could report that neither atlas draws would silently
-    never light up. Most are territories Natural Earth folds into a parent
-    (French Guiana into France) or tiny dependencies — worth seeing, not worth
-    failing over.
-  */
+  // Codes neither atlas draws would silently never light up. Mostly
+  // territories folded into a parent — worth seeing, not worth failing over.
   // getAlpha2Codes() maps alpha-2 to alpha-3, so the codes are the keys.
   const missing = Object.keys(isoCountries.getAlpha2Codes()).filter(
     (code) => !drawn.has(code) && code !== "AQ",
@@ -179,11 +144,7 @@ export type WorldShape = {
   d: string;
 };
 
-/**
- * Under this many square px a filled country reads as noise or nothing at all.
- * Singapore lands around 1, Luxembourg around 20; Belgium, the smallest shape
- * that still reads as a shape, is comfortably above it.
- */
+/** Below this a filled country reads as noise. Belgium is comfortably above. */
 export const TINY_AREA = 45;
 
 export const WORLD_VIEWBOX = "0 0 ${WIDTH} ${HEIGHT}" as const;

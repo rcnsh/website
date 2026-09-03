@@ -17,10 +17,8 @@ interface Props {
   /** Share card. Site-relative or absolute; resolved against the site URL. */
   image?: string;
   /**
-   * Dimensions of `image`, declared to the scrapers that read them before
-   * fetching. Defaults to the size every card here is drawn at — the static
-   * one in public/ and the per-post ones lib/og.ts renders alike. Pass null
-   * for an image of some other size.
+   * Dimensions of `image`, for scrapers that read them before fetching.
+   * Defaults to the size every card here is drawn at; null for anything else.
    */
   imageSize?: { width: number; height: number } | null;
 }
@@ -101,18 +99,12 @@ const ogImage = new URL(image, site.url).toString();
 
     {
       /*
-        Reduce motion, decided before anything paints.
+        Reduce motion, decided before anything paints. Inline and unbundled: a
+        module script runs after layout, by which time the masthead has already
+        animated. lib/prefs.ts owns the same logic; change both together.
 
-        Inline and unbundled on purpose: a module script runs after the body
-        has been laid out, by which time the masthead's rise animation has
-        already started playing at someone who asked for no animation. That
-        is the one thing this setting exists to prevent, so the three lines
-        below are worth repeating here — lib/prefs.ts owns the same logic for
-        every other caller, and the two must be changed together.
-
-        Re-run after a swap because Astro's router copies the incoming
-        document's <html> attributes over the live ones, which would drop
-        data-motion on the first navigation.
+        Re-run after a swap, since Astro's router copies the incoming <html>
+        attributes over the live ones.
       */
     }
     <script is:inline>

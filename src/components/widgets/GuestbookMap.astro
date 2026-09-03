@@ -149,12 +149,8 @@ const summary = countries
     transition: opacity 0.2s var(--ease-out-quint);
   }
 
-  /*
-    Always full strength, unlike the filled countries: 3.5px of circle is far
-    too small to read a difference in opacity as a difference in count, and
-    dimming it only makes the one thing the map must not lose harder to see.
-    A ring in the page colour keeps a dot distinct from a filled neighbour.
-  */
+  /* Full strength, unlike the filled countries — 3.5px is too small to read an
+     opacity difference. The ring keeps a dot distinct from a neighbour. */
   .dot {
     fill: var(--color-brand);
     stroke: var(--color-base);

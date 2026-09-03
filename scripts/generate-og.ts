@@ -6,17 +6,12 @@ import { renderOgImage } from "../src/lib/og.ts";
 import { readingTime } from "../src/lib/utils.ts";
 
 /**
- * Draws a share card per post into public/og/blog/, and one per page into
- * public/og/pages/.
+ * Draws a share card per post into public/og/blog/ and one per page into
+ * public/og/pages/. A prebuild step rather than an endpoint because workerd
+ * has neither sharp's native binding nor a font to read off disk.
  *
- * This is a prebuild step rather than an Astro endpoint because @astrojs/
- * cloudflare prerenders inside workerd, where neither sharp's native binding
- * nor reading a font off disk will work. Plain Node has no such trouble, and
- * the cards come out as static files Cloudflare serves without waking a
- * Worker. Runs ahead of both `dev` and `build`; see package.json.
- *
- * Incremental: a card is redrawn only when its post, the card layout, or this
- * script is newer than the PNG already on disk.
+ * Incremental: a card is redrawn only when its source, the layout or this
+ * script is newer than the PNG on disk.
  */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -57,12 +52,8 @@ async function mtime(file: string): Promise<number> {
 }
 
 /**
- * Every .md under src/content/blog.
- *
- * No underscore filter: unlike the pages router, the content glob loader takes
- * `_name.md` as an ordinary entry with id `_name`, so skipping them here would
- * leave a real post without a card. `draft: true` is what hides a file, and
- * readPost() honours it.
+ * Every .md under src/content/blog. No underscore filter — the glob loader
+ * takes `_name.md` as an ordinary entry. `draft: true` is what hides a file.
  */
 async function findPosts(dir: string, prefix = ""): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
@@ -93,8 +84,7 @@ async function readPost(id: string): Promise<Post | null> {
 
   const data = parseYaml(match[1]!) as Record<string, unknown>;
 
-  // Drafts are dropped from the production build, so a card would only ever
-  // be an orphan in public/.
+  // Drafts are not built, so a card would be an orphan in public/.
   if (data.draft === true) return null;
 
   const { title, description, pubDate } = data;
@@ -108,8 +98,7 @@ async function readPost(id: string): Promise<Post | null> {
     file,
     title,
     description,
-    // The collection schema coerces this, and YAML already gives a Date for a
-    // bare `2026-08-29`; a quoted one arrives as a string.
+    // YAML gives a Date for a bare `2026-08-29`; a quoted one is a string.
     pubDate: pubDate instanceof Date ? pubDate : new Date(String(pubDate)),
   };
 }
@@ -137,15 +126,9 @@ async function prune(dir: string, keep: Set<string>, prefix = "") {
 type Page = { key: string; href: string; title: string; description: string };
 
 /**
- * The site's own pages, from the config that already describes them.
- *
- * Posts have had their own cards for a while; every other page fell back to
- * the one static /og.png, so a link to /uses and a link to /music shared a
- * picture that named neither. The titles and descriptions are the ones in the
- * <head> already — there is nothing new to write, only something to draw.
- *
- * Home keeps the static card: it is the card for the site, and this is the one
- * page where that is the right answer.
+ * The site's own pages, from the config that already describes them — the
+ * titles and descriptions are the ones already in the <head>. Home is skipped;
+ * the static /og.png is the card for the site.
  */
 async function readPages(): Promise<Page[]> {
   const site = JSON.parse(await readFile(SITE_JSON, "utf8")) as {

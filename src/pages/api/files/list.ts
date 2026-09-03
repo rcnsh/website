@@ -4,11 +4,8 @@ import { cachedDirectory, normalisePrefix } from "@/lib/r2";
 export const prerender = false;
 
 /**
- * One directory of the bucket.
- *
- * Served from the cached tree rather than a live LIST: the prefix is the
- * caller's to choose and there is no bound on how many distinct ones they can
- * ask for, so a LIST per request is a bucket scan on tap. See cachedDirectory.
+ * One directory of the bucket, from the cached tree — the prefix is the
+ * caller's, so a live LIST per request is a bucket scan on tap.
  */
 export const GET: APIRoute = async ({ url }) => {
   const prefix = normalisePrefix(url.searchParams.get("prefix"));

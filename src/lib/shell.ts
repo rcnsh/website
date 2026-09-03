@@ -1,16 +1,12 @@
 import { parse } from "shell-quote";
 
 /**
- * A small POSIX-ish shell over a read-only view of the site.
+ * A small POSIX-ish shell over a read-only view of the site. Every command is a
+ * real one, behaving like its coreutils namesake for the flags it accepts;
+ * anything unimplemented says so rather than guessing.
  *
- * Every command here is a real one — `ls`, `cat`, `grep`, `wc` — behaving the
- * way its coreutils namesake does for the flags it accepts, rather than an
- * invented set of verbs. Anything it does not implement says so instead of
- * guessing.
- *
- * Deliberately free of server imports: this runs in the browser, inside the
- * command palette. The filesystem is built by lib/shell-fs.ts and handed over
- * as plain data.
+ * No server imports — this runs in the browser. lib/shell-fs.ts builds the
+ * filesystem and hands it over as plain data.
  */
 
 // --- Filesystem ---
@@ -638,14 +634,9 @@ function commonPrefix(values: string[]): string {
 }
 
 /**
- * Tab completion, following the shell convention: one match is inserted, many
- * are collapsed to their common prefix, and only when that adds nothing does
- * it print the list.
- *
- * Completes the word under the caret rather than assuming the end of the line,
- * so going back to fix an earlier argument still works. A directory completes
- * with a trailing slash and no space, so the next segment can be typed
- * straight after it.
+ * Tab completion, by the shell convention: one match is inserted, many collapse
+ * to their common prefix, and only a prefix that adds nothing prints the list.
+ * Completes the word under the caret, so fixing an earlier argument works.
  */
 export function complete(
   state: ShellState,
@@ -778,12 +769,8 @@ export function run(state: ShellState, line: string): RunResult {
       continue;
     }
 
-    /*
-      shell-quote hands back an unquoted glob as an operator with the pattern
-      attached, expecting the shell to expand it. There is nothing to expand
-      against here, so it goes through as the literal text — which is both what
-      bash does when a glob matches nothing, and what `find -name *.md` wants.
-    */
+    // shell-quote hands back an unquoted glob for the shell to expand. There
+    // is nothing to expand against, so it passes through as literal text.
     const glob = (token as { pattern?: string }).pattern;
     if (typeof glob === "string") {
       stages[stages.length - 1]!.push(glob);
