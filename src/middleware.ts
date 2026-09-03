@@ -1,5 +1,6 @@
 import { defineMiddleware } from "astro:middleware";
 import { securityHeaders } from "../shared/security.ts";
+import { SESSION_COOKIE } from "@/lib/auth";
 
 /**
  * Security headers for anything the Worker renders — /guestbook, /api/*, and
@@ -10,17 +11,86 @@ import { securityHeaders } from "../shared/security.ts";
  */
 const SECURITY_HEADERS = securityHeaders({ dev: import.meta.env.DEV });
 
+const CSP = "Content-Security-Policy";
+
+/**
+ * `frame-ancestors` is the one directive Astro does not emit for us, because a
+ * `<meta>` CSP cannot express it and Astro writes one policy for both places.
+ */
+const FRAME_ANCESTORS = "frame-ancestors 'none'";
+
 function harden(response: Response) {
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+    /*
+      Astro sets its own Content-Security-Policy on on-demand routes.
+
+      With `security.csp` on, Astro hashes the inline scripts and styles it
+      emits and publishes the policy naming those hashes — as a `<meta>` for a
+      prerendered page, and as this header for a route rendered per request.
+      /guestbook is the only page here that is rendered per request, and it is
+      also the only one that renders anything a stranger typed, so it is the
+      one where a strict script-src is worth the most.
+
+      Overwriting it is what this loop used to do, and it silently cost exactly
+      that page the protection: the header below carries 'unsafe-inline',
+      because it is written ahead of time and has no hashes to offer. Astro's
+      is strictly better wherever it exists, so it wins, and all this adds is
+      the one directive Astro left out.
+    */
+    if (name === CSP) {
+      const existing = response.headers.get(CSP);
+      if (existing) {
+        if (!existing.includes("frame-ancestors")) {
+          // Astro's policy ends with a `;`. An empty directive is legal and
+          // ignored, but it reads like a bug in every header inspector, so it
+          // goes before the join rather than being left in.
+          const policy = existing.trim().replace(/;+$/, "");
+          response.headers.set(CSP, `${policy}; ${FRAME_ANCESTORS}`);
+        }
+        continue;
+      }
+    }
+
     response.headers.set(name, value);
   }
 }
 
-export const onRequest = defineMiddleware(async (_context, next) => {
+/**
+ * Whether this response was rendered for someone who is signed in.
+ *
+ * Read off the request rather than the response: a signed-in visitor whose
+ * session is not being refreshed sets no cookie on the way out, so looking for
+ * `Set-Cookie` finds them only on the one request in fifteen days where the
+ * session slides. The cookie they sent is the reliable signal.
+ */
+function personalised(cookies: { has(name: string): boolean }): boolean {
+  return cookies.has(SESSION_COOKIE);
+}
+
+export const onRequest = defineMiddleware(async (context, next) => {
   const response = await next();
+
+  /*
+    A signed-in render is nobody else's to see.
+
+    /guestbook is the page this is about: it renders the signer's username and
+    a delete control on their own entries, and it is rendered by the Worker on
+    every request. Workers Caching is off today, so nothing is storing these —
+    but it is a wrangler.jsonc flag away from being on, and the failure mode of
+    turning it on without this is one visitor being served another's signed-in
+    page. Saying so here means the switch is safe to throw whenever it is
+    wanted, rather than being a change that has to remember this one first.
+
+    `private` keeps it out of shared caches; `no-store` keeps it out of the
+    visitor's disk as well, which matters on a shared machine.
+  */
+  const store = personalised(context.cookies)
+    ? "private, no-store"
+    : null;
 
   try {
     harden(response);
+    if (store) response.headers.set("Cache-Control", store);
     return response;
   } catch {
     /*
@@ -35,6 +105,7 @@ export const onRequest = defineMiddleware(async (_context, next) => {
     */
     const copy = new Response(response.body, response);
     harden(copy);
+    if (store) copy.headers.set("Cache-Control", store);
     return copy;
   }
 });

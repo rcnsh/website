@@ -14,8 +14,9 @@
  * nothing; edit this one.
  *
  * Deliberately plain TypeScript — no `@/` alias, no `import.meta.env`, nothing
- * Astro-shaped. Vite loads it for the middleware and bare Node loads it for the
- * generator, and only one of those understands either.
+ * Astro-shaped. Vite loads it for the middleware, bare Node loads it for the
+ * generator, and astro.config.ts loads it for the CSP, and not all three
+ * understand the same things.
  */
 
 export interface HeaderContext {
@@ -42,20 +43,20 @@ export function securityHeaders({ dev = false }: HeaderContext = {}) {
 }
 
 /**
- * `unsafe-inline` is in script-src because Astro emits inline scripts to
- * hydrate islands and drive the view transitions. The policy still pins every
- * external origin, which is what it is here to do — nothing renders raw HTML,
- * so there is no injection point for it to backstop.
+ * Everything the policy says that is not about scripts or styles.
+ *
+ * Shared verbatim between the header below and the `<meta>` element Astro
+ * emits (see `security.csp` in astro.config.ts), because a browser enforces
+ * every policy it is given and a directive present in one but absent from the
+ * other is a directive with two different answers depending on which response
+ * you happened to get.
  */
-function contentSecurityPolicy(dev: boolean): string {
+export function baseDirectives(dev = false): string[] {
   return [
     "default-src 'self'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'none'",
     "object-src 'none'",
-    "script-src 'self' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     /*
       The multiplayer cursor socket. Same origin — it is a Worker route under
@@ -68,6 +69,36 @@ function contentSecurityPolicy(dev: boolean): string {
     // most. Still scoped to Spotify.
     "img-src 'self' data: https://*.scdn.co https://*.spotifycdn.com https://avatars.githubusercontent.com https://upload.rcn.sh",
     "upgrade-insecure-requests",
+  ];
+}
+
+/**
+ * The header policy.
+ *
+ * `script-src` and `style-src` keep `'unsafe-inline'` here, which reads like
+ * the opposite of the hardening it is part of. The reason is how two policies
+ * compose: a browser given both a header and a `<meta>` CSP enforces *both*,
+ * and a resource has to satisfy each one independently. So the strictness
+ * lives in the meta element — Astro hashes every inline script and style it
+ * emits and names those hashes there — and this header stays permissive on
+ * exactly those two directives so that it cannot be the thing that blocks a
+ * script the hashes have already vouched for.
+ *
+ * The net effect on an HTML response is the intersection of the two: Astro's
+ * own hashed inline scripts run, and nothing else inline does. Tightening this
+ * line instead would not improve on that; it would break every page, because
+ * the header has no hashes to offer and `'self'` does not cover inline.
+ *
+ * What this header is still the only source of: `frame-ancestors`, which is
+ * ignored inside a meta element, and the whole policy for responses that are
+ * not HTML documents and so carry no meta at all.
+ */
+function contentSecurityPolicy(dev: boolean): string {
+  return [
+    ...baseDirectives(dev),
+    "frame-ancestors 'none'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
   ].join("; ");
 }
 
