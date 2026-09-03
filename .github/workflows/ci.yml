@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
 
+# Nothing here writes to the repository — it checks out, generates derived
+# files, and runs the linter, the tests and the typechecker. Saying so keeps
+# the job's token read-only regardless of what the repository default becomes.
+permissions:
+  contents: read
+
 # A second push to the same branch makes the first run irrelevant.
 concurrency:
   group: ci-${{ github.ref }}
