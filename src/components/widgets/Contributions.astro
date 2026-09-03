@@ -26,10 +26,8 @@ if (data) {
   });
 }
 
-// The year starts mid-month, so the leading month often owns a single column
-// and its label would run into the next one. Drop a label when the following
-// month starts before the label has room to finish — a whole month spans at
-// least four columns, so this only ever discards that opening sliver.
+// The year starts mid-month, so the leading month may own one column and its
+// label would run into the next. A whole month spans at least four.
 const monthLabels = monthStarts.filter((start, position) => {
   const next = monthStarts[position + 1];
   if (!next) return true;
@@ -65,10 +63,8 @@ const monthLabels = monthStarts.filter((start, position) => {
             </div>
 
             {data.weeks.map((week) => {
-              // Placed by each day's own weekday rather than by its position
-              // in the week, so a week that is short at either end — the last
-              // one stops at today — still lines up with the Mon/Wed/Fri
-              // labels instead of sliding up a row.
+              // Placed by weekday, not position, so a short week at either
+              // end still lines up with the Mon/Wed/Fri labels.
               const byWeekday = new Map(
                 week.map((day) => [new Date(day.date).getUTCDay(), day]),
               );

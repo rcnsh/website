@@ -3,18 +3,11 @@ import { formatDate, getPosts, postHref } from "./blog";
 import { externalLinks, home, nav, site, stack, uses } from "./site";
 
 /**
- * Builds the filesystem the command palette's shell walks.
+ * Builds the filesystem the command palette's shell walks, from what the site
+ * already says about itself. Server-only; the tree reaches the client as the
+ * prerendered /shell-fs.json.
  *
- * Server-only: it reads the validated config and the content collection,
- * neither of which resolves in the browser. The tree reaches the client as
- * /shell-fs.json — a prerendered file the palette fetches the first time
- * someone opens the shell. See src/pages/shell-fs.json.ts.
- *
- * Everything is derived from what the site already says about itself, so there
- * is no second copy of the bio here to drift out of date.
- *
- * To add an entry, put a file() or dir() in the array buildFs returns. Every
- * command walks the tree, so nothing needs registering anywhere else.
+ * To add an entry, put a file() or dir() in the array buildFs returns.
  */
 
 /** Strips the `[label](url)` config authors write, leaving the label. */

@@ -1,12 +1,9 @@
 /**
  * Live cursors — the client half of workers/multiplayer.
  *
- * This module is only ever reached through a dynamic import, from the settings
- * menu, the first time someone turns multiplayer on. Nothing here — not the
- * socket, not the render loop, not even the stylesheet, which is injected from
- * JS rather than sitting in global.css — costs anything to a visitor who never
- * touches the toggle. That is the whole point of the feature being opt-in, and
- * it is easy to give away by accident, so keep imports out of the eager path.
+ * Reached only through a dynamic import when the toggle is first switched on,
+ * so it costs nothing to a visitor who never touches it. Keep it off the eager
+ * path.
  */
 
 import { SEND_INTERVAL_MS } from "../../shared/multiplayer.ts";
@@ -15,24 +12,13 @@ import { link } from "./link.ts";
 import { motionReduced } from "./prefs.ts";
 
 /**
- * Whether this device has a pointer worth broadcasting.
- *
- * `any-pointer: fine` is true when *some* attached pointer is precise — a
- * mouse, trackpad or stylus. A phone is false; a laptop with a touchscreen and
- * a tablet with a keyboard case are both true, which is the right answer for
- * each of them.
- *
- * A device that fails this still connects and still draws everyone else. It
- * simply never sends: there is no cursor on a phone to broadcast, and the last
- * place a finger touched is not one. Matched live rather than read once,
- * because a mouse can be plugged into a tablet halfway through a session.
+ * A pointer precise enough to broadcast. Devices that fail still connect and
+ * draw everyone else, they just never send. Matched live — a mouse can be
+ * plugged into a tablet mid-session.
  */
 const FINE_POINTER = "(any-pointer: fine)";
 
-/*
-  The send rate lives in shared/multiplayer.ts, because the Worker has to agree
-  with it — see the note there. Change CURSOR_HZ, not these.
-*/
+/* Send rate lives in shared/multiplayer.ts so the Worker agrees. */
 
 /** Room membership is per page path — see the note on roomKey in the Worker. */
 const ENDPOINT = import.meta.env.DEV
@@ -43,41 +29,22 @@ const ENDPOINT = import.meta.env.DEV
 const MOVE_EPSILON = 0.75;
 
 /**
- * A tab left open on a monitor overnight is the expensive case, so the socket
- * is dropped and picked back up on the next movement.
- *
- * Deliberately not shortened for someone alone in a room, tempting as that
- * looks. The room is hibernatable and this client says nothing while it is
- * alone, so a solo socket costs approximately nothing to hold — and holding it
- * is the entire mechanism by which anyone finds out that somebody else has
- * arrived. Dropping it early would save nothing and cost the feature.
+ * Drop the socket on an idle tab, resume on the next movement. Deliberately
+ * not shortened when alone — the room hibernates, and holding the socket open
+ * is how you find out someone has arrived.
  */
 const IDLE_MS = 4 * 60 * 1000;
 
 /** Where the reader's session token is kept. See `token`. */
 const TOKEN_KEY = "rcn:mp-session";
 
-/**
- * Why the room hung up on us, when it did so on purpose.
- *
- * `flood` should never reach an honest client — the room's allowance is well
- * above the rate this file paces itself at — so seeing it means a bug here,
- * not a busy page. It is handled rather than ignored because the alternative
- * is a silent reconnect loop into a room that will hang up again.
- */
+/** Why the room hung up on purpose. `flood` means a bug here, not a busy page. */
 type Refusal = "full" | "unknown" | "flood";
 
 /**
- * A stable, opaque name for this tab, minted once and kept for the session.
- *
- * Identity is assigned by the room, and it used to be assigned per socket —
- * which meant a new colour and a new animal after every idle drop, every tab
- * switch and every navigation. One person reading three posts looked like
- * three people coming and going. The room seeds the choice off this instead.
- *
- * sessionStorage rather than localStorage on purpose: two tabs on the same
- * page are two cursors, and they should not both be the amber fox. Private
- * browsing throws, in which case the room mints at random as it always did.
+ * A stable name for this tab, so the room keeps assigning the same colour and
+ * animal across reconnects. sessionStorage, so two tabs differ; private
+ * browsing throws and the room falls back to minting at random.
  */
 function token(): string | null {
   try {
@@ -105,12 +72,7 @@ interface Identity {
 
 interface Peer extends Identity {
   el: HTMLElement;
-  /**
-   * Where the peer is, in the sender's content-column space. Null until they
-   * have sent a position, which is not the same as being in the room: a phone
-   * joins to watch and never sends one, and a reader who has not moved the
-   * mouse yet has not sent one either. Neither has a cursor worth drawing.
-   */
+  /** Position in column space. Null until they send one — phones never do. */
   target: { x: number; y: number } | null;
   /** Where we are drawing them — chases `target`. */
   drawn: { x: number; y: number } | null;
@@ -122,16 +84,9 @@ export interface SessionState {
   live: boolean;
   /** Other people in the room. Only meaningful while `live`. */
   peers: number;
-  /**
-   * Reconnecting has failed often enough to be worth admitting to. The session
-   * has not given up — it is just trying slowly now.
-   */
+  /** Reconnecting has failed enough to admit to. Still trying, just slowly. */
   stalled: boolean;
-  /**
-   * The room said no, and why. Not a failure and not worth retrying — a full
-   * room and a page with no room both stay that way until something changes,
-   * and the reader is owed the actual reason rather than a spinner.
-   */
+  /** The room said no, and why. Not worth retrying; say so rather than spin. */
   refused: Refusal | null;
 }
 
@@ -139,28 +94,17 @@ export interface Session {
   /** Point the session at a different page. No-op if it is already there. */
   setRoom(path: string): void;
   /**
-   * Watch the room. One listener, replaced on each call rather than added to —
-   * the settings markup is rebuilt on every navigation, and a list here would
-   * accumulate closures over detached nodes for the life of the session.
-   *
-   * Reports connection state and not just a count, because the two are not the
-   * same thing and reporting only the count made a dropped socket look exactly
-   * like an empty room.
+   * Watch the room. One listener, replaced per call — settings markup is
+   * rebuilt on every navigation, so a list would leak detached closures.
    */
   onState(listener: (state: SessionState) => void): void;
   destroy(): void;
 }
 
 /**
- * Cursors are exchanged in the coordinate space of the content column, not the
- * viewport: x as a fraction of the column's width, y as pixels below its top.
- *
- * Viewport fractions would be simpler and wrong — two people on the same page
- * at different window widths would see each other pointing at different
- * paragraphs, which makes the whole thing meaningless. The column is the one
- * thing both readers have in common, so measuring against it means a cursor
- * parked on a heading lands on that heading at any width. x outside 0..1 is
- * the margins, which is why the Worker's clamp allows it.
+ * The content column. Cursors are exchanged relative to it — x as a fraction
+ * of its width, y as pixels below its top — so a cursor parked on a heading
+ * lands on that heading at any window width. x outside 0..1 is the margins.
  */
 function column(): Column {
   const el = document.getElementById("content");
@@ -200,8 +144,7 @@ const CURSOR_CSS = `
   width: 15px;
   height: 18px;
   flex: none;
-  /* The arrow is drawn in the peer's colour; the drop shadow is what keeps it
-     legible where it crosses a code block or the map. */
+  /* Keeps the arrow legible over code blocks and the map. */
   filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.65));
 }
 .mp-name {
@@ -216,18 +159,14 @@ const CURSOR_CSS = `
   background: var(--mp-colour);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
 }
-/* The attribute, not the media query: the settings menu can turn motion down
-   past the OS setting or back up over it, and this layer only ever exists on a
-   page with script, where lib/prefs has already stamped the answer on <html>. */
+/* The attribute, not the media query — settings can override the OS. */
 :root[data-motion="reduce"] .mp-cursor { transition: none; }
 `;
 
 const ARROW = `<svg viewBox="0 0 15 18" fill="var(--mp-colour)" aria-hidden="true"><path d="M1 1.3v14.2a.6.6 0 0 0 1 .43l3.2-3.1 2.1 4.5a.9.9 0 0 0 1.7-.75l-2-4.4h4.3a.6.6 0 0 0 .43-1.03L2 .9A.6.6 0 0 0 1 1.3Z"/></svg>`;
 
 export function start(): Session {
-  /* Asked each time rather than read once at start: the switch can be flipped
-     while the socket is open, and a session that outlives several navigations
-     would otherwise be stuck with whatever was true when it connected. */
+  /* Read per call, not once — the switch can flip while the socket is open. */
   const reduced = motionReduced;
   const pointer = matchMedia(FINE_POINTER);
 
@@ -265,8 +204,7 @@ export function start(): Session {
   }
 
   function announce() {
-    // A destroyed session has no business reporting anything — tearing down
-    // clears the peers, and that must not read as "nobody else is here".
+    // Teardown clears peers; that must not read as "nobody else is here".
     if (closed) return;
     watcher?.({
       live: connection.live,
@@ -278,13 +216,8 @@ export function start(): Session {
 
   // --- Connection -----------------------------------------------------------
 
-  /*
-    Everything about keeping the socket up — the backoff, what counts as a
-    deliberate hang-up, which of two sockets is the live one — lives in
-    link.ts, where it can be tested without a browser. What stays here is the
-    half that cannot: turning a WebSocket's events into the three the link
-    understands, and deciding what the rest of the engine does about each.
-  */
+  /* Reconnect policy lives in link.ts, testable without a browser. This half
+     just maps WebSocket events onto it. */
   const connection = link({
     open(handlers) {
       const seed = token();
@@ -360,13 +293,8 @@ export function start(): Session {
         }
         break;
 
-      /*
-        A deliberate no: the room is full, or this page has no room at all.
-        Either way the socket that opened to say so is about to close, and
-        reconnecting would get the same sentence back. Stop, and let the panel
-        say which it was. A navigation or the reader coming back to the tab
-        calls revive(), which is the only thing that undoes this.
-      */
+      /* A deliberate no — reconnecting gets the same answer back. Only
+         revive(), on navigation or tab focus, undoes this. */
       case "shut":
         refused =
           message.why === "full" || message.why === "flood"
@@ -389,8 +317,7 @@ export function start(): Session {
 
     const label = document.createElement("span");
     label.className = "mp-name";
-    // textContent, not innerHTML — the name is server-assigned today, and this
-    // is the line that keeps that from mattering if it ever isn't.
+    // textContent, not innerHTML: names are server-assigned, keep it moot.
     label.textContent = identity.name;
     el.appendChild(label);
 
@@ -402,10 +329,8 @@ export function start(): Session {
       drawn: null,
     });
 
-    // Nothing has been sent while the room was empty, so `sent` describes a
-    // position from before the silence — clearing it means the next frame
-    // tells the new arrival where the pointer actually is rather than waiting
-    // for it to move.
+    // `sent` predates the silence, so clear it and let the arrival get a
+    // position without waiting for the pointer to move.
     sent = null;
     loop();
   }
@@ -446,25 +371,18 @@ export function start(): Session {
 
     if (now - lastMoveAt > IDLE_MS && connection.live) connection.sleep();
 
-    // Nothing to draw and nothing to send is a loop worth not running. The
-    // pointermove listener restarts it.
+    // Nothing to draw or send. The pointermove listener restarts it.
     if (peers.size > 0 || connection.live) frame = requestAnimationFrame(tick);
   }
 
   function draw(box: Column, dt: number) {
     for (const peer of peers.values()) {
-      // Being in the room is not a position. Joining used to seed one — the
-      // top centre of the column — so a peer who had never sent anything was
-      // drawn there anyway, with their name on it. For a reader who has not
-      // reached for the mouse yet that is a blip until they do; for a phone,
-      // which is in the room precisely to watch and never sends, it was
-      // permanent. Both cases end here: no position, no cursor.
+      // Being in the room is not a position. No position, no cursor.
       if (!peer.target) continue;
 
       if (!peer.drawn) peer.drawn = { ...peer.target };
       else {
-        // Reduced motion asks for no tween at all, which is tau = 0: land on
-        // the target this frame.
+        // Reduced motion is tau = 0: land on the target this frame.
         peer.drawn.x = approach(
           peer.drawn.x,
           peer.target.x,
@@ -491,29 +409,17 @@ export function start(): Session {
   }
 
   function send(now: number, box: Column) {
-    /*
-      Nobody to send to.
-
-      Every inbound message is a billed Durable Object request, and being alone
-      on a page is not the edge case — on a personal site it is very nearly
-      every reader, every time. Without this the commonest thing the feature
-      does is pay full rate to describe a pointer to an empty room. It is also
-      what lets the room hibernate, which is what makes holding the socket open
-      while alone affordable in the first place.
-    */
+    // Nobody to send to. Every message is a billed DO request and being alone
+    // is the common case; this is also what lets the room hibernate.
     if (peers.size === 0) return;
 
-    // Receive-only devices never reach here with a position anyway, since the
-    // handler below refuses to record one. This is the belt to that braces:
-    // some mobile browsers report a stray non-touch pointermove while
-    // scrolling, and one of those should not put a ghost cursor on everyone
-    // else's screen.
+    // Belt to the handler's braces: some mobile browsers fire a stray
+    // non-touch pointermove while scrolling.
     if (!pointer.matches) return;
     if (!mine || !connection.live) return;
     if (now - lastSendAt < SEND_INTERVAL_MS) return;
 
-    // Resting on the page costs nothing. This is most of why an open tab is
-    // affordable at all.
+    // Resting on the page costs nothing.
     if (
       sent &&
       Math.abs(mine.x - sent.x) * box.width < MOVE_EPSILON &&
@@ -530,13 +436,8 @@ export function start(): Session {
   // --- Input ----------------------------------------------------------------
 
   /**
-   * "Still here" — refreshes the idle timer and brings the socket back if it
-   * has already been dropped.
-   *
-   * pointermove is that signal for anyone holding a mouse, but a phone never
-   * fires one, and a reader who is only *receiving* cursors should not be cut
-   * off after four minutes with no way back. So the ordinary signs of someone
-   * being present count too.
+   * "Still here" — refreshes the idle timer and revives a dropped socket. Bound
+   * to more than pointermove, since a phone never fires one.
    */
   function wake() {
     lastMoveAt = performance.now();
@@ -547,10 +448,8 @@ export function start(): Session {
   document.addEventListener(
     "pointermove",
     (event) => {
-      // Two gates, and they catch different things. The device check keeps
-      // phones off the wire entirely; the pointerType check covers the
-      // touchscreen on a laptop, which passes the device check on the strength
-      // of its trackpad but should not broadcast a fingertip.
+      // Device check keeps phones off the wire; pointerType covers the
+      // touchscreen on a laptop that passed it on the strength of its trackpad.
       if (!pointer.matches || event.pointerType === "touch") {
         wake();
         return;
@@ -571,13 +470,11 @@ export function start(): Session {
   document.addEventListener(
     "visibilitychange",
     () => {
-      // A hidden tab cannot see cursors and rAF is paused anyway, so holding
-      // the socket open would be duration billed for nothing.
+      // A hidden tab cannot see cursors and rAF is paused anyway.
       if (document.hidden) connection.drop();
       else if (!closed) {
         lastMoveAt = performance.now();
-        // revive, not wake — coming back to the tab is the clearest sign that
-        // a stalled session is worth retrying straight away.
+        // revive, not wake — returning to the tab is worth an instant retry.
         connection.revive();
       }
     },
@@ -587,13 +484,8 @@ export function start(): Session {
   return {
     setRoom(next) {
       const key = next.replace(/\/+$/, "") || "/";
-      /*
-        A view transition swaps both <head> and the contents of <body>, and
-        takes these two with it — the stylesheet especially, which leaves the
-        cursors in the document with none of the rules that position or colour
-        them. Re-attaching is cheaper than persisting them through the router,
-        and happens on every navigation whether or not the room changed.
-      */
+      /* A view transition replaces <head> and the contents of <body>, taking
+         these with it. Cheaper to re-attach than to persist them. */
       if (!style.isConnected) document.head.appendChild(style);
       if (!layer.isConnected) document.body.appendChild(layer);
       if (key === room) return;

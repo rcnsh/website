@@ -2,18 +2,11 @@
 import { BRAND_MARKS } from "@/lib/brand-marks";
 
 /**
- * One drawing per thing on the diagram.
+ * One drawing per thing on the diagram, all on a 96x96 grid. Physical objects
+ * are hand-drawn and stroked; software uses its real mark from
+ * lib/brand-marks.ts at half the grid, since a filled shape reads heavier.
  *
- * Two kinds share a single 96x96 grid so everything sits on a common baseline:
- *
- *   - Physical objects are hand-drawn and stroked. A generic laptop glyph
- *     would say nothing about which laptop.
- *   - Software uses its real mark from lib/brand-marks.ts, scaled to half the
- *     grid — a filled shape reads much heavier than an outline, so it needs
- *     the smaller footprint to carry the same weight.
- *
- * Apps whose marks aren't available (VS Code, Terminal, Premiere, Helium) are
- * drawn here instead. Nothing is a logo reproduced from memory.
+ * Apps with no available mark are drawn here instead.
  */
 
 interface Props {
@@ -225,13 +218,9 @@ const isDrawn = (value: string): value is (typeof DRAWN)[number] =>
     name === "helium" && (
       <>
       {/*
-        The real mark, from the SVG Helium ships, inside the rounded tile its
-        app icon uses — the same 52px tile as Premiere, so the two sit level.
-
-        Not the flat scale(2) the sourced marks take: the glyph is 20.8x24 in
-        its own box, which at 2x would fill the tile edge to edge. Scaled to
-        65% of the tile instead, matching the padding in the real icon, and
-        translated by its own centre rather than the box's so it sits true.
+        Helium's own mark in the rounded tile its app icon uses — the 52px tile
+        Premiere gets, so the two sit level. Scaled to 65% rather than the flat
+        2x, matching the real icon's padding, and centred on the glyph.
       */}
       <rect x="22" y="22" width="52" height="52" rx="13" />
       <g

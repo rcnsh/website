@@ -1,9 +1,6 @@
 /**
- * Guestbook rate limit: one message per signer per day.
- *
- * A rolling 24-hour window rather than a calendar day, so the limit does not
- * reset at a boundary that depends on whose timezone you read it in, and
- * nobody can post twice in a minute by waiting for midnight.
+ * Guestbook rate limit: one message per signer per day. Rolling, not calendar,
+ * so it has no timezone and nobody posts twice by waiting for midnight.
  */
 
 /** Length of the window, in milliseconds. */

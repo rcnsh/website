@@ -30,10 +30,8 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       ),
     );
 
-  // The cached first page and totals may both name the row that just went.
-  // Unconditional: the delete is scoped, so a request for someone else's id
-  // removes nothing, and dropping two keys is cheaper than asking whether it
-  // did before deciding.
+  // Unconditional: the delete is scoped, and dropping two keys is cheaper than
+  // asking whether it removed anything.
   await invalidate();
 
   return redirect("/guestbook", 302);

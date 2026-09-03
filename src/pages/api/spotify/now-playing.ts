@@ -5,14 +5,9 @@ import { getNowPlaying, getRecentTracks } from "@/lib/spotify";
 export const prerender = false;
 
 /**
- * Live listening state for the home page card. Falls back to the last played
- * track so the widget always has something to show.
- *
- * Every visitor polls this every 20s, and `getNowPlaying()` is deliberately
- * uncached upstream, so without a window here each concurrent reader would
- * cost its own Spotify call — a straight path to a 429 that empties the
- * widget. The edge cache collapses them into one call per colo per window,
- * which is short enough that "now playing" still means it.
+ * Live listening state for the home page card, falling back to the last played
+ * track. Every visitor polls every 20s and `getNowPlaying()` is uncached
+ * upstream, so this window collapses them into one Spotify call per colo.
  */
 const CACHE_SECONDS = 10;
 
@@ -22,19 +17,12 @@ const CACHED_AT = "x-cached-at";
 type Payload = Record<string, unknown> & { state: string };
 
 /**
- * Serves a cache hit.
+ * Serves a cache hit, advancing the stored progress by the entry's age so the
+ * client's bar does not rewind on every poll.
  *
- * A cached `playing` payload carries the progress as it was when Spotify was
- * asked. Left alone it would rewind the client's progress bar on every poll,
- * so it's advanced by the age of the entry on the way out.
- *
- * Every path here builds a new Response rather than handing back the one the
- * Cache API returned, which is not a detail: a cached Response has immutable
- * headers, and src/middleware.ts sets the security headers on everything the
- * Worker returns. Passing the hit straight through threw there instead —
- * a 500 with an empty body, on the paths that skipped the rewrite below.
- * Which was all of them except playback, so the widget broke precisely when
- * the music stopped.
+ * Every path builds a new Response rather than returning the cached one: a
+ * cached Response has immutable headers, and the middleware throws setting
+ * security headers on it.
  */
 async function fromCache(hit: Response): Promise<Response> {
   const body = (await hit.json()) as Payload;

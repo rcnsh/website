@@ -313,14 +313,9 @@
 }
 
 /* --- Reduce motion ---
-   The switch in the settings menu decides this, not the OS alone: lib/prefs.ts
-   folds the stored choice and `prefers-reduced-motion` into one answer and
-   stamps it on <html> before the first paint. The attribute is therefore the
-   authority whenever there is script, and the media query below is what is
-   left when there is not — which is why it only applies while the attribute is
-   absent. Both blocks say the same thing; there is no way in CSS to hang one
-   declaration off a media query *or* a selector, and the alternative is
-   letting the two states disagree. */
+   lib/prefs.ts folds the stored choice and `prefers-reduced-motion` into the
+   attribute on <html> before first paint, so the attribute wins wherever there
+   is script and the media query below covers the case where there is not. */
 :root[data-motion="reduce"] *,
 :root[data-motion="reduce"] *::before,
 :root[data-motion="reduce"] *::after {

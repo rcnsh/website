@@ -2,23 +2,16 @@ import { env } from "cloudflare:workers";
 import { cached } from "@/lib/cache";
 
 /**
- * R2 listing through the native bucket binding.
+ * R2 listing through the native bucket binding. Files go over the wire as
+ * tuples, with the key and public URL rebuilt in the browser from the prefix.
  *
- * Listings go over the wire packed: a file is a tuple, and the two longest
- * strings it used to carry — its full key and its public URL — are rebuilt in
- * the browser from the prefix it sits under. At a few hundred files those
- * strings were most of the page's copy of the tree.
- *
- * `cachedTree()` is what the page calls: every directory at once, out of KV so
- * nobody waits on a LIST. `listDirectory()` reads one directory at a time — it
- * backs /api/files/list, and takes over once the bucket outgrows the tree.
+ * `cachedTree()` is what the page calls — every directory at once, out of KV.
+ * `listDirectory()` reads one at a time, once the bucket outgrows the tree.
  */
 
 /**
- * One file: its path, its size in bytes, and when it was uploaded, in whole
- * seconds since the epoch. The path is relative to the listing it came from,
- * so it is a bare filename inside a directory listing and a full key in search
- * results, which are a listing of the root.
+ * Path, size in bytes, upload time in whole seconds. The path is relative to
+ * its listing: a bare filename in a directory, a full key in search results.
  */
 export type R2File = [path: string, size: number, uploaded: number];
 
@@ -55,9 +48,8 @@ function isHidden(name: string): boolean {
 }
 
 /**
- * Hidden anywhere along the path, so `.thumbs/x.png` counts. Every listing
- * here filters on this; /api/files/download applies it too, so a key that is
- * missing from the browser can't simply be requested by name instead.
+ * Hidden anywhere along the path, so `.thumbs/x.png` counts. /api/files/download
+ * applies it too, so a hidden key cannot be requested by name.
  */
 export function isHiddenKey(key: string): boolean {
   return key.split("/").some(isHidden);
@@ -73,9 +65,8 @@ export function normalisePrefix(input: string | null | undefined): string {
 }
 
 /**
- * The bucket's public origin, trailing slash trimmed, or "" when there isn't
- * one and downloads have to proxy through the worker. The browser is handed
- * this once and builds every file's URL from it.
+ * The bucket's public origin, or "" when downloads must proxy through the
+ * worker. The browser builds every file URL from it.
  */
 export function publicBucketBase(): string {
   return (env.PUBLIC_BUCKET_URL || "").replace(/\/+$/, "");
@@ -106,7 +97,7 @@ export async function listDirectory(prefix = ""): Promise<R2Listing> {
       delimiter: "/",
       limit: 1000,
       cursor,
-      // No `include` — httpMetadata costs extra work and isn't used.
+      // No `include` — httpMetadata costs extra and isn't used.
     });
 
     for (const delimited of result.delimitedPrefixes) {
@@ -196,13 +187,8 @@ export async function listWholeTree(): Promise<R2Tree | null> {
 }
 
 /**
- * The tree the page renders. A LIST over the whole bucket was the slowest
- * thing on /files and every visitor paid for it, so it goes through the same
- * stale-while-revalidate cache as Spotify and GitHub: the last tree comes
- * straight out of KV and the refresh happens after the response.
- *
- * Capped at a day of staleness — past that an upload missing from the page is
- * more confusing than a slow page, so the request blocks on a fresh listing.
+ * The tree the page renders, stale-while-revalidate out of KV. Capped at a
+ * day, past which a missing upload beats a slow page and the request blocks.
  */
 export async function cachedTree(): Promise<R2Tree | null> {
   return cached(TREE_CACHE_KEY, TREE_FRESH_SECONDS, listWholeTree, {
@@ -211,22 +197,12 @@ export async function cachedTree(): Promise<R2Tree | null> {
 }
 
 /**
- * Flat search across the whole bucket. Paths are full keys, since the results
- * span every directory.
+ * Flat search across the whole bucket; paths are full keys.
  *
- * Answered out of the cached tree, not out of R2. The endpoint behind this is
- * unauthenticated and its query string is the caller's to choose, so there is
- * no cache key upstream that a stranger cannot walk straight past — which used
- * to mean every request, however many of them arrived, paid for a fresh pass
- * over the whole bucket. Twenty LISTs and the best part of a second, per
- * request, on a route anyone can call as fast as they like.
- *
- * The tree is the same data with a key nobody else gets to pick: one entry in
- * KV, refreshed behind a response rather than in front of one. Searching it is
- * a string comparison per file over something already in memory.
- *
- * Past FULL_TREE_MAX_OBJECTS there is no tree and this falls back to listing —
- * see searchByListing, which is the old path, kept for that case alone.
+ * Answered out of the cached tree rather than R2: the endpoint is
+ * unauthenticated and its query string is the caller's, so a live pass would
+ * be a bucket scan anyone can start as fast as they like. Falls back to
+ * searchByListing past FULL_TREE_MAX_OBJECTS.
  */
 export async function searchBucket(query: string, limit = 100): Promise<R2File[]> {
   const needle = query.trim().toLowerCase();
@@ -251,11 +227,8 @@ export async function searchBucket(query: string, limit = 100): Promise<R2File[]
 }
 
 /**
- * The pre-tree search: a bounded walk over the bucket itself.
- *
- * Only reached when the bucket is too big to hold a tree for, which is also
- * the point at which this becomes the expensive thing it always was. Keep the
- * rate limit in front of /api/files/search for exactly that day.
+ * A bounded walk over the bucket itself, for when it is too big to hold a tree
+ * for. Expensive — the rate limit on /api/files/search is for this case.
  */
 async function searchByListing(needle: string, limit: number): Promise<R2File[]> {
   const bucket = requireBucket();
@@ -283,12 +256,9 @@ async function searchByListing(needle: string, limit: number): Promise<R2File[]>
 }
 
 /**
- * One directory, out of the cached tree where there is one.
- *
- * Same reasoning as searchBucket: `?prefix=` is the caller's to choose and the
- * set of spellings is unbounded, so a live LIST per request is a bucket scan
- * anyone can start. A prefix the tree has never heard of is an empty listing,
- * which is the truthful answer and costs nothing to give.
+ * One directory, out of the cached tree where there is one. Same reasoning as
+ * searchBucket: `?prefix=` is the caller's, so a live LIST per request is a
+ * scan anyone can start. An unknown prefix is an empty listing.
  */
 export async function cachedDirectory(prefix = ""): Promise<R2Listing> {
   const tree = await cachedTree();
