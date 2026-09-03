@@ -1,16 +1,6 @@
 import { defineConfig } from "astro/config";
-import type { AstroUserConfig } from "astro";
 import cloudflare from "@astrojs/cloudflare";
-import { baseDirectives } from "./shared/security.ts";
 
-/**
- * Astro narrows a CSP directive to a template literal union; shared/security.ts
- * returns plain strings, because bare Node loads it for the header generator
- * and it therefore imports nothing Astro-shaped. Same strings, one cast.
- */
-type CspDirectives = NonNullable<
-  Extract<NonNullable<AstroUserConfig["security"]>["csp"], object>["directives"]
->;
 import expressiveCode from "astro-expressive-code";
 import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
@@ -28,52 +18,35 @@ export default defineConfig({
   // Static by default. Live data arrives via server islands, or routes that
   // opt out with `export const prerender = false`.
   output: "static",
-
-  security: {
-    /*
-      A second, stricter Content-Security-Policy, emitted as a <meta> element
-      in every page Astro renders.
-
-      The header set in shared/security.ts cannot be strict about scripts: it
-      is one string written ahead of time, and the inline scripts Astro emits
-      to hydrate islands and drive the view transitions are not knowable when
-      it is written — which is why it carried 'unsafe-inline', and why the
-      policy could not have contained an injection if there had ever been one
-      to contain.
-
-      Astro knows those scripts, because it emitted them. Turning this on makes
-      it hash each one and name the hashes in the meta element. A browser
-      enforces the header and the meta together, so the effective policy is the
-      stricter of the two: Astro's own inline scripts run, and an injected one
-      does not. See the comment on contentSecurityPolicy for why the header
-      stays permissive rather than being tightened alongside this.
-
-      `directives` repeats everything the policy says that is not about scripts
-      or styles, from the same function the header uses, so the two agree.
-      Production values: this is read at build time, and the dev-only
-      multiplayer origins have no business in a shipped page.
-    */
-    csp: {
-      directives: baseDirectives() as CspDirectives,
-      styleDirective: {
-        /*
-          Style *attributes*, specifically — `style={{ width: `${pct}%` }}` on
-          the now-playing progress bar, the file browser's indentation, the
-          map's per-country opacity. They are computed from data at render
-          time, so there is no fixed string to hash, and no way to express
-          them as a class either.
-
-          Scoped to `attribute` so it stays off `style-src` proper: an inline
-          <style> block still has to hash, which is where a style injection
-          would actually go.
-        */
-        resources: [{ resource: "'unsafe-inline'", kind: "attribute" }],
-      },
-    },
-  },
   adapter: cloudflare({
     imageService: "compile",
   }),
+
+  /*
+    `security.csp` is deliberately NOT enabled. It is the obvious thing to
+    reach for here and it breaks the site.
+
+    Astro hashes the inline scripts it emits and publishes them in a <meta>
+    Content-Security-Policy. A meta CSP binds the document it was parsed with,
+    and <ClientRouter /> does not parse a new one — it swaps the contents of
+    the existing document. So after the first soft navigation the entry page's
+    hash list is still the policy being enforced, every later page's island
+    hydration scripts hash to something that is not on it, and they are
+    blocked. Astro's router has no CSP handling to reconcile the two.
+
+    The failure is invisible from a direct page load, which is what makes it
+    worth this comment: /music and /files render perfectly when their URL is
+    opened, and lose MusicExplorer and FileBrowser when reached from the nav.
+
+    So it is view transitions or hashed inline scripts, not both, and the
+    transitions are a feature people can see. If this is ever revisited, the
+    options are to drop <ClientRouter /> from Layout.astro, or to give every
+    page the union of all pages' hashes via csp.scriptDirective.hashes — which
+    needs a two-pass build and silently breaks the day someone forgets the
+    second pass.
+
+    shared/security.ts carries the header policy in the meantime.
+  */
 
   integrations: [
     /*

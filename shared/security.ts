@@ -51,7 +51,7 @@ export function securityHeaders({ dev = false }: HeaderContext = {}) {
  * other is a directive with two different answers depending on which response
  * you happened to get.
  */
-export function baseDirectives(dev = false): string[] {
+function baseDirectives(dev = false): string[] {
   return [
     "default-src 'self'",
     "base-uri 'self'",
@@ -73,25 +73,21 @@ export function baseDirectives(dev = false): string[] {
 }
 
 /**
- * The header policy.
+ * The policy.
  *
- * `script-src` and `style-src` keep `'unsafe-inline'` here, which reads like
- * the opposite of the hardening it is part of. The reason is how two policies
- * compose: a browser given both a header and a `<meta>` CSP enforces *both*,
- * and a resource has to satisfy each one independently. So the strictness
- * lives in the meta element — Astro hashes every inline script and style it
- * emits and names those hashes there — and this header stays permissive on
- * exactly those two directives so that it cannot be the thing that blocks a
- * script the hashes have already vouched for.
+ * `script-src` and `style-src` carry 'unsafe-inline' because Astro emits
+ * inline scripts to hydrate islands and drive the view transitions, and this
+ * header is one string written ahead of time — it has no way to know what
+ * those scripts will be, so it cannot name them.
  *
- * The net effect on an HTML response is the intersection of the two: Astro's
- * own hashed inline scripts run, and nothing else inline does. Tightening this
- * line instead would not improve on that; it would break every page, because
- * the header has no hashes to offer and `'self'` does not cover inline.
- *
- * What this header is still the only source of: `frame-ancestors`, which is
- * ignored inside a meta element, and the whole policy for responses that are
- * not HTML documents and so carry no meta at all.
+ * Hashing them is Astro's `security.csp`, and it is off. It publishes the
+ * hashes in a <meta> element, a meta CSP binds only the document it was parsed
+ * with, and <ClientRouter /> swaps document contents rather than parsing a new
+ * one — so the entry page's hashes stay in force for every page reached from
+ * the nav, and those pages' scripts are blocked. astro.config.ts has the long
+ * version. Nothing on this site renders raw HTML, so there is no injection
+ * point for the directive to backstop today; it is the future one it cannot
+ * catch, and that is a known, written-down gap rather than an oversight.
  */
 function contentSecurityPolicy(dev: boolean): string {
   return [
