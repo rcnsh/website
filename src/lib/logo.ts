@@ -1,17 +1,10 @@
 /**
- * The rcn.sh mark, as data rather than as markup.
+ * The rcn.sh mark as data, since it is drawn in more than one place —
+ * Logo.astro on the page, badge.ts into an 88x31 PNG.
  *
- * The glyph is two polygons and it is drawn in more than one place —
- * components/Logo.astro on the page, lib/badge.ts into an 88x31 PNG — so the
- * points live here instead of being pasted a second time. A mark that exists
- * twice is a mark that eventually differs from itself.
- *
- * Deliberately free of `@/` imports and of anything Astro-shaped: bare Node
- * loads this through scripts/generate-badge.ts, and Node understands neither.
- *
- * (public/favicon.svg carries its own copy. It has to — it is a static file
- * the browser fetches before any of this runs — and it is the one duplicate
- * worth living with.)
+ * No `@/` imports and nothing Astro-shaped: bare Node loads this through
+ * scripts/generate-badge.ts. public/favicon.svg carries its own copy, since it
+ * is fetched before any of this runs.
  */
 
 export type LogoPolygon = { fill: string; points: string };
@@ -42,21 +35,14 @@ export const LOGO_POLYGONS: LogoPolygon[] = [
 ];
 
 /**
- * The same two blues lifted for a dark ground, in polygon order — the
- * `--color-brand` and `--color-brand-blue` of styles/global.css.
- *
- * The mark's own #305b99 sits at about 2.5:1 on the badge's plate. That is
- * legible at the 40px the homepage draws it and a smudge at the 8px an 88x31
- * button can spare, which is what these are for.
+ * The same two blues lifted for a dark ground, in polygon order. The mark's own
+ * #305b99 is ~2.5:1 on the badge plate — fine at 40px, a smudge at 8.
  */
 export const LOGO_LIFTED = ["#7f8ad0", "#6f9bd8"] as const;
 
 /**
- * The mark as a standalone SVG document, at an explicit pixel size.
- *
- * satori cannot take an SVG element as a child, only an `<img>` pointing at
- * one, so badge.ts hands it this as a data URI. `fills` overrides the polygon
- * colours in order; see LOGO_LIFTED.
+ * The mark as a standalone SVG at an explicit size — satori takes only an
+ * `<img>`, so badge.ts passes this as a data URI. `fills` overrides in order.
  */
 export function logoSvg(
   height: number,

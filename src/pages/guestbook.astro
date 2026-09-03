@@ -40,18 +40,12 @@ let nextPostAt: Date | null = null;
 let dbReady = true;
 
 /**
- * The signer's country, straight off the edge — no lookup, no third party, and
- * nothing more precise than a country ever stored.
+ * The signer's country, straight off the edge — no lookup, and nothing more
+ * precise than a country stored. Read from the request, since the adapter's
+ * typed locals expose only `cfContext`; hence the cast.
  *
- * Read from the request rather than `Astro.locals`: this adapter's typed
- * locals expose only `cfContext`, the ExecutionContext, and its `runtime`
- * property is deprecated. On Workers the incoming request is the platform's,
- * which carries `cf` — Astro just types it as a standard Request, hence the
- * cast.
- *
- * Null unless it's two letters: `cf` is absent under `astro dev` and on some
- * requests, and Tor reports the placeholder `T1`. All of those mean the same
- * thing to the map.
+ * Null unless it is two letters: `cf` is absent under `astro dev`, and Tor
+ * reports `T1`.
  */
 function signerCountry(): string | null {
   const { cf } = Astro.request as Request & {
@@ -142,14 +136,8 @@ const ERRORS: Record<string, string> = {
   db: "Couldn't save that. Try again in a moment.",
 };
 
-/*
-  The signer's own last message, for the "you can sign again" line.
-
-  This used to be found in the rendered list, which was free when that list was
-  every row. It is one page now, and the signer's last message is very often
-  not on it — so it is its own query, covered by the (github_id, created_at)
-  index and reading a single row.
-*/
+// The signer's own last message, for the "you can sign again" line. Its own
+// indexed query, since a one-page list usually will not contain it.
 if (dbReady && session && Astro.request.method !== "POST") {
   try {
     nextPostAt = nextAllowedAt(await lastPostedAt(session.githubId));
@@ -260,12 +248,9 @@ if (dbReady && session && Astro.request.method !== "POST") {
           </h2>
 
           {/*
-            An island rather than markup, because the list is longer than the
-            page shows: the first page is server-rendered into the HTML below
-            and the rest arrives as the reader scrolls. `client:load` and not
-            `client:visible` — this sits at the top of the fold on a short
-            guestbook, and a list that has to be seen before it can start
-            watching for the bottom of itself is one navigation behind.
+            An island because the list is longer than the page shows: the first
+            page is server-rendered, the rest arrives on scroll. `client:load`,
+            since on a short guestbook this sits above the fold.
           */}
           <GuestbookList
             client:load

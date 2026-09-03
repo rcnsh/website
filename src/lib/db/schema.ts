@@ -2,12 +2,8 @@ import { sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
- * One row per message. Signers are identified by their GitHub user id — emails
- * are often private, and the id survives a rename.
- *
- * Messages are append-only: there is no unique constraint on the signer, so a
- * person can sign more than once, and nothing is ever edited in place. What
- * stops the list filling up is the per-day limit in `canPostAt`.
+ * One row per message, keyed to a GitHub user id — it survives a rename.
+ * Append-only and not unique per signer; `canPostAt` is what bounds the list.
  */
 export const guestbook = sqliteTable(
   "guestbook",
@@ -19,10 +15,8 @@ export const guestbook = sqliteTable(
     avatarUrl: text("avatar_url"),
     message: text("message").notNull(),
     /**
-     * ISO 3166-1 alpha-2, from Cloudflare's `request.cf.country` at the moment
-     * of signing. Nullable on purpose: the entries imported from the old
-     * guestbook predate it, Workers omits it for some requests, and `T1` comes
-     * back for Tor. The map treats all three the same — not placed.
+     * ISO 3166-1 alpha-2, from `request.cf.country`. Nullable: imported rows
+     * predate it, Workers sometimes omits it, and Tor reports `T1`.
      */
     country: text("country"),
     createdAt: integer("created_at", { mode: "timestamp" })

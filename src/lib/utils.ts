@@ -1,10 +1,8 @@
 import { clsx, type ClassValue } from "clsx";
 
 /**
- * Joins class names. Plain clsx: tailwind-merge resolves conflicts between a
- * component's own classes and ones handed to it from outside, and nothing here
- * takes a className prop — every call site owns both sides of the conditional.
- * Reach for it again the day a component starts accepting one.
+ * Joins class names. Plain clsx — nothing here takes a className prop, so there
+ * are no outside classes for tailwind-merge to resolve against.
  */
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
@@ -57,11 +55,9 @@ export function relativeTime(input: string | Date): string {
 const WORDS_PER_MINUTE = 200;
 
 /**
- * Deliberately rough. Fenced and inline code are dropped rather than counted at
- * prose speed, and what's left is counted as whitespace-separated tokens.
- *
- * Lives here rather than in lib/blog.ts so the share-card script can import it
- * without dragging in `astro:content`, which only resolves inside Astro.
+ * Deliberately rough: code is dropped, the rest counted as tokens. Lives here
+ * rather than lib/blog.ts so the share-card script can import it without
+ * dragging in `astro:content`.
  */
 export function readingTime(body = ""): number {
   const prose = body.replace(/```[\s\S]*?```/g, " ").replace(/`[^`]*`/g, " ");

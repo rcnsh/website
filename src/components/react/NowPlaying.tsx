@@ -17,13 +17,9 @@ export default function NowPlaying() {
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
 
-  /*
-    The live-updates switch. Read lazily rather than in an effect so that a
-    reader who has turned it off never gets the one poll that mounting with the
-    default would have fired. The island is server-rendered, where there is no
-    localStorage to read — lib/prefs answers `true` there, which is both the
-    default and what the server markup already assumes, so hydration matches.
-  */
+  // The live-updates switch, read lazily so someone who turned it off never
+  // gets the mount poll. lib/prefs answers `true` on the server, so hydration
+  // matches the markup.
   const [live, setLive] = useState(liveUpdates);
 
   useEffect(() => {
@@ -55,13 +51,8 @@ export default function NowPlaying() {
       }
     };
 
-    /*
-      One request either way — an empty panel would be a worse answer to
-      "don't keep updating this" than a stale one. What the switch buys is
-      everything after: no interval, and no refetch on every tab focus. The
-      clock can afford to redraw itself when it is looked at again because
-      that costs nothing; this cannot.
-    */
+    /* One request either way — an empty panel is a worse answer than a stale
+       one. The switch buys everything after: no interval, no refocus refetch. */
     load();
     if (!live) {
       return () => {
@@ -179,11 +170,8 @@ export default function NowPlaying() {
 }
 
 /**
- * Cross-fades between covers. The outgoing frame stays mounted underneath the
- * incoming one for the length of the fade, so the tile never flashes empty
- * mid-swap — what AnimatePresence was doing, in two stacked layers and a
- * keyframe. The first frame renders without animating, since there is nothing
- * behind it to reveal from.
+ * Cross-fades between covers. The outgoing frame stays mounted underneath so
+ * the tile never flashes empty; the first frame does not animate.
  */
 function Artwork({ image, title }: { image: string | null; title: string }) {
   const id = image ?? title;

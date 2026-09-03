@@ -6,11 +6,8 @@ import { z } from "zod";
 
 /**
  * Posts are plain Markdown under src/content/blog. The schema runs at build
- * time, so a missing date or an empty description fails the build with the
- * offending file named — the same bargain src/lib/site.ts makes for site.json.
- *
- * Only `.md` is matched. Adding `@astrojs/mdx` and widening the pattern to
- * `**\/*.{md,mdx}` is all it takes to mix components into a post later.
+ * time, so a missing date fails the build with the file named. `.md` only —
+ * `@astrojs/mdx` and a wider pattern is all MDX would take.
  */
 const blog = defineCollection({
   loader: glob({ base: "./src/content/blog", pattern: "**/*.md" }),

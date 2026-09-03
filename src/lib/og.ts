@@ -4,19 +4,12 @@ import satori from "satori";
 import sharp from "sharp";
 
 /**
- * Share cards, drawn ahead of the build by scripts/generate-og.mjs.
+ * Share cards, drawn ahead of the build by scripts/generate-og.ts. satori lays
+ * out and returns SVG, sharp rasterises; both are Node-only, so this is a
+ * prebuild step writing into public/ rather than an endpoint.
  *
- * satori lays the card out with a flexbox subset and returns SVG; sharp
- * rasterises it. Both are Node-only, and the Cloudflare adapter prerenders
- * inside workerd rather than Node — so this cannot be an Astro endpoint, and
- * the script writes straight into public/ instead. Nothing here ever reaches
- * the Worker; by deploy time the cards are ordinary static assets.
- *
- * Deliberately free of `@/` imports so plain `node scripts/…` can load it.
- *
- * The palette repeats the tokens in styles/global.css rather than importing
- * them, since satori resolves no custom properties. They want changing
- * together; there are only six.
+ * No `@/` imports, so plain `node scripts/…` can load it. The palette repeats
+ * styles/global.css, since satori resolves no custom properties.
  */
 
 const COLOR = {
@@ -125,12 +118,7 @@ export async function renderOgImage(card: OgCard): Promise<ArrayBuffer> {
         fontFamily: "Geist",
       },
       [
-        /*
-          Wordmark in the header's two-tone treatment, over the header's own
-          active-tab underline — 2px of brand, sized to the text. The site
-          spends its one accent colour only on marking something, and keeps
-          every rule to a hairline, so the card does the same.
-        */
+        // The wordmark over the header's active-tab underline.
         el("div", { display: "flex" }, [
           el(
             "div",

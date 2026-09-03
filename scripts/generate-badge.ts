@@ -5,15 +5,8 @@ import { BADGE_HEIGHT, BADGE_WIDTH, renderBadge } from "../src/lib/badge.ts";
 
 /**
  * Draws the 88x31 button into public/badge.png, and a 2x copy beside it.
- *
- * Generated rather than committed, like the share cards and public/_headers:
- * it is derived from the mark in src/lib/logo.ts and the layout in
- * src/lib/badge.ts, and a derived file kept in git is a file that can disagree
- * with what it was derived from. Runs ahead of both `dev` and `build`; see
- * package.json.
- *
- * Not incremental, unlike the share cards — there are two files and they take
- * a moment between them, so there is nothing to be clever about.
+ * Generated rather than committed so it cannot drift from src/lib/badge.ts.
+ * Runs ahead of both `dev` and `build`; see package.json.
  */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");

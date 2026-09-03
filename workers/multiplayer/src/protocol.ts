@@ -1,11 +1,6 @@
 /**
- * Everything the room decides that does not need a Durable Object to decide
- * it: what counts as a room, who is allowed to connect, what a valid message
- * looks like, who has spent their budget, and who gets which colour.
- *
- * Split out from index.ts so it can be tested. index.ts imports
- * `cloudflare:workers`, which only resolves inside workerd, so a test that
- * reached for it would not load at all.
+ * Everything the room decides that does not need a Durable Object to decide it.
+ * Split from index.ts so it can be tested outside workerd.
  */
 
 export interface Identity {
@@ -18,32 +13,17 @@ export interface Identity {
 export const MAX_PEERS = 20;
 
 /**
- * Why a room hung up on purpose.
- *
- * The first two are answers rather than failures, and the difference matters
- * to the reader: a full room is worth coming back to, a page with no room is
- * not. Neither is worth reconnecting at, which is what a refused handshake
- * gets you — the browser tells a failed upgrade and a dead server apart not at
- * all, so the client backs off and knocks for the rest of the session at
- * something that was never going to change its mind.
- *
- * So a refusal is a socket that opens, says one word and closes.
- *
- * `flood` is the exception: it is a refusal aimed at a client that is not
- * behaving, and an honest client never sees it. See Budget.
+ * Why a room hung up on purpose. Sent over an open socket rather than by
+ * refusing the upgrade, which the browser cannot tell from a dead server.
+ * `flood` is aimed at a misbehaving client — see Budget.
  */
 export type ShutReason = "full" | "unknown" | "flood";
 
 /** Application close codes start at 4000; anything below is the protocol's. */
 export const CLOSE_SHUT = 4001;
 
-/*
-  Deliberately wider than the site's palette, which is one accent on warm
-  grey — remote cursors have to be told apart at a glance, and they should not
-  read as site chrome. Held at roughly even lightness so no one gets a cursor
-  that disappears against #0d0d0c, and each is named by its colour so the
-  label explains the arrow it is attached to.
-*/
+/* Wider than the site palette — cursors must be told apart at a glance and
+   not read as chrome. Even lightness, so none vanish against #0d0d0c. */
 export const COLOURS: ReadonlyArray<readonly [name: string, hex: string]> = [
   ["amber", "#f2a65a"],
   ["coral", "#e8705f"],
@@ -89,12 +69,9 @@ export interface Move {
 }
 
 /**
- * Whether a parsed message is a position update.
- *
- * The socket is unauthenticated, so this is the only thing standing between a
- * hostile client and the room's state. Finite numbers specifically: NaN and
- * Infinity both survive `typeof === "number"` and would poison a cursor's
- * position permanently, since every later frame interpolates from it.
+ * Whether a parsed message is a position update. The socket is
+ * unauthenticated, so this is the only guard on the room's state. Finite
+ * specifically: NaN would poison every later interpolated frame.
  */
 export function isMove(value: unknown): value is { t: "m" } & Move {
   if (typeof value !== "object" || value === null) return false;
@@ -109,19 +86,13 @@ export function isMove(value: unknown): value is { t: "m" } & Move {
 }
 
 /**
- * Rooms are keyed by page path, so the cursor you see is pointing at the same
- * paragraph you are looking at. Normalised hard — a room is an identifier, and
- * `/blog/x`, `/blog/x/` and `/blog/X` should not be three of them.
+ * Rooms are keyed by page path, normalised hard so `/blog/x`, `/blog/x/` and
+ * `/blog/X` are one room. Returns null for anything that is not a page here.
  *
- * Returns null for anything that is not a page on this site.
- *
- * `known` is the list of paths the site actually has, generated at build time
- * into shared/rooms.generated.ts. It is not decoration: each distinct key is a
- * Durable Object that comes into existence by being asked for, and the shape
- * checks below pass `/aaa`, `/aab` and every other spelling a script cares to
- * try. The Origin check in front only binds clients that respect it. Called
- * without a list — as the generator itself does, to normalise the entries
- * going into one — it checks the shape and nothing else.
+ * `known` is the build-time path list (shared/rooms.generated.ts), and it is
+ * load-bearing: each distinct key spawns a Durable Object on request, and the
+ * shape checks alone would pass every spelling a script cares to try. Omitted
+ * by the generator itself, which only needs the normalisation.
  */
 export function roomKey(
   raw: string | null,
@@ -129,9 +100,7 @@ export function roomKey(
 ): string | null {
   if (!raw) return null;
 
-  // Repeated slashes collapse rather than being rejected: a doubled slash in
-  // a link is an ordinary typo, it survives into location.pathname, and
-  // //blog/x is the same page as /blog/x — so it had better be the same room.
+  // Doubled slashes collapse rather than reject: //blog/x is the same page.
   const path =
     raw
       .toLowerCase()
@@ -139,10 +108,8 @@ export function roomKey(
       .replace(/\/+$/, "") || "/";
   if (path.length > 128 || !/^\/[a-z0-9\-._/]*$/.test(path)) return null;
 
-  // `.` is legitimate inside a segment — /blog/a-post.v2 — but a segment that
-  // is only dots is a relative step, and two spellings of one page would be
-  // two rooms. Nothing the client sends can contain one: it passes
-  // location.pathname, which the browser has already resolved.
+  // `.` is fine inside a segment (/blog/a-post.v2); an all-dots segment is a
+  // relative step, and two spellings of one page would be two rooms.
   if (path.split("/").some((segment) => segment === "." || segment === "..")) {
     return null;
   }
@@ -152,11 +119,7 @@ export function roomKey(
   return path;
 }
 
-/**
- * Same-origin only. The socket is unauthenticated and costs Durable Object
- * duration to hold open, so it is not something to leave open to any page on
- * the internet that fancies a free realtime backend.
- */
+/** Same-origin only — the socket is unauthenticated and billed by duration. */
 export function originAllowed(origin: string | null): boolean {
   if (!origin) return false;
   if (origin === "https://rcn.sh") return true;
@@ -172,28 +135,19 @@ export function originAllowed(origin: string | null): boolean {
 }
 
 /**
- * Per-socket message allowance, in a rolling one-second window.
+ * Per-socket message allowance in a rolling one-second window.
  *
- * Every inbound WebSocket message is a billed Durable Object request, counted
- * when the runtime delivers it — which is to say before `webSocketMessage` has
- * looked at it, and therefore before this class has had any say. Spending the
- * budget is not what saves the request; it saves the parse, the clamp and the
- * fan-out that would otherwise follow.
- *
- * Which is why exceeding it closes the socket rather than dropping the frame.
- * Dropping frames leaves a flooding client connected and sending, and each of
- * those sends is charged whether or not anything is done with it; hanging up
- * is the only thing in reach that actually stops the meter. The cost of being
- * wrong is small — the allowance is half again over the client's own send
- * rate, and a reconnect is one request against a whole second of them.
+ * The inbound request is already billed by the time this runs, so exceeding
+ * the budget closes the socket rather than dropping the frame — hanging up is
+ * the only thing that stops the meter. The allowance is half again over the
+ * client's own send rate, so an honest one never trips it.
  */
 export class Budget {
   private windows = new Map<number, { until: number; count: number }>();
   private readonly perSecond: number;
 
-  // Assigned longhand rather than as a constructor parameter property: Node
-  // runs the tests by stripping types, not compiling them, and a parameter
-  // property is syntax that has to be compiled away rather than erased.
+  // Longhand, not a parameter property: Node's test runner strips types
+  // rather than compiling them.
   constructor(perSecond: number) {
     this.perSecond = perSecond;
   }
@@ -217,23 +171,15 @@ export class Budget {
 }
 
 /**
- * An opaque client-supplied token, or null for anything that is not one.
- *
- * Untrusted by construction: all it decides is which arrow and which animal
- * someone is given, so there is nothing to be had by borrowing another's. The
- * bounds are because it is a string from a stranger that gets hashed, and a
- * hash is a poor place to discover you were handed a megabyte.
+ * An opaque client-supplied token, or null. Untrusted — it only picks a colour
+ * and an animal — but bounded, since it gets hashed.
  */
 export function sessionSeed(raw: string | null): string | null {
   if (!raw) return null;
   return /^[a-z0-9]{1,64}$/i.test(raw) ? raw : null;
 }
 
-/**
- * FNV-1a, 32-bit. Not a security property — it is here to turn a token into
- * the same two small numbers every time, so a reader keeps their cursor across
- * a reconnection and a walk to the next page.
- */
+/** FNV-1a, 32-bit. Not security — just a stable token to identity mapping. */
 function hash(text: string): number {
   let value = 0x81_1c_9d_c5;
   for (let index = 0; index < text.length; index++) {
@@ -244,24 +190,13 @@ function hash(text: string): number {
 }
 
 /**
- * A colour nobody in the room is already using, where possible, so two people
- * are never both "the blue one". Falls back to the whole palette once the room
- * is bigger than it.
+ * An identity, preferring a colour nobody in the room has. Falls back to the
+ * whole palette once the room outgrows it; `random` is injected so tests can
+ * pin the choice.
  *
- * `random` is injected rather than reached for, so the choice can be pinned in
- * a test.
- *
- * `seed` is the caller's session token, and it is what stops one reader
- * looking like a crowd. Identity used to be minted per socket, and the socket
- * is dropped on every idle timeout, tab switch and navigation — so one person
- * reading three posts arrived and left three times, under three names, in a
- * room where two of those names were the only other thing on screen.
- *
- * The animal is the stable half: it comes from the seed and nothing else, so
- * you are the same fox all session. The colour is preferred from the seed but
- * gives way to a free one when your colour is already in the room, because
- * telling two cursors apart is what the colours are for, and the name follows
- * the colour so the label never describes an arrow of some other shade.
+ * `seed` is the caller's session token, and keeps one reader from looking like
+ * a crowd across reconnects. The animal comes from it and nothing else; the
+ * colour is only preferred, since telling two cursors apart wins.
  */
 export function mint(
   taken: readonly Identity[],
@@ -280,18 +215,11 @@ export function mint(
       ? palette[Math.floor(random() * palette.length)]
       : preferred(seeded, usedColours, palette);
 
-  /*
-    Ids are per-room and short-lived, so 24 bits is far past collision risk at
-    MAX_PEERS. The retries cover the rest — but bounded, and with a fallback
-    that cannot fail. This runs inside the Durable Object, where an unbounded
-    loop does not lose one cursor, it wedges the room for everyone in it, and
-    "the random source will never repeat itself enough times" is not a property
-    worth betting a hang on.
-  */
+  /* 24 bits is well past collision risk at MAX_PEERS. Retries are bounded
+     with a fallback that cannot fail — a loop here would wedge the room. */
   let id = 0;
   if (seeded !== null) {
-    // Same reader, same id — which is what makes a "bye" from the old socket
-    // and a "join" from the new one recognisable as one person moving.
+    // Same reader, same id, so a reconnect reads as one person moving.
     const candidate = 1 + (seeded % 0xff_ff_ff);
     if (!usedIds.has(candidate)) id = candidate;
   }
