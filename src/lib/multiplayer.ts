@@ -57,8 +57,15 @@ const IDLE_MS = 4 * 60 * 1000;
 /** Where the reader's session token is kept. See `token`. */
 const TOKEN_KEY = "rcn:mp-session";
 
-/** Why the room hung up on us, when it did so on purpose. */
-type Refusal = "full" | "unknown";
+/**
+ * Why the room hung up on us, when it did so on purpose.
+ *
+ * `flood` should never reach an honest client — the room's allowance is well
+ * above the rate this file paces itself at — so seeing it means a bug here,
+ * not a busy page. It is handled rather than ignored because the alternative
+ * is a silent reconnect loop into a room that will hang up again.
+ */
+type Refusal = "full" | "unknown" | "flood";
 
 /**
  * A stable, opaque name for this tab, minted once and kept for the session.
@@ -361,7 +368,10 @@ export function start(): Session {
         calls revive(), which is the only thing that undoes this.
       */
       case "shut":
-        refused = message.why === "full" ? "full" : "unknown";
+        refused =
+          message.why === "full" || message.why === "flood"
+            ? message.why
+            : "unknown";
         connection.halt();
         break;
     }

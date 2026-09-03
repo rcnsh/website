@@ -20,7 +20,7 @@ export const MAX_PEERS = 20;
 /**
  * Why a room hung up on purpose.
  *
- * Both of these are answers rather than failures, and the difference matters
+ * The first two are answers rather than failures, and the difference matters
  * to the reader: a full room is worth coming back to, a page with no room is
  * not. Neither is worth reconnecting at, which is what a refused handshake
  * gets you — the browser tells a failed upgrade and a dead server apart not at
@@ -28,8 +28,11 @@ export const MAX_PEERS = 20;
  * something that was never going to change its mind.
  *
  * So a refusal is a socket that opens, says one word and closes.
+ *
+ * `flood` is the exception: it is a refusal aimed at a client that is not
+ * behaving, and an honest client never sees it. See Budget.
  */
-export type ShutReason = "full" | "unknown";
+export type ShutReason = "full" | "unknown" | "flood";
 
 /** Application close codes start at 4000; anything below is the protocol's. */
 export const CLOSE_SHUT = 4001;
@@ -171,8 +174,18 @@ export function originAllowed(origin: string | null): boolean {
 /**
  * Per-socket message allowance, in a rolling one-second window.
  *
- * Inbound messages are billed as Durable Object requests, so a client that
- * ignores the send cap gets its excess dropped rather than charged.
+ * Every inbound WebSocket message is a billed Durable Object request, counted
+ * when the runtime delivers it — which is to say before `webSocketMessage` has
+ * looked at it, and therefore before this class has had any say. Spending the
+ * budget is not what saves the request; it saves the parse, the clamp and the
+ * fan-out that would otherwise follow.
+ *
+ * Which is why exceeding it closes the socket rather than dropping the frame.
+ * Dropping frames leaves a flooding client connected and sending, and each of
+ * those sends is charged whether or not anything is done with it; hanging up
+ * is the only thing in reach that actually stops the meter. The cost of being
+ * wrong is small — the allowance is half again over the client's own send
+ * rate, and a reconnect is one request against a whole second of them.
  */
 export class Budget {
   private windows = new Map<number, { until: number; count: number }>();

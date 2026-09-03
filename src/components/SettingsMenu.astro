@@ -294,6 +294,11 @@ const settings = [
         status.textContent = "On — cursors aren't available on this page.";
         return;
       }
+      // Not a thing a working client can provoke; see Refusal in lib/multiplayer.
+      if (state.refused === "flood") {
+        status.textContent = "On — disconnected for sending too fast.";
+        return;
+      }
 
       if (state.stalled) {
         status.textContent = "On — can't reach the server. Still trying.";
