@@ -1,30 +1,15 @@
 /**
- * The site's security headers, written once and served from two places.
+ * The site's security headers, written once and served from two places:
+ * public/_headers dresses prerendered pages Cloudflare serves without waking
+ * the Worker, src/middleware.ts dresses everything else. Edit this file —
+ * scripts/generate-headers.ts writes public/_headers out of it.
  *
- * Cloudflare answers a request for a prerendered page out of the asset store
- * without ever waking the Worker, so those responses are dressed by
- * public/_headers; anything the Worker renders — /guestbook, /api/*, server
- * islands — is dressed by src/middleware.ts. The two lists have to be the same
- * list, and keeping them as two hand-maintained copies meant every change to
- * one was a chance to forget the other. The comment saying so was the only
- * thing holding them together.
- *
- * So the set lives here, and scripts/generate-headers.ts writes public/_headers
- * out of it ahead of every dev run and build. Editing that file by hand does
- * nothing; edit this one.
- *
- * Deliberately plain TypeScript — no `@/` alias, no `import.meta.env`, nothing
- * Astro-shaped. Vite loads it for the middleware, bare Node loads it for the
- * generator, and astro.config.ts loads it for the CSP, and not all three
- * understand the same things.
+ * Plain TypeScript, no Astro-isms: Vite, bare Node and astro.config.ts all
+ * load it, and they do not understand the same things.
  */
 
 export interface HeaderContext {
-  /**
-   * Under `npm run dev:multiplayer` the cursor Worker runs on its own port,
-   * which is a different origin and needs saying. In production it answers on
-   * a route under rcn.sh and `'self'` covers it.
-   */
+  /** In dev the cursor Worker is on its own port; in production `'self'` covers it. */
   dev?: boolean;
 }
 
@@ -43,26 +28,19 @@ export function securityHeaders({ dev = false }: HeaderContext = {}) {
 }
 
 /**
- * Everything the policy says that is not about scripts or styles.
- *
- * Shared verbatim between the header below and the `<meta>` element Astro
- * emits (see `security.csp` in astro.config.ts), because a browser enforces
- * every policy it is given and a directive present in one but absent from the
- * other is a directive with two different answers depending on which response
- * you happened to get.
+ * Everything the policy says that is not about scripts or styles. Shared
+ * verbatim with the `<meta>` CSP Astro emits, since a browser enforces both
+ * and a directive in only one has two answers.
  */
-export function baseDirectives(dev = false): string[] {
+function baseDirectives(dev = false): string[] {
   return [
     "default-src 'self'",
     "base-uri 'self'",
     "form-action 'self'",
     "object-src 'none'",
     "font-src 'self'",
-    /*
-      The multiplayer cursor socket. Same origin — it is a Worker route under
-      rcn.sh, not a second hostname — but `'self'` covering ws/wss is a CSP3
-      clarification some browsers were late to, so the scheme is spelled out.
-    */
+    // The cursor socket. Same origin, but `'self'` covering ws/wss is a CSP3
+    // clarification some browsers were late to, so spell out the scheme.
     `connect-src 'self' wss://rcn.sh${dev ? ` ${DEV_MULTIPLAYER}` : ""}`,
     // Spotify spreads art across several scdn.co subdomains, hence wildcards.
     "img-src 'self' data: https://*.scdn.co https://*.spotifycdn.com https://avatars.githubusercontent.com https://upload.rcn.sh https://static.cloudflareinsights.com",
@@ -71,25 +49,13 @@ export function baseDirectives(dev = false): string[] {
 }
 
 /**
- * The header policy.
+ * The policy. `script-src` and `style-src` carry 'unsafe-inline' because this
+ * header is written ahead of time and cannot name Astro's inline scripts.
  *
- * `script-src` and `style-src` keep `'unsafe-inline'` here, which reads like
- * the opposite of the hardening it is part of. The reason is how two policies
- * compose: a browser given both a header and a `<meta>` CSP enforces *both*,
- * and a resource has to satisfy each one independently. So the strictness
- * lives in the meta element — Astro hashes every inline script and style it
- * emits and names those hashes there — and this header stays permissive on
- * exactly those two directives so that it cannot be the thing that blocks a
- * script the hashes have already vouched for.
- *
- * The net effect on an HTML response is the intersection of the two: Astro's
- * own hashed inline scripts run, and nothing else inline does. Tightening this
- * line instead would not improve on that; it would break every page, because
- * the header has no hashes to offer and `'self'` does not cover inline.
- *
- * What this header is still the only source of: `frame-ancestors`, which is
- * ignored inside a meta element, and the whole policy for responses that are
- * not HTML documents and so carry no meta at all.
+ * Hashing them is `security.csp`, which is off: it publishes the hashes in a
+ * <meta> element, and <ClientRouter /> swaps document contents rather than
+ * reparsing, so the entry page's hashes block every page reached from the nav.
+ * See astro.config.ts. A known gap; nothing here renders raw HTML today.
  */
 function contentSecurityPolicy(dev: boolean): string {
   return [
@@ -100,12 +66,7 @@ function contentSecurityPolicy(dev: boolean): string {
   ].join("; ");
 }
 
-/**
- * The contents of public/_headers.
- *
- * Always the production set: this file only ever dresses responses Cloudflare
- * serves from the asset store, which is a thing that happens after a build.
- */
+/** The contents of public/_headers. Always the production set. */
 export function headersFile(): string {
   const rules = Object.entries(securityHeaders())
     .map(([name, value]) => `  ${name}: ${value}`)
@@ -113,14 +74,9 @@ export function headersFile(): string {
 
   return `# Generated by scripts/generate-headers.ts — edit shared/security.ts.
 #
-# Security headers for statically served responses. Routes rendered by the
-# Worker (/guestbook, /api/*, server islands) never touch this file —
-# Cloudflare serves assets without invoking the Worker, and this only applies
-# to those. src/middleware.ts carries the same set, from the same source, for
-# everything else.
-#
-# The Cloudflare adapter appends its own immutable Cache-Control rule for
-# /_astro/* to this file at build time.
+# Statically served responses only; src/middleware.ts covers everything the
+# Worker renders. The Cloudflare adapter appends its own /_astro/* rule here
+# at build time.
 
 /*
 ${rules}

@@ -1,13 +1,9 @@
 /**
- * The inner markup of the icons the header and the command palette draw,
- * copied from lucide v1 (ISC) so neither has to pull the React icon set into
- * the browser. Names match the `icon` values in src/content/site.json — add
- * one here before using it there.
+ * Icon markup copied from lucide v1 (ISC), so the React icon set stays out of
+ * the browser. Names match the `icon` values in src/content/site.json.
  *
- * Every entry is drawn by Icon.astro on lucide's own 24×24 stroked grid, so a
- * path pasted from the package renders exactly as the component did. The one
- * exception is `github`, which is a filled mark rather than a stroked one and
- * says so on the path itself.
+ * Drawn by Icon.astro on lucide's 24×24 stroked grid; `github` is a filled
+ * mark instead and says so on the path.
  */
 const ICONS: Record<string, string> = {
   home: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',

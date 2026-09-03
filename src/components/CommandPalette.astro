@@ -3,18 +3,12 @@ import Icon from "./Icon.astro";
 import { externalLinks, nav } from "@/lib/site";
 
 /**
- * ⌘K / Ctrl+K, or "/" from anywhere that isn't a text field.
+ * ⌘K / Ctrl+K, or "/" from anywhere that isn't a text field. The rows are
+ * server-drawn, so filtering is hiding and reordering markup rather than
+ * hydrating a component tree for a dialog nobody has opened.
  *
- * The rows are rendered here rather than built in the browser. The list comes
- * from site.json, it is a handful of entries long, and shipping it as markup
- * means filtering is hiding rows and reordering them — no framework, and no
- * component tree to hydrate on every page just to draw a dialog nobody has
- * opened yet.
- *
- * It lives at the end of <body> rather than inside the header, because the
- * header's backdrop-blur makes it the containing block for fixed-position
- * descendants — the overlay would size to the bar instead of the viewport.
- * The button that opens it stays in the header, marked data-palette-trigger.
+ * Lives at the end of <body>: the header's backdrop-blur is a containing block
+ * for fixed positioning, so the overlay would size to the bar.
  */
 const items = [...nav, ...externalLinks].map((item) => ({
   ...item,
@@ -175,14 +169,7 @@ const items = [...nav, ...externalLinks].map((item) => ({
     const shellPane = palette.querySelector<HTMLElement>("[data-palette-shell]");
     const prompt = palette.querySelector<HTMLElement>("[data-palette-prompt]");
 
-    /**
-     * Shell mode.
-     *
-     * The engine and the filesystem are fetched the first time someone types
-     * `$`, never before — the palette is server-drawn so that an unopened
-     * dialog costs nothing, and loading a shell nobody asked for would give
-     * that straight back.
-     */
+    /** Shell mode. Engine and filesystem are fetched on the first `$`, never before. */
     type Shell = typeof import("../lib/shell");
     /** The filesystem shape, taken from the engine rather than restated. */
     type Root = Parameters<Shell["run"]>[0]["root"];
@@ -201,12 +188,8 @@ const items = [...nav, ...externalLinks].map((item) => ({
 
     /**
      * Subsequence match — "gst" finds "Guestbook". Null when it doesn't match.
-     *
-     * The subsequence walks the label alone, never the keywords. Given a whole
-     * keyword line to cross, almost any short query finds some path through
-     * it: "mus" threads h-o-**m**-e index abo-**u**-t bio **s**tart and drags
-     * Home into a search for Music. Keywords still match above, but only as a
-     * run of characters someone actually typed.
+     * Walks the label alone: given a whole keyword line, almost any short query
+     * threads some path through it. Keywords still match as a literal run.
      */
     const score = (row: HTMLAnchorElement, query: string): number | null => {
       if (!query) return 0;

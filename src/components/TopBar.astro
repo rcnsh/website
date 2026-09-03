@@ -103,12 +103,8 @@ const homeActive = isActive("/");
 </header>
 
 <style>
-  /*
-    Hovering the wordmark runs the logo's own blue → indigo across it. The
-    stops are registered as <color> so they interpolate — a gradient built
-    from plain custom properties would snap between the two states.
-    initial-value has to be a literal, so it repeats --color-ink's hex.
-  */
+  /* Registered as <color> so the gradient interpolates rather than snapping.
+     initial-value must be a literal, hence the repeated --color-ink hex. */
   @property --wm-from {
     syntax: "<color>";
     inherits: false;

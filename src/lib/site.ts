@@ -80,10 +80,8 @@ const schema = z.object({
                 /** Second line — a model, a maker, a qualifier. */
                 detail: z.string().optional(),
                 /**
-                 * Which drawing to show. Hardware names a hand-drawn shape in
-                 * UsesArt.astro; software will name a brand mark. An unknown
-                 * name renders a placeholder rather than nothing, so a typo is
-                 * visible on the page instead of silently blank.
+                 * Which drawing to show: a hand-drawn shape in UsesArt.astro,
+                 * or a brand mark. An unknown name renders a placeholder.
                  */
                 art: z.string().min(1),
               }),
@@ -129,12 +127,7 @@ export const site = {
   spotifyUser: config.accounts.spotify,
 } as const;
 
-/**
- * A page's own share card, drawn into public/ by scripts/generate-og.ts.
- *
- * Home is not among them — it keeps the static /og.png, which is the card for
- * the site rather than for a page.
- */
+/** A page's share card. Home is not among them; it keeps the static /og.png. */
 export const pageOgHref = (key: keyof typeof config.pages) =>
   `/og/pages/${key}.png`;
 

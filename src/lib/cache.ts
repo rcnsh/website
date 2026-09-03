@@ -1,17 +1,10 @@
 import { env, waitUntil } from "cloudflare:workers";
 
 /**
- * Stale-while-revalidate cache over the CACHE KV namespace. Every upstream call
- * (Spotify, GitHub) goes through here so a visitor never waits on a third-party
- * API: a stale value is returned immediately and refreshed after the response.
- *
- * Only a cold miss blocks. Entries outlive `freshFor` by STALE_GRACE so there
- * is always something stale to serve — a month, because the alternative to a
- * long grace window is a scheduled job that can rot silently.
- *
- * `maxStale` is the counterweight: date-anchored data (recently played, the
- * contribution graph) looks plainly wrong when it's weeks old, so those opt
- * into a ceiling past which the cache blocks and refetches instead.
+ * Stale-while-revalidate over the CACHE KV namespace, so a visitor never waits
+ * on Spotify or GitHub. Only a cold miss blocks; entries outlive `freshFor` by
+ * a month of grace. `maxStale` is the counterweight, for date-anchored data
+ * that looks plainly wrong when it is weeks old.
  */
 
 type Entry<T> = { v: T; t: number };
@@ -67,8 +60,7 @@ export async function cached<T>(
     const age = Date.now() - hit.t;
 
     if (age >= maxStaleSeconds * 1000) {
-      // Too old to show. Block on a fresh fetch — but if that fails, the old
-      // value still beats an error, so fall back to it rather than throwing.
+      // Too old to show. Block, but fall back to stale rather than throwing.
       try {
         const value = await loader();
         await write(value);
@@ -90,8 +82,7 @@ export async function cached<T>(
       try {
         waitUntil(refresh);
       } catch {
-        // No request context — prerendering at build time. The refresh is
-        // still in flight, just not guaranteed to finish. Stale is fine.
+        // No request context — prerendering. The refresh may not finish.
       }
     }
 
