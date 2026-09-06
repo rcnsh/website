@@ -29,6 +29,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Every step below is useless without these, and the way they fail
+      # without them is a hundred lines of wrangler stack trace whose actual
+      # cause — "the secret is not set" — is one clause in the middle of it.
+      # An unset secret expands to the empty string rather than erroring, so
+      # nothing else here can tell that case apart from a real failure.
+      # Checked before the checkout so the run ends in seconds, not minutes.
+      - name: Check the secrets exist
+        env:
+          DEV_VARS: ${{ secrets.DEV_VARS }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=()
+          for name in DEV_VARS CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]}." \
+                 "Add them under Settings -> Secrets and variables -> Actions." \
+                 "DEV_VARS is the contents of a filled-in .dev.vars;" \
+                 "the Cloudflare pair is an API token with Workers Scripts:Edit" \
+                 "and R2:Read, plus the account id it belongs to."
+            exit 1
+          fi
+
       - uses: actions/checkout@v5
 
       - uses: actions/setup-node@v5
