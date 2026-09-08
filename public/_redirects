@@ -1,0 +1,4 @@
+# @astrojs/sitemap names its index sitemap-index.xml, and robots.txt points
+# there. /sitemap.xml is the name people and tooling type by hand, so send it
+# on rather than 404ing.
+/sitemap.xml /sitemap-index.xml 301
