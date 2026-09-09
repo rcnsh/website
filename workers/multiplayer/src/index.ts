@@ -32,6 +32,8 @@ import {
 
 interface Env {
   ROOMS: DurableObjectNamespace<CursorRoom>;
+  /** Upgrades per client per minute. Configured in wrangler.jsonc. */
+  SOCKET_BUDGET?: RateLimit;
 }
 
 /** What a socket carries across a hibernation eviction. */
@@ -258,6 +260,31 @@ async function presenceCount(
 }
 
 /**
+ * Whether this client has opened too many sockets this minute.
+ *
+ * MAX_PEERS bounds how many can be open at once and Budget bounds how fast an
+ * open one may talk, but neither bounds connect-disconnect-repeat: every
+ * upgrade is a billed Durable Object request, and a room that is emptied as
+ * fast as it is filled never reaches MAX_PEERS. This is the only thing that
+ * costs a flooder anything.
+ *
+ * Fails open — a missing binding under `wrangler dev`, or a limiter that
+ * throws, must not take cursors off the site.
+ */
+async function churning(request: Request, env: Env): Promise<boolean> {
+  const key = request.headers.get("cf-connecting-ip");
+  if (!env.SOCKET_BUDGET || !key) return false;
+
+  try {
+    const { success } = await env.SOCKET_BUDGET.limit({ key });
+    return !success;
+  } catch (error) {
+    console.error("[multiplayer] upgrade budget failed, allowing", error);
+    return false;
+  }
+}
+
+/**
  * Only matters in development, where the site is on :4321 and this on :8788.
  * Echoed rather than wildcarded because the header takes one origin, and
  * originAllowed() has already vetted it. `Vary` because the copy is cached.
@@ -307,6 +334,17 @@ export default {
     }
 
     if (counting) return presenceCount(request, env, ctx, room);
+
+    // Last gate before the Durable Object, which is where the meter is.
+    if (await churning(request, env)) {
+      // Down the socket where there is one, the same as an unknown room; a
+      // caller that did not ask for one cannot be handed a 101.
+      if (wantsSocket) return shut("busy");
+      return new Response("Too many requests", {
+        status: 429,
+        headers: { "retry-after": "60" },
+      });
+    }
 
     return env.ROOMS.get(env.ROOMS.idFromName(room)).fetch(request);
   },
