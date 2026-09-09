@@ -6,6 +6,34 @@
   "observability": { "enabled": true },
 
   /*
+    This Worker parses a URL and hands off to a Durable Object; it has no
+    business using milliseconds of CPU, let alone the default 30 seconds.
+  */
+  "limits": { "cpu_ms": 50 },
+
+  /*
+    Upgrades per client per minute. MAX_PEERS already caps how many sockets can
+    be *open* at once — 20 a room, seven rooms — and Budget in protocol.ts caps
+    how fast an open one may talk. Neither bounds churn: connect, disconnect,
+    repeat is a billed Durable Object request each time, with no ceiling and
+    without ever filling a room.
+
+    30 is generous for honest use. <ClientRouter /> reconnects on every soft
+    navigation and prefetch is set to hover, so a reader moving quickly through
+    the site opens a handful a minute.
+
+    The 2000 range because namespace ids are account-wide: sharing 1001 with
+    the site Worker would mean these upgrades spending the site's API budget.
+  */
+  "ratelimits": [
+    {
+      "name": "SOCKET_BUDGET",
+      "namespace_id": "2001",
+      "simple": { "limit": 30, "period": 60 }
+    }
+  ],
+
+  /*
     A route rather than a Custom Domain. rcn.sh itself is a Custom Domain
     pointing at the `rcnsh` worker, and a route on a subpath of that hostname
     runs *before* it — so this worker answers /api/multiplayer and the site
