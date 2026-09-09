@@ -92,6 +92,10 @@
     // The r2.dev URL also works if this is ever detached:
     //   https://pub-8637e700566f4157b02a73fe9f7526df.r2.dev
     "PUBLIC_BUCKET_URL": "https://upload.rcn.sh",
+
+    // The music-warehouse Worker: listening history, plus live proxies for
+    // now-playing and top lists. Paired with the MUSIC_WAREHOUSE_TOKEN secret.
+    "MUSIC_WAREHOUSE_URL": "https://music-api.rcn.sh",
     "GITHUB_USERNAME": "rcnsh"
   }
 }

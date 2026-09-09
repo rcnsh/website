@@ -12,8 +12,7 @@ GITHUB_CLIENT_SECRET=""
 # lifts the REST rate limit from 60/hr to 5000/hr.
 GITHUB_TOKEN=""
 
-# Spotify app credentials + a refresh token minted with the scopes:
-#   user-read-currently-playing user-top-read user-read-recently-played
-SPOTIFY_CLIENT_ID=""
-SPOTIFY_CLIENT_SECRET=""
-SPOTIFY_REFRESH_TOKEN=""
+# Read-only token for the music-warehouse Worker (its READ_TOKEN secret).
+# Listening data is read from there, not from Spotify — the warehouse holds the
+# only Spotify grant, so this site has no refresh token to keep alive.
+MUSIC_WAREHOUSE_TOKEN=""

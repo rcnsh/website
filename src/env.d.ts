@@ -5,9 +5,10 @@ interface Secrets {
 	GITHUB_CLIENT_ID: string;
 	GITHUB_CLIENT_SECRET: string;
 	GITHUB_TOKEN: string;
-	SPOTIFY_CLIENT_ID: string;
-	SPOTIFY_CLIENT_SECRET: string;
-	SPOTIFY_REFRESH_TOKEN: string;
+	// Read-only credential for the music-warehouse Worker. It reaches that
+	// Worker's /api/* routes and nothing else — it cannot poll or write.
+	// Spotify's own credentials live in the warehouse, not here.
+	MUSIC_WAREHOUSE_TOKEN: string;
 }
 
 // Merged into both spellings: `Cloudflare.Env` backs the `env` import from

@@ -3,11 +3,24 @@ import { z } from "zod";
 import { cached } from "./cache";
 
 /**
- * Spotify. The schemas describe only the fields actually rendered, so a field
- * Spotify adds or nulls can't take the page down.
+ * Listening data, read from the music-warehouse Worker rather than from
+ * Spotify directly.
+ *
+ * The warehouse holds the only Spotify grant, so this site carries no Spotify
+ * credential and has no six-month refresh-token clock of its own. Two of the
+ * three reads are answered from the warehouse's own database and survive a
+ * dead Spotify grant; `now-playing` and `top` are live proxies, because
+ * neither answer exists in stored rows — nothing recorded says what is playing
+ * *now*, and `recently-played` never carries artist images.
+ *
+ * Every call here runs server-side, in the Worker. The browser only ever talks
+ * to this site's own /api/spotify/* routes, so there is no cross-origin request
+ * to configure and the warehouse token never reaches client JavaScript. Keep it
+ * that way.
+ *
+ * The schemas describe only the fields actually rendered, so a field the
+ * upstream adds or nulls can't take the page down.
  */
-
-const TOKEN_CACHE_KEY = "spotify:access_token";
 
 const imageSchema = z
   .array(z.object({ url: z.string(), width: z.number().nullish() }))
@@ -33,6 +46,7 @@ function artwork(
 const TRACK_ART = 128;
 /** Artist tiles are a grid column wide — around 160px on a phone. */
 const ARTIST_ART = 320;
+
 const artistSchema = z.object({
   name: z.string(),
   external_urls: z.object({ spotify: z.string() }).optional(),
@@ -82,7 +96,7 @@ export type NowPlaying =
 export type TimeRange = "short_term" | "medium_term" | "long_term";
 
 /*
-How long each range stays fresh, matched to how fast it moves. A long window only means Spotify is polled less — `cached()` serves stale instantly either way.
+How long each range stays fresh, matched to how fast it moves. A long window only means the warehouse is polled less — `cached()` serves stale instantly either way.
 */
 const TOP_FRESHNESS: Record<TimeRange, number> = {
   short_term: 60 * 60, // "4 weeks" — shifts day to day
@@ -101,92 +115,60 @@ function normaliseTrack(raw: z.infer<typeof trackSchema>): Track {
   };
 }
 
-// --- Auth ---
+// --- Transport ---
 
-async function requestAccessToken(): Promise<{ token: string; ttl: number }> {
-  const { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REFRESH_TOKEN } = env;
+/**
+ * A page render must not hang on a slow warehouse. On timeout `cached()` falls
+ * back to whatever it already holds, so a stall costs freshness, not the page.
+ */
+const REQUEST_TIMEOUT_MS = 6_000;
 
-  if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET || !SPOTIFY_REFRESH_TOKEN) {
-    throw new Error("Spotify credentials are not configured.");
+async function warehouse(path: string): Promise<unknown> {
+  const { MUSIC_WAREHOUSE_URL, MUSIC_WAREHOUSE_TOKEN } = env;
+
+  if (!MUSIC_WAREHOUSE_URL || !MUSIC_WAREHOUSE_TOKEN) {
+    throw new Error("music-warehouse is not configured.");
   }
 
-  const response = await fetch("https://accounts.spotify.com/api/token", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${btoa(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`)}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: SPOTIFY_REFRESH_TOKEN,
-    }),
+  const response = await fetch(`${MUSIC_WAREHOUSE_URL.replace(/\/$/, "")}${path}`, {
+    headers: { Authorization: `Bearer ${MUSIC_WAREHOUSE_TOKEN}` },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {
-    throw new Error(`Spotify token refresh failed: ${response.status}`);
+    // 503 means the warehouse's Spotify grant needs re-authorising; it is worth
+    // saying so plainly, because no amount of retrying will fix it.
+    const detail = response.status === 503 ? " (warehouse needs re-authorisation)" : "";
+    throw new Error(`music-warehouse ${path} failed: ${response.status}${detail}`);
   }
 
-  const { access_token, expires_in } = z
-    .object({ access_token: z.string(), expires_in: z.number().default(3600) })
-    .parse(await response.json());
-
-  return { token: access_token, ttl: expires_in };
-}
-
-async function getAccessToken(): Promise<string> {
-  const kv = env.CACHE;
-  if (kv) {
-    const hit = await kv.get(TOKEN_CACHE_KEY);
-    if (hit) return hit;
-  }
-
-  const { token, ttl } = await requestAccessToken();
-
-  if (kv) {
-    // Expire a minute early so a token is never used right as it dies.
-    await kv.put(TOKEN_CACHE_KEY, token, {
-      expirationTtl: Math.max(ttl - 60, 60),
-    });
-  }
-
-  return token;
-}
-
-async function spotify(path: string): Promise<unknown> {
-  const token = await getAccessToken();
-  const response = await fetch(`https://api.spotify.com/v1${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (response.status === 204) return null;
-  if (!response.ok) {
-    throw new Error(`Spotify ${path} failed: ${response.status}`);
-  }
-
-  const body = await response.text();
-  return body.trim() ? JSON.parse(body) : null;
+  return response.json();
 }
 
 // --- Queries ---
 
+/** Live: proxied straight through the warehouse to Spotify. */
 export async function getNowPlaying(): Promise<NowPlaying> {
-  // Never cached — the whole point is that it is live.
-  const data = await spotify("/me/player/currently-playing");
-  if (!data) return { isPlaying: false };
+  // Never cached here — the whole point is that it is live. The API route in
+  // front of this collapses visitor polls into one call per colo.
+  const data = await warehouse("/api/now-playing");
 
   const parsed = z
     .object({
-      is_playing: z.boolean().default(false),
-      progress_ms: z.number().nullable().default(0),
-      item: trackSchema.nullable(),
+      item: z
+        .object({
+          is_playing: z.boolean().default(false),
+          progress_ms: z.number().nullable().default(0),
+          item: trackSchema.nullable(),
+        })
+        .nullable(),
     })
     .safeParse(data);
 
-  if (!parsed.success || !parsed.data.item || !parsed.data.is_playing) {
-    return { isPlaying: false };
-  }
+  const playing = parsed.success ? parsed.data.item : null;
+  if (!playing?.item || !playing.is_playing) return { isPlaying: false };
 
-  const track = normaliseTrack(parsed.data.item);
+  const track = normaliseTrack(playing.item);
   return {
     isPlaying: true,
     title: track.title,
@@ -194,67 +176,92 @@ export async function getNowPlaying(): Promise<NowPlaying> {
     album: track.album,
     image: track.image,
     url: track.url,
-    progressMs: parsed.data.progress_ms ?? 0,
+    progressMs: playing.progress_ms ?? 0,
     durationMs: track.durationMs ?? 0,
   };
 }
 
-export async function getTopTracks(range: TimeRange, limit = 12): Promise<Track[]> {
-  return cached(`spotify:top-tracks:${range}:${limit}`, TOP_FRESHNESS[range], async () => {
-    const data = await spotify(`/me/top/tracks?time_range=${range}&limit=${limit}`);
-    const parsed = z
-      .object({ items: z.array(trackSchema).default([]) })
-      .safeParse(data);
-    return parsed.success ? parsed.data.items.map(normaliseTrack) : [];
-  });
-}
+const topSchema = z.object({
+  tracks: z.object({ items: z.array(trackSchema).default([]) }).nullable(),
+  artists: z
+    .object({
+      items: z
+        .array(
+          z.object({
+            name: z.string(),
+            images: imageSchema,
+            external_urls: z.object({ spotify: z.string() }).optional(),
+          }),
+        )
+        .default([]),
+    })
+    .nullable(),
+});
 
-export async function getTopArtists(range: TimeRange, limit = 12): Promise<Artist[]> {
-  return cached(`spotify:top-artists:${range}:${limit}`, TOP_FRESHNESS[range], async () => {
-    const data = await spotify(`/me/top/artists?time_range=${range}&limit=${limit}`);
-    const parsed = z
-      .object({
-        items: z
-          .array(
-            z.object({
-              name: z.string(),
-              images: imageSchema,
-              external_urls: z.object({ spotify: z.string() }).optional(),
-            }),
-          )
-          .default([]),
-      })
-      .safeParse(data);
+/**
+ * Both top lists in one round trip.
+ *
+ * The warehouse returns tracks and artists together, and every caller wants
+ * both, so fetching them separately would double the upstream cost for nothing.
+ */
+export async function getTop(
+  range: TimeRange,
+  limit = 12,
+): Promise<{ tracks: Track[]; artists: Artist[] }> {
+  return cached(`warehouse:top:${range}:${limit}`, TOP_FRESHNESS[range], async () => {
+    const parsed = topSchema.safeParse(await warehouse(`/api/top?range=${range}&limit=${limit}`));
+    if (!parsed.success) return { tracks: [], artists: [] };
 
-    if (!parsed.success) return [];
-    return parsed.data.items.map((item) => ({
-      name: item.name,
-      image: artwork(item.images, ARTIST_ART),
-      url: item.external_urls?.spotify ?? null,
-    }));
+    return {
+      tracks: (parsed.data.tracks?.items ?? []).map(normaliseTrack),
+      artists: (parsed.data.artists?.items ?? []).map((item) => ({
+        name: item.name,
+        image: artwork(item.images, ARTIST_ART),
+        url: item.external_urls?.spotify ?? null,
+      })),
+    };
   });
 }
 
 export type RecentTrack = Track & { playedAt: string };
 
+const playRowSchema = z.object({
+  played_at_ms: z.number(),
+  track_id: z.string(),
+  track_name: z.string().nullish(),
+  duration_ms: z.number().nullish(),
+  album_name: z.string().nullish(),
+  image_url: z.string().nullish(),
+  // The warehouse joins credited artists into one ordered, comma-separated
+  // string, which is exactly how every row here renders them.
+  artists: z.string().nullish(),
+});
+
+/**
+ * Stored, not live: these rows come from the warehouse's own database, so this
+ * list keeps rendering even while the Spotify grant is dead — it just stops
+ * gaining new entries.
+ */
 export async function getRecentTracks(limit = 20): Promise<RecentTrack[]> {
   return cached(
-    `spotify:recent:${limit}`,
+    `warehouse:recent:${limit}`,
     60 * 5,
     async () => {
-      const data = await spotify(`/me/player/recently-played?limit=${limit}`);
       const parsed = z
-        .object({
-          items: z
-            .array(z.object({ track: trackSchema, played_at: z.string() }))
-            .default([]),
-        })
-        .safeParse(data);
+        .object({ plays: z.array(playRowSchema).default([]) })
+        .safeParse(await warehouse(`/api/plays?limit=${limit}`));
 
       if (!parsed.success) return [];
-      return parsed.data.items.map((item) => ({
-        ...normaliseTrack(item.track),
-        playedAt: item.played_at,
+
+      return parsed.data.plays.map((row) => ({
+        title: row.track_name ?? "Unknown track",
+        artists: row.artists ?? "",
+        album: row.album_name ?? null,
+        image: row.image_url ?? null,
+        // The warehouse stores ids, not links; the canonical URL is derivable.
+        url: `https://open.spotify.com/track/${row.track_id}`,
+        durationMs: row.duration_ms ?? null,
+        playedAt: new Date(row.played_at_ms).toISOString(),
       }));
     },
     // Every row renders as "played 3 hours ago", so a list left over from last
