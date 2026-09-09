@@ -1,6 +1,7 @@
 import { defineMiddleware } from "astro:middleware";
 import { securityHeaders } from "../shared/security.ts";
 import { SESSION_COOKIE } from "@/lib/auth";
+import { throttle } from "@/lib/throttle";
 
 /**
  * Security headers for anything the Worker renders. Prerendered pages are
@@ -43,16 +44,8 @@ function personalised(cookies: { has(name: string): boolean }): boolean {
   return cookies.has(SESSION_COOKIE);
 }
 
-export const onRequest = defineMiddleware(async (context, next) => {
-  const response = await next();
-
-  /* A signed-in render is nobody else's to see — /guestbook carries the
-     signer's username and delete controls. Workers Caching is off today, but
-     it is one flag away, and this makes that flag safe to throw. */
-  const store = personalised(context.cookies)
-    ? "private, no-store"
-    : null;
-
+/** Hardens a response, working around headers that cannot be written to. */
+function finish(response: Response, store: string | null): Response {
   try {
     harden(response);
     if (store) response.headers.set("Cache-Control", store);
@@ -66,4 +59,25 @@ export const onRequest = defineMiddleware(async (context, next) => {
     if (store) copy.headers.set("Cache-Control", store);
     return copy;
   }
+}
+
+export const onRequest = defineMiddleware(async (context, next) => {
+  /* Before next(), deliberately: every route past this point spends money —
+     D1 rows, a KV read of the whole bucket tree, CPU rendering a page — and a
+     429 issued here costs a request and nothing else. Only routes the Worker
+     renders reach this at all; static assets are served ahead of it and are
+     not billed. See lib/throttle.ts for what it does and does not bound. */
+  const refused = await throttle(context.request, context.url.pathname);
+  if (refused) return finish(refused, "private, no-store");
+
+  const response = await next();
+
+  /* A signed-in render is nobody else's to see — /guestbook carries the
+     signer's username and delete controls. Workers Caching is off today, but
+     it is one flag away, and this makes that flag safe to throw. */
+  const store = personalised(context.cookies)
+    ? "private, no-store"
+    : null;
+
+  return finish(response, store);
 });

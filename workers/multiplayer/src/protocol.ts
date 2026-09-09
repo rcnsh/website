@@ -15,9 +15,10 @@ export const MAX_PEERS = 20;
 /**
  * Why a room hung up on purpose. Sent over an open socket rather than by
  * refusing the upgrade, which the browser cannot tell from a dead server.
- * `flood` is aimed at a misbehaving client — see Budget.
+ * `flood` is aimed at a misbehaving client — see Budget. `busy` is the
+ * upgrade budget in index.ts, and unlike the others it clears on its own.
  */
-export type ShutReason = "full" | "unknown" | "flood";
+export type ShutReason = "full" | "unknown" | "flood" | "busy";
 
 /** Application close codes start at 4000; anything below is the protocol's. */
 export const CLOSE_SHUT = 4001;
