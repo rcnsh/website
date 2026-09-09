@@ -7,7 +7,7 @@ export const prerender = false;
 /**
  * Live listening state for the home page card, falling back to the last played
  * track. Every visitor polls every 20s and `getNowPlaying()` is uncached
- * upstream, so this window collapses them into one Spotify call per colo.
+ * upstream, so this window collapses them into one warehouse call per colo.
  */
 const CACHE_SECONDS = 10;
 
@@ -106,7 +106,7 @@ export const GET: APIRoute = async ({ request }) => {
 
     return json({ state: "idle" });
   } catch (error) {
-    console.error("[spotify] now-playing failed", error);
+    console.error("[music] now-playing failed", error);
     // Not cached: a transient upstream failure shouldn't outlive itself.
     return new Response(JSON.stringify({ state: "error" }), {
       headers: {
