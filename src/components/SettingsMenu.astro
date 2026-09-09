@@ -248,6 +248,12 @@ const settings = [
         status.textContent = "On — cursors aren't available on this page.";
         return;
       }
+      /* Reconnecting too fast — a tab left reloading, or someone else on the
+         same address. Waiting is the fix, so say so. */
+      if (state.refused === "busy") {
+        status.textContent = "On — reconnecting too often. Try again in a minute.";
+        return;
+      }
       // Not something a working client can provoke.
       if (state.refused === "flood") {
         status.textContent = "On — disconnected for sending too fast.";

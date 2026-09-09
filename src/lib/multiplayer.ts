@@ -39,7 +39,7 @@ const IDLE_MS = 4 * 60 * 1000;
 const TOKEN_KEY = "rcn:mp-session";
 
 /** Why the room hung up on purpose. `flood` means a bug here, not a busy page. */
-type Refusal = "full" | "unknown" | "flood";
+type Refusal = "full" | "unknown" | "flood" | "busy";
 
 /**
  * A stable name for this tab, so the room keeps assigning the same colour and
@@ -297,7 +297,9 @@ export function start(): Session {
          revive(), on navigation or tab focus, undoes this. */
       case "shut":
         refused =
-          message.why === "full" || message.why === "flood"
+          message.why === "full" ||
+          message.why === "flood" ||
+          message.why === "busy"
             ? message.why
             : "unknown";
         connection.halt();

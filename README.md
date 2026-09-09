@@ -69,6 +69,12 @@ npm run deploy
 links fall back to `/api/files/download`, which streams through the Worker —
 correct, but slower and uncached.
 
+On a paid plan the site bills per request, per CPU millisecond and per Durable
+Object second, with no spend cap behind any of them. **[`docs/abuse.md`](docs/abuse.md)**
+covers what that exposes, the CPU ceilings and per-client budgets in the two
+`wrangler.jsonc` files, the two things that have to be set in the dashboard
+because code cannot express them, and what to do if it is happening now.
+
 ## Content
 
 Everything you're likely to change lives in **`src/content/site.json`** — name,

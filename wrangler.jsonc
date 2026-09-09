@@ -5,6 +5,56 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
 
+  /*
+    A ceiling on what one request can spend. The default is 30 seconds of CPU
+    per invocation, which on the Standard usage model is $0.02 per million
+    milliseconds with no account spend cap behind it — so a route that can be
+    made to loop is a bill someone else gets to write. Nothing here is close:
+    an SSR render is single-digit milliseconds and the bucket-tree scan is low
+    tens. 500ms leaves two orders of magnitude of headroom and still cuts the
+    worst case by 60x. A request that exceeds it fails; that is the trade.
+
+    Startup CPU is accounted separately, so this does not squeeze cold starts.
+  */
+  "limits": { "cpu_ms": 500 },
+
+  /*
+    Per-client request budgets, spent in src/lib/throttle.ts from the
+    middleware. Counted in-isolate: no subrequest, no charge, no latency.
+
+    `namespace_id` is an account-wide identifier rather than a name — two
+    bindings sharing one share their counters, here and in any other Worker on
+    the account. The multiplayer Worker uses the 2000 range for that reason.
+
+    Limits are per minute, per Cloudflare location, and sized far above what
+    the site's own JavaScript asks for: NowPlaying polls 3x a minute, the file
+    browser debounces its search, and a reader clicking through directories is
+    nowhere near 120. Tripping one of these takes a script.
+  */
+  "ratelimits": [
+    // Everything the Worker renders that is not matched below: the API routes,
+    // and the handful of pages that opt out of prerendering.
+    {
+      "name": "API_BUDGET",
+      "namespace_id": "1001",
+      "simple": { "limit": 120, "period": 60 }
+    },
+    // /api/files/search alone. It reads the whole cached tree out of KV and
+    // walks every key, so its cost per call is the one that is not flat.
+    {
+      "name": "SCAN_BUDGET",
+      "namespace_id": "1002",
+      "simple": { "limit": 40, "period": 60 }
+    },
+    // The OAuth round trip. Writes D1 rows, which is the priciest thing D1
+    // bills for ($1.00/million), and a human does it about once.
+    {
+      "name": "AUTH_BUDGET",
+      "namespace_id": "1003",
+      "simple": { "limit": 10, "period": 60 }
+    }
+  ],
+
   // Guestbook entries + OAuth sessions.
   // Create with: wrangler d1 create rcnsh   →  paste the id below.
   "d1_databases": [
