@@ -283,14 +283,35 @@ const items = [...nav, ...externalLinks].map((item) => ({
       if (!shellPane || !prompt) return;
 
       if (!shell) {
-        // Both land in one round trip, and only ever once per page.
-        const [mod, root] = await Promise.all([
-          import("../lib/shell"),
-          // The one place the filesystem crosses an untyped boundary.
-          fetch("/shell-fs.json").then(
-            (response) => response.json() as Promise<Root>,
-          ),
-        ]);
+        /*
+          Both land in one round trip, and only ever once per page.
+
+          Guarded, because an unhandled rejection here left the pane blank with
+          a live prompt: the reader typed into a shell whose filesystem had
+          never arrived, and every command answered as though the bucket were
+          empty. Saying so is the whole fix — there is nothing to retry
+          automatically, since reopening the shell tries again anyway.
+        */
+        let mod: typeof import("../lib/shell");
+        let root: Root;
+        try {
+          [mod, root] = await Promise.all([
+            import("../lib/shell"),
+            // The one place the filesystem crosses an untyped boundary.
+            fetch("/shell-fs.json").then((response) => {
+              if (!response.ok) {
+                throw new Error(`shell-fs.json responded ${response.status}`);
+              }
+              return response.json() as Promise<Root>;
+            }),
+          ]);
+        } catch (error) {
+          console.error("[palette] shell filesystem failed to load", error);
+          shellPane.appendChild(
+            line("couldn't load the filesystem — try again", "text-ink-faint"),
+          );
+          return;
+        }
         shell = { mod, root };
         shellPane.appendChild(
           line(
