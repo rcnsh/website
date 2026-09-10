@@ -128,10 +128,33 @@ describe("reconnect backoff", () => {
     assert.equal(reconnectDelay(0), RECONNECT_MIN_MS);
   });
 
+  /*
+    The ceiling still doubles; jitter picks somewhere below it. Passing an RNG
+    that returns 1 reads the ceiling back exactly, so this stays an equality
+    assertion rather than a sampled guess.
+  */
   test("doubles", () => {
-    assert.equal(reconnectDelay(1), 1000);
-    assert.equal(reconnectDelay(2), 2000);
-    assert.equal(reconnectDelay(3), 4000);
+    const ceiling = () => 1;
+    assert.equal(reconnectDelay(1, ceiling), 1000);
+    assert.equal(reconnectDelay(2, ceiling), 2000);
+    assert.equal(reconnectDelay(3, ceiling), 4000);
+  });
+
+  /*
+    Jitter is the point: without it every client orphaned by the same outage
+    waits the identical time and returns as one thundering herd.
+  */
+  test("spreads attempts across the window rather than stacking them", () => {
+    const low = reconnectDelay(4, () => 0.1);
+    const high = reconnectDelay(4, () => 0.9);
+
+    assert.ok(low < high, "the delay must actually vary with the RNG");
+    assert.ok(high <= 8000, "never above the doubling ceiling");
+    assert.ok(low >= RECONNECT_MIN_MS, "never below the floor");
+  });
+
+  test("a pathological RNG still cannot produce a busy loop", () => {
+    assert.equal(reconnectDelay(10, () => 0), RECONNECT_MIN_MS);
   });
 
   /*
@@ -140,7 +163,7 @@ describe("reconnect backoff", () => {
     failure and spending a request each time.
   */
   test("caps, so a dead server is not knocked at forever", () => {
-    assert.equal(reconnectDelay(40), RECONNECT_MAX_MS);
+    assert.equal(reconnectDelay(40, () => 1), RECONNECT_MAX_MS);
     assert.ok(
       RECONNECT_MAX_MS >= 60_000,
       "a ceiling under a minute is still noisy",
@@ -154,7 +177,7 @@ describe("reconnect backoff", () => {
   });
 
   test("survives a nonsense attempt count", () => {
-    assert.equal(reconnectDelay(-1), RECONNECT_MIN_MS);
+    assert.equal(reconnectDelay(-1, () => 1), RECONNECT_MIN_MS);
   });
 });
 

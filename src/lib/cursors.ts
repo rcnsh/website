@@ -86,9 +86,26 @@ export const RECONNECT_MAX_MS = 5 * 60 * 1000;
 /** Failed attempts before the UI admits to it. Four is about seven seconds. */
 export const STALL_AFTER_ATTEMPTS = 4;
 
-/** How long to wait before attempt number `attempt` (zero-based). */
-export function reconnectDelay(attempt: number): number {
-  return Math.min(RECONNECT_MAX_MS, RECONNECT_MIN_MS * 2 ** Math.max(0, attempt));
+/**
+ * How long to wait before attempt number `attempt` (zero-based).
+ *
+ * Jittered, because the exponential alone is synchronised: every client that
+ * was connected when a room Worker went down computes the same delay from the
+ * same attempt count, so they all come back in the same millisecond and knock
+ * it over again. Full jitter — a uniform pick from [0, backoff) — spreads a
+ * reconnect storm across the whole window instead of stacking it on one edge.
+ *
+ * `random` is injected so the tests can assert the envelope exactly rather
+ * than sampling and hoping; production passes nothing and gets Math.random.
+ */
+export function reconnectDelay(attempt: number, random: () => number = Math.random): number {
+  const ceiling = Math.min(
+    RECONNECT_MAX_MS,
+    RECONNECT_MIN_MS * 2 ** Math.max(0, attempt),
+  );
+
+  // Never below the floor: a jittered value of ~0 would be a busy loop.
+  return Math.max(RECONNECT_MIN_MS, Math.round(ceiling * random()));
 }
 
 /** Whether enough attempts have failed to be worth telling the reader about. */

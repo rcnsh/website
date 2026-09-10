@@ -68,6 +68,14 @@ function session() {
       };
     },
 
+    /*
+      Pinned to the top of the jitter window so every delay in these tests is
+      the exponential ceiling exactly. Jitter's own behaviour is covered in
+      cursors.test.ts; leaving it random here would make these assertions
+      flaky for no gain.
+    */
+    random: () => 1,
+
     onOpen: () => log.push("open"),
     onMessage: (data) => log.push(`message:${data}`),
     onClose: () => log.push("close"),
@@ -235,13 +243,20 @@ describe("losing the connection", () => {
     assert.equal(s.opens, 2);
   });
 
+  /*
+    The harness pins the jitter RNG to 1, so `reconnectDelay` returns its
+    ceiling and the doubling is still assertable exactly. What is being tested
+    here is that the delay grows with the attempt count, not the jitter — that
+    has its own tests in cursors.test.ts.
+  */
   test("waits longer each time it fails", () => {
     const s = session();
+    const ceiling = () => 1;
 
     for (const attempt of [0, 1, 2, 3]) {
       s.fail();
-      assert.equal(s.queued, reconnectDelay(attempt));
-      s.advance(reconnectDelay(attempt));
+      assert.equal(s.queued, reconnectDelay(attempt, ceiling));
+      s.advance(reconnectDelay(attempt, ceiling));
     }
   });
 
