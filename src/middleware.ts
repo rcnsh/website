@@ -72,9 +72,39 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   const response = await next();
 
+  /*
+    Server islands render public data and nothing else — GitHub stats, the
+    contribution calendar, repos, the bucket root, listening history, the
+    guestbook's country map. None of them reads the session, so a copy cached
+    from an anonymous request is the same bytes a signed-in visitor would have
+    got, and the edge can answer for all of them.
+
+    That is an invariant, not an observation: put a personalised island behind
+    this and the middleware will happily let the edge serve one reader's
+    fragment to another. If an island ever needs the session, it must be
+    excluded here.
+
+    They were the site's three uncacheable round trips per homepage view, and
+    everything behind them is already stale-while-revalidated in KV on a 30-60
+    minute clock, so a 5-minute edge TTL is strictly fresher than the data.
+  */
+  if (context.url.pathname.startsWith("/_server-islands/")) {
+    return finish(
+      response,
+      "public, max-age=60, s-maxage=300, stale-while-revalidate=3600",
+    );
+  }
+
   /* A signed-in render is nobody else's to see — /guestbook carries the
      signer's username and delete controls. Workers Caching is off today, but
-     it is one flag away, and this makes that flag safe to throw. */
+     it is one flag away, and this makes that flag safe to throw.
+
+     Deliberately NOT given a public Cache-Control on the anonymous branch:
+     Cloudflare's default cache key ignores cookies, so an anonymous copy at
+     the edge would be served to signed-in readers too, and they would be shown
+     a sign-in prompt while holding a valid session. Making that safe needs a
+     cache key that varies on the session cookie, which is zone config rather
+     than anything in this repo. */
   const store = personalised(context.cookies)
     ? "private, no-store"
     : null;
