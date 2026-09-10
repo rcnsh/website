@@ -3,15 +3,19 @@ import { getRecentTracks } from "@/lib/spotify";
 import { relativeTime } from "@/lib/utils";
 
 let tracks: Awaited<ReturnType<typeof getRecentTracks>> = [];
+let failed = false;
 try {
   tracks = await getRecentTracks(15);
 } catch (error) {
+  failed = true;
   console.error("[music] recent tracks island failed", error);
 }
 ---
 
 {
-  tracks.length === 0 ? (
+  failed ? (
+    <p class="py-6 text-sm text-ink-faint">Couldn't reach the music warehouse.</p>
+  ) : tracks.length === 0 ? (
     <p class="py-6 text-sm text-ink-faint">Nothing to show yet.</p>
   ) : (
     <ol class="divide-y divide-line border-y border-line">

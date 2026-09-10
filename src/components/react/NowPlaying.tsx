@@ -11,11 +11,27 @@ type Payload =
 
 const POLL_MS = 20_000;
 
+/*
+  A poll must not outlive its own interval, or a slow endpoint stacks requests
+  faster than they drain.
+*/
+const REQUEST_TIMEOUT_MS = 8_000;
+
+/*
+  How many polls in a row must fail before the card stops claiming to be live.
+  One is noise — a dropped connection on a phone — but three in a minute means
+  the reading on screen is not current, and a frozen progress bar under a "Now
+  playing" label is a worse lie than saying nothing.
+*/
+const STALE_AFTER_FAILURES = 3;
+
 export default function NowPlaying() {
   const [data, setData] = useState<Payload | null>(null);
   // Interpolated between polls so the bar moves every second, not every 20.
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
+  // Consecutive failed polls. Reset by any success.
+  const [failures, setFailures] = useState(0);
 
   // The live-updates switch, read lazily so someone who turned it off never
   // gets the mount poll. lib/prefs answers `true` on the server, so hydration
@@ -31,46 +47,79 @@ export default function NowPlaying() {
 
   useEffect(() => {
     let alive = true;
-    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let inFlight: AbortController | undefined;
 
     const load = async () => {
+      /*
+        Abort whatever is still running before starting another. With
+        setInterval a response slower than POLL_MS meant two requests open at
+        once, and whichever landed last won — so an older reading could
+        overwrite a newer one and the bar would jump backwards.
+      */
+      inFlight?.abort();
+      const controller = new AbortController();
+      inFlight = controller;
+
+      const signal = AbortSignal.any([
+        controller.signal,
+        AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      ]);
+
       try {
-        const response = await fetch("/api/spotify/now-playing", {
-          signal: controller.signal,
-        });
+        const response = await fetch("/api/spotify/now-playing", { signal });
         if (!response.ok) throw new Error(String(response.status));
         const json = (await response.json()) as Payload;
-        if (!alive) return;
+        if (!alive || controller.signal.aborted) return;
+
+        setFailures(0);
         setData(json);
         if (json.state === "playing") {
           progressRef.current = json.progressMs;
           setProgress(json.progressMs);
         }
       } catch {
-        if (alive) setData((prev) => prev ?? { state: "error" });
+        // A cancelled request is not a failure — it is us, replacing it.
+        if (!alive || controller.signal.aborted) return;
+        setFailures((n) => n + 1);
+        setData((prev) => prev ?? { state: "error" });
       }
+    };
+
+    /*
+      Re-armed from the end of each attempt rather than on a fixed interval, so
+      the next poll cannot be scheduled while the previous one is still open.
+      Stacking is structurally impossible rather than merely unlikely.
+    */
+    const cycle = async () => {
+      await load();
+      if (alive && live) timer = setTimeout(cycle, POLL_MS);
     };
 
     /* One request either way — an empty panel is a worse answer than a stale
        one. The switch buys everything after: no interval, no refocus refetch. */
-    load();
     if (!live) {
+      void load();
       return () => {
         alive = false;
-        controller.abort();
+        inFlight?.abort();
       };
     }
 
-    const poll = setInterval(load, POLL_MS);
+    void cycle();
 
     // Re-sync as soon as the tab is looked at again.
-    const onVisible = () => document.visibilityState === "visible" && load();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (timer) clearTimeout(timer);
+      void cycle();
+    };
     document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       alive = false;
-      controller.abort();
-      clearInterval(poll);
+      inFlight?.abort();
+      if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [live]);
@@ -79,13 +128,15 @@ export default function NowPlaying() {
     // Interpolating a progress bar is exactly the kind of motion-without-news
     // the switch is there to stop, and it would drift away from a reading that
     // is no longer being refreshed anyway.
-    if (!live || data?.state !== "playing") return;
+    // Also stops once the endpoint is unreachable: interpolating a bar forward
+    // on a reading we can no longer refresh is inventing progress.
+    if (!live || data?.state !== "playing" || failures >= STALE_AFTER_FAILURES) return;
     const tick = setInterval(() => {
       progressRef.current = Math.min(progressRef.current + 1000, data.durationMs);
       setProgress(progressRef.current);
     }, 1000);
     return () => clearInterval(tick);
-  }, [data, live]);
+  }, [data, live, failures]);
 
   if (!data) {
     // Mirrors the loaded layout row for row, so real data doesn't move anything.
@@ -115,7 +166,15 @@ export default function NowPlaying() {
     );
   }
 
-  const playing = data.state === "playing";
+  /*
+    Once the card had data, every later failure was invisible: the last good
+    reading stayed on screen under a "Now playing" label with a bar still
+    interpolating, so a dead endpoint looked exactly like a paused track. After
+    a few consecutive failures the card keeps the track — it is still the best
+    thing we know — but stops asserting that it is current.
+  */
+  const disconnected = failures >= STALE_AFTER_FAILURES;
+  const playing = data.state === "playing" && !disconnected;
   const pct = playing ? Math.min((progress / Math.max(data.durationMs, 1)) * 100, 100) : 0;
 
   return (
@@ -124,7 +183,9 @@ export default function NowPlaying() {
 
       <div className="min-w-0 flex-1">
         <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-faint">
-          {playing ? (
+          {disconnected ? (
+            "Can't reach Spotify — last known"
+          ) : data.state === "playing" ? (
             <span className="text-brand">Now playing</span>
           ) : (
             `Played ${relativeTime(data.playedAt)}`

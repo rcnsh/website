@@ -1,3 +1,4 @@
+import { deadline } from "./upstream";
 import { env } from "cloudflare:workers";
 import { z } from "zod";
 import { cached } from "./cache";
@@ -117,12 +118,6 @@ function normaliseTrack(raw: z.infer<typeof trackSchema>): Track {
 
 // --- Transport ---
 
-/**
- * A page render must not hang on a slow warehouse. On timeout `cached()` falls
- * back to whatever it already holds, so a stall costs freshness, not the page.
- */
-const REQUEST_TIMEOUT_MS = 6_000;
-
 async function warehouse(path: string): Promise<unknown> {
   const { MUSIC_WAREHOUSE_URL, MUSIC_WAREHOUSE_TOKEN } = env;
 
@@ -132,7 +127,7 @@ async function warehouse(path: string): Promise<unknown> {
 
   const response = await fetch(`${MUSIC_WAREHOUSE_URL.replace(/\/$/, "")}${path}`, {
     headers: { Authorization: `Bearer ${MUSIC_WAREHOUSE_TOKEN}` },
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: deadline(),
   });
 
   if (!response.ok) {
@@ -210,7 +205,12 @@ export async function getTop(
 ): Promise<{ tracks: Track[]; artists: Artist[] }> {
   return cached(`warehouse:top:${range}:${limit}`, TOP_FRESHNESS[range], async () => {
     const parsed = topSchema.safeParse(await warehouse(`/api/top?range=${range}&limit=${limit}`));
-    if (!parsed.success) return { tracks: [], artists: [] };
+    // A shape change is a failure, not an empty listening history. Returning
+    // `[]` here would cache "you listened to nothing" for up to 24h on
+    // long_term; throwing keeps whatever the cache already holds.
+    if (!parsed.success) {
+      throw new Error(`warehouse /api/top returned an unexpected shape: ${parsed.error.message}`);
+    }
 
     return {
       tracks: (parsed.data.tracks?.items ?? []).map(normaliseTrack),
@@ -251,7 +251,11 @@ export async function getRecentTracks(limit = 20): Promise<RecentTrack[]> {
         .object({ plays: z.array(playRowSchema).default([]) })
         .safeParse(await warehouse(`/api/plays?limit=${limit}`));
 
-      if (!parsed.success) return [];
+      if (!parsed.success) {
+        throw new Error(
+          `warehouse /api/plays returned an unexpected shape: ${parsed.error.message}`,
+        );
+      }
 
       return parsed.data.plays.map((row) => ({
         title: row.track_name ?? "Unknown track",

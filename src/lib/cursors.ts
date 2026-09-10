@@ -86,9 +86,37 @@ export const RECONNECT_MAX_MS = 5 * 60 * 1000;
 /** Failed attempts before the UI admits to it. Four is about seven seconds. */
 export const STALL_AFTER_ATTEMPTS = 4;
 
-/** How long to wait before attempt number `attempt` (zero-based). */
-export function reconnectDelay(attempt: number): number {
-  return Math.min(RECONNECT_MAX_MS, RECONNECT_MIN_MS * 2 ** Math.max(0, attempt));
+/**
+ * How long to wait before attempt number `attempt` (zero-based).
+ *
+ * Jittered, because the exponential alone is synchronised: every client that
+ * was connected when a room Worker went down computes the same delay from the
+ * same attempt count, so they all come back in the same millisecond and knock
+ * it over again.
+ *
+ * Equal jitter — a pick from [ceiling/2, ceiling) — rather than full jitter
+ * from [0, ceiling). Full jitter disperses better but halves the *expected*
+ * total wait and has no useful lower bound, which collides with the other
+ * promise this backoff makes: `isStalled` reports a broken connection to the
+ * reader only after STALL_AFTER_ATTEMPTS, and that is supposed to take several
+ * seconds so a momentary hiccup is never shown as a broken feature. Under full
+ * jitter that total sometimes came in under five seconds. Halving the window
+ * still breaks lockstep; giving up the floor was the part that cost something.
+ *
+ * `random` is injected so the tests can assert the envelope exactly rather
+ * than sampling and hoping; production passes nothing and gets Math.random.
+ */
+export function reconnectDelay(attempt: number, random: () => number = Math.random): number {
+  const ceiling = Math.min(
+    RECONNECT_MAX_MS,
+    RECONNECT_MIN_MS * 2 ** Math.max(0, attempt),
+  );
+
+  // Half the ceiling, plus a random share of the other half.
+  const jittered = ceiling / 2 + (ceiling / 2) * random();
+
+  // Never below the floor, whatever the RNG does.
+  return Math.max(RECONNECT_MIN_MS, Math.round(jittered));
 }
 
 /** Whether enough attempts have failed to be worth telling the reader about. */
