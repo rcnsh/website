@@ -8,23 +8,15 @@ import {
   SMOOTH_TAU_MS,
 } from "./multiplayer.ts";
 
-/*
-  CURSOR_HZ is meant to be turned up and down freely — it is the one knob that
-  decides what the feature costs. These check that turning it does not quietly
-  produce a broken configuration, since the two halves it feeds are built and
-  deployed separately and would not fail together.
-*/
+// CURSOR_HZ is meant to be turned freely. The two halves it feeds deploy
+// separately, so a broken combination would not fail together.
 
 describe("cursor tuning", () => {
   test("the rate is sane", () => {
     assert.ok(CURSOR_HZ > 0 && CURSOR_HZ <= 120, `${CURSOR_HZ} Hz is not a rate`);
   });
 
-  /*
-    The budget is what the Worker drops messages against. If it ever sits below
-    what clients actually send, every honest client silently loses positions
-    and cursors stutter for reasons nothing reports.
-  */
+  // Below what clients send, every honest client silently loses positions.
   test("the budget is above the rate clients actually send at", () => {
     const sendsPerSecond = 1000 / SEND_INTERVAL_MS;
 
@@ -34,11 +26,7 @@ describe("cursor tuning", () => {
     );
   });
 
-  /*
-    The client paces off animation frames with a few milliseconds of slack, so
-    a 144 Hz display lands above the nominal rate. The budget has to leave room
-    for that, or high-refresh monitors get clipped.
-  */
+  // Frame pacing plus slack puts a 144 Hz display above the nominal rate.
   test("the budget leaves headroom for a high-refresh display", () => {
     assert.ok(MAX_MESSAGES_PER_SECOND >= CURSOR_HZ * 1.2);
   });

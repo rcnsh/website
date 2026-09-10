@@ -5,15 +5,9 @@ import { isHiddenKey, publicBucketBase } from "@/lib/r2";
 export const prerender = false;
 
 /**
- * Content types safe to render inline on this origin. Everything else is
- * forced to a download, because the alternative is letting a bucket object
- * execute as same-origin script: R2 stores whatever content type it was
- * uploaded with, `writeHttpMetadata` echoes it verbatim, and `nosniff` only
- * makes the browser honour that stored type more faithfully. The bucket is a
- * ShareX drop target, so "nobody would upload an .html" is a convention, not
- * a control.
- *
- * SVG is deliberately absent: it is an image that can carry <script>.
+ * Content types safe to render inline on this origin. Everything else is forced
+ * to a download: R2 echoes back whatever type an object was uploaded with, and
+ * the bucket is a ShareX drop target. SVG is absent — it can carry <script>.
  */
 const INLINE_SAFE = [
   "image/png",
@@ -35,15 +29,12 @@ function inlineSafe(type: string | undefined): boolean {
 }
 
 /**
- * Streams objects out of the R2 binding. Only reached when PUBLIC_BUCKET_URL
- * is unset — otherwise lib/r2 links straight at the public domain, and the
- * gate below makes that comment true rather than aspirational. It previously
- * answered anyway, which put arbitrary bucket content on the rcn.sh origin.
+ * Streams objects out of the R2 binding. Only reachable when PUBLIC_BUCKET_URL
+ * is unset; the gate below enforces that.
  */
 export const GET: APIRoute = async ({ url, request }) => {
-  // When the bucket has a public domain, every link in the UI points there
-  // (lib/r2 `urlFor`), so this route has no caller — and serving bucket bytes
-  // from the site's own origin is strictly worse than serving them from R2's.
+  // With a public domain every link points there, so this route has no caller
+  // — and bucket bytes on the site's own origin are strictly worse.
   if (publicBucketBase()) {
     return new Response("Not found", { status: 404 });
   }
@@ -54,9 +45,8 @@ export const GET: APIRoute = async ({ url, request }) => {
     return new Response("Bad request", { status: 400 });
   }
 
-  // Every listing hides dot-prefixed entries; without this they would still be
-  // downloadable by name, which makes the browser's idea of hidden a fiction.
-  // 404 rather than 403, so this doesn't confirm what exists.
+  // Listings hide dot-prefixed entries; without this they stay downloadable by
+  // name. 404 rather than 403, so this does not confirm what exists.
   if (isHiddenKey(key)) {
     return new Response("Not found", { status: 404 });
   }
@@ -78,9 +68,8 @@ export const GET: APIRoute = async ({ url, request }) => {
   headers.set("cache-control", "public, max-age=3600");
   headers.set("accept-ranges", "bytes");
 
-  // An opaque origin regardless of type, so even a rendered document cannot
-  // reach this site's cookies, storage or same-origin endpoints. Belt to the
-  // content-type braces below, since either alone closes the hole.
+  // An opaque origin regardless of type, so a rendered document cannot reach
+  // this site's cookies or storage. Redundant with the content-type below.
   headers.set("content-security-policy", "sandbox");
   headers.set("x-content-type-options", "nosniff");
 

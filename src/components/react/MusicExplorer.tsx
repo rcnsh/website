@@ -12,13 +12,8 @@ type Props = {
   initialRange: TimeRange;
   initialTracks: Track[];
   initialArtists: Artist[];
-  /*
-    Whether the server-rendered range failed to load. Without it a warehouse
-    outage arrives as two empty arrays, indistinguishable from a genuinely
-    empty listening history — the island would say "Nothing listened to in this
-    period" about an upstream being down. Ranges fetched client-side already
-    carry this; only the seeded one was missing it.
-  */
+  // Without this a warehouse outage arrives as two empty arrays, and the
+  // island reports an empty listening history about an upstream being down.
   initialFailed?: boolean;
 };
 
@@ -43,13 +38,9 @@ export default function MusicExplorer({
   });
 
   useEffect(() => {
-    /*
-      Reset here, not just in the fetch's `finally`. That `finally` is guarded
-      on `alive`, so switching range mid-flight skips it — and if the range
-      switched to is already cached, this early return used to fire without
-      ever clearing the flag. The spinner then stayed up forever on a range
-      whose data was sitting right there.
-    */
+    // Reset here too: the fetch's `finally` is guarded on `alive`, so
+    // switching mid-flight to an already-cached range would skip it and leave
+    // the spinner up over data that is sitting right there.
     if (cache[range]) {
       setLoading(false);
       return;
@@ -87,10 +78,8 @@ export default function MusicExplorer({
 
   const bucket = cache[range];
 
-  /*
-    Keeping the last resolved range on screen means switching to an un-fetched
-    one dims rather than flashing the empty state for the round trip.
-  */
+  // Keeping the last resolved range on screen dims rather than flashing the
+  // empty state for the round trip.
   const lastResolved = useRef<Bucket>({
     tracks: initialTracks,
     artists: initialArtists,
@@ -117,11 +106,9 @@ export default function MusicExplorer({
               type="button"
               onClick={() => setView(option)}
               className={cn(
-                // `pb-0.5` sets the gap to the underline, so it cannot absorb padding
-                // without moving the border. The pseudo-element extends the
-                // clickable box 10px above and below instead — clicks on it
-                // dispatch to the button — so the hit area goes 19px -> 39px
-                // with the text and underline pixel-identical.
+                // `pb-0.5` sets the gap to the underline, so padding cannot
+                // grow the hit area without moving the border; the
+                // pseudo-element extends the clickable box instead.
                 "relative pb-0.5 transition-colors after:absolute after:inset-x-0 after:-inset-y-[0.625rem] after:content-['']",
                 view === option
                   ? "border-b border-brand text-ink"
@@ -144,11 +131,9 @@ export default function MusicExplorer({
               type="button"
               onClick={() => setRange(option.id)}
               className={cn(
-                // `pb-0.5` sets the gap to the underline, so it cannot absorb padding
-                // without moving the border. The pseudo-element extends the
-                // clickable box 10px above and below instead — clicks on it
-                // dispatch to the button — so the hit area goes 19px -> 39px
-                // with the text and underline pixel-identical.
+                // `pb-0.5` sets the gap to the underline, so padding cannot
+                // grow the hit area without moving the border; the
+                // pseudo-element extends the clickable box instead.
                 "relative pb-0.5 transition-colors after:absolute after:inset-x-0 after:-inset-y-[0.625rem] after:content-['']",
                 range === option.id
                   ? "border-b border-brand text-ink"

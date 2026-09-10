@@ -1,13 +1,12 @@
 import { DurableObject } from "cloudflare:workers";
 
-/* Rates are shared with the client half. Change CURSOR_HZ there, not here. */
+// Rates are shared with the client half. Change CURSOR_HZ there, not here.
 import {
   FLUSH_INTERVAL_MS,
   MAX_MESSAGES_PER_SECOND,
 } from "../../../shared/multiplayer.ts";
-/* Every path the site has, written by scripts/generate-rooms.ts at build. */
+// Written by scripts/generate-rooms.ts at build time.
 import { ROOMS } from "../../../shared/rooms.generated.ts";
-/* The same header set the site Worker sends, so this route is not the hole. */
 import { securityHeaders } from "../../../shared/security.ts";
 import {
   Budget,
@@ -24,12 +23,9 @@ import {
 } from "./protocol.ts";
 
 /**
- * Live cursors, one Durable Object per page path.
- *
- * A separate Worker because @astrojs/cloudflare's entry exports only
- * `{ fetch }`, with nowhere to hang a Durable Object class. Routed under
- * rcn.sh so the socket is same-origin. Nothing is persisted; the SQLite
- * backend is declared only because it is the one the free plan offers.
+ * Live cursors, one Durable Object per page path. A separate Worker because
+ * @astrojs/cloudflare's entry exports only `{ fetch }`, with nowhere to hang a
+ * Durable Object class. Nothing is persisted.
  */
 
 interface Env {
@@ -48,8 +44,7 @@ const COUNT_TTL_SECONDS = 10;
 
 /**
  * A socket that opens only to explain why it is closing. A refused upgrade
- * would be tidier, but the browser tells the page nothing about a failed
- * handshake, so the client would reconnect all session.
+ * tells the page nothing, so the client would reconnect all session.
  */
 function shut(why: ShutReason): Response {
   const pair = new WebSocketPair();
@@ -64,11 +59,7 @@ function shut(why: ShutReason): Response {
 }
 
 export class CursorRoom extends DurableObject<Env> {
-  /**
-   * Latest position per peer, awaiting the next flush. In-flight only: an
-   * eviction drops at most one frame. Identity lives in socket attachments,
-   * which do survive.
-   */
+  /** Latest position per peer, awaiting the next flush. In-flight only. */
   private pending = new Map<number, [number, number]>();
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -78,8 +69,7 @@ export class CursorRoom extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
-    // How many people are in here, for a reader who has not turned cursors on
-    // — otherwise the feature only shows itself by coincidence.
+    // For a reader who has not turned cursors on.
     if (url.pathname.endsWith("/count")) {
       return Response.json({ peers: this.ctx.getWebSockets().length });
     }
@@ -101,8 +91,7 @@ export class CursorRoom extends DurableObject<Env> {
       sessionSeed(url.searchParams.get("id")),
     );
 
-    // acceptWebSocket, not accept() — the hibernatable form. Duration billing
-    // is the real cost here.
+    // acceptWebSocket, not accept(): the hibernatable form. Duration is billed.
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment(identity satisfies Attachment);
 
@@ -125,14 +114,12 @@ export class CursorRoom extends DurableObject<Env> {
     const identity = this.identityOf(ws);
     if (!identity) return;
 
-    /* Over budget: hang up rather than drop the frame. Reaching this handler
-       is already billed, so ignoring the excess saves nothing — closing is the
-       only lever that stops a flooder. An honest client never gets here. */
+    // Hang up rather than drop the frame: reaching this handler is already
+    // billed, so closing is the only lever that stops a flooder.
     if (!this.budget.spend(identity.id, Date.now())) {
       this.budget.forget(identity.id);
       try {
-        // Said out loud first — a bare close reads as a network failure, and
-        // the client would reconnect into the same wall all session.
+        // A bare close reads as a network failure and provokes a reconnect loop.
         ws.send(JSON.stringify({ t: "shut", why: "flood" satisfies ShutReason }));
         ws.close(CLOSE_SHUT, "flood");
       } catch {
@@ -150,8 +137,7 @@ export class CursorRoom extends DurableObject<Env> {
 
     if (!isMove(parsed)) return;
 
-    // x is a fraction of the content column, y is pixels below its top. The
-    // clamp allows the margins but not three screens off to the side.
+    // The clamp allows the column's margins but not three screens off to the side.
     this.pending.set(identity.id, [
       clamp(parsed.x, -1.5, 2.5),
       clamp(parsed.y, -1e5, 1e6),
@@ -228,11 +214,7 @@ export class CursorRoom extends DurableObject<Env> {
   }
 }
 
-/**
- * The presence count, cached at the edge. Every miss is a billed Durable
- * Object request, so ten seconds buys a handful of readers one between them
- * while "someone is here" is still news.
- */
+/** The presence count, cached at the edge; every miss is a billed DO request. */
 async function presenceCount(
   request: Request,
   env: Env,
@@ -243,8 +225,7 @@ async function presenceCount(
     return new Response("Method not allowed", { status: 405 });
   }
 
-  /* caches.open(), not caches.default — the DOM lib's CacheStorage type, which
-     tsconfig also pulls in, has no `default`. */
+  // caches.open(), not caches.default: the DOM lib's CacheStorage has no `default`.
   const cache = await caches.open("multiplayer-presence");
   let response = await cache.match(request);
 
@@ -262,16 +243,9 @@ async function presenceCount(
 }
 
 /**
- * Whether this client has opened too many sockets this minute.
- *
- * MAX_PEERS bounds how many can be open at once and Budget bounds how fast an
- * open one may talk, but neither bounds connect-disconnect-repeat: every
- * upgrade is a billed Durable Object request, and a room that is emptied as
- * fast as it is filled never reaches MAX_PEERS. This is the only thing that
- * costs a flooder anything.
- *
- * Fails open — a missing binding under `wrangler dev`, or a limiter that
- * throws, must not take cursors off the site.
+ * Whether this client has opened too many sockets this minute. MAX_PEERS and
+ * Budget bound open sockets and their rate; neither bounds churn, and every
+ * upgrade is a billed Durable Object request. Fails open.
  */
 async function churning(request: Request, env: Env): Promise<boolean> {
   const key = request.headers.get("cf-connecting-ip");
@@ -287,9 +261,9 @@ async function churning(request: Request, env: Env): Promise<boolean> {
 }
 
 /**
- * Only matters in development, where the site is on :4321 and this on :8788.
- * Echoed rather than wildcarded because the header takes one origin, and
- * originAllowed() has already vetted it. `Vary` because the copy is cached.
+ * Only matters in development, where the site is on a different port. Echoed
+ * rather than wildcarded; originAllowed() has already vetted it. `Vary`
+ * because the copy is cached.
  */
 function allowOrigin(response: Response, request: Request): Response {
   const origin = request.headers.get("Origin");
@@ -302,13 +276,9 @@ function allowOrigin(response: Response, request: Request): Response {
 }
 
 /**
- * This Worker is routed ahead of the site Worker (see wrangler.jsonc), so
- * src/middleware.ts never runs on /api/multiplayer/* and none of the site's
- * security headers were reaching these responses. Everything else on the
- * origin carried them; this was the one gap, and any endpoint added under this
- * route would have inherited it.
- *
- * A 101 is left alone: its headers are the upgrade handshake, not a document's.
+ * src/middleware.ts never runs on this route, so the site's security headers
+ * have to be applied here. A 101 is left alone — its headers are the upgrade
+ * handshake, not a document's.
  */
 function harden(response: Response): Response {
   if (response.status === 101) return response;
@@ -339,10 +309,8 @@ async function handle(
   const wantsSocket = request.headers.get("Upgrade") === "websocket";
   const counting = url.pathname === "/api/multiplayer/count";
 
-  // A same-origin GET sends no Origin header, which in production is every
-  // count request — in development it is cross-origin and does. Only the
-  // count tolerates an unlabelled request: a browser always labels an
-  // upgrade, and the socket is the half billed by duration.
+  // A same-origin GET sends no Origin, which in production is every count
+  // request. Only the count tolerates that: a browser always labels an upgrade.
   const origin = request.headers.get("Origin");
   const vouched = origin ? originAllowed(origin) : counting && !wantsSocket;
   if (!vouched) {
@@ -353,12 +321,11 @@ async function handle(
     return new Response("Not found", { status: 404 });
   }
 
-  // A page the site actually has, not merely a plausible path — otherwise a
-  // stranger conjures Durable Objects by asking for them.
+  // A page the site actually has: otherwise a stranger conjures Durable
+  // Objects by asking for them.
   const room = roomKey(url.searchParams.get("room"), KNOWN_ROOMS);
   if (!room) {
-    // Down the socket where there is one, so the reader is told rather than
-    // left watching a reconnect loop.
+    // Down the socket, so the reader is told rather than left reconnecting.
     if (wantsSocket) return shut("unknown");
     return new Response("Bad room", { status: 400 });
   }
@@ -367,8 +334,6 @@ async function handle(
 
   // Last gate before the Durable Object, which is where the meter is.
   if (await churning(request, env)) {
-    // Down the socket where there is one, the same as an unknown room; a
-    // caller that did not ask for one cannot be handed a 101.
     if (wantsSocket) return shut("busy");
     return new Response("Too many requests", {
       status: 429,

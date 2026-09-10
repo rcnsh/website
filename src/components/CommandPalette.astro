@@ -3,9 +3,8 @@ import Icon from "./Icon.astro";
 import { externalLinks, nav } from "@/lib/site";
 
 /**
- * ⌘K / Ctrl+K, or "/" from anywhere that isn't a text field. The rows are
- * server-drawn, so filtering is hiding and reordering markup rather than
- * hydrating a component tree for a dialog nobody has opened.
+ * ⌘K / Ctrl+K, or "/" outside a text field. Rows are server-drawn, so filtering
+ * is hiding and reordering markup rather than hydrating a component tree.
  *
  * Lives at the end of <body>: the header's backdrop-blur is a containing block
  * for fixed positioning, so the overlay would size to the bar.
@@ -95,11 +94,8 @@ const items = [...nav, ...externalLinks].map((item) => ({
 </div>
 
 <style>
-  /*
-    Always in the DOM, toggled with opacity, so closing can fade. `inert` is
-    what makes that safe: a transparent overlay is still focusable and still in
-    the accessibility tree, and the script takes it out of both.
-  */
+  /* Always in the DOM and toggled with opacity, so closing can fade. `inert`
+     is what makes that safe — a transparent overlay is still focusable. */
   .palette {
     opacity: 0;
     pointer-events: none;
@@ -140,16 +136,13 @@ const items = [...nav, ...externalLinks].map((item) => ({
 <script>
   import { closeOnOtherOverlay, overlayOpened } from "@/lib/overlays";
 
-  // The palette is re-rendered on every navigation, so each run retires the
-  // last one's listeners — the same shape as the nav rail in TopBar.
+  // Each run retires the last one's listeners — same shape as TopBar's rail.
   let binding: AbortController | null = null;
 
   function setupPalette() {
     binding?.abort();
     binding = null;
 
-    // A navigation can swap the page out from under an open palette, and the
-    // scroll lock is set on <body>, which survives the swap.
     document.body.style.overflow = "";
 
     const palette = document.querySelector<HTMLElement>("[data-palette]");
@@ -187,9 +180,9 @@ const items = [...nav, ...externalLinks].map((item) => ({
     let previousOverflow = "";
 
     /**
-     * Subsequence match — "gst" finds "Guestbook". Null when it doesn't match.
-     * Walks the label alone: given a whole keyword line, almost any short query
-     * threads some path through it. Keywords still match as a literal run.
+     * Subsequence match — "gst" finds "Guestbook", null when it does not.
+     * Walks the label alone: over a whole keyword line almost any short query
+     * threads some path through. Keywords still match as a literal run.
      */
     const score = (row: HTMLAnchorElement, query: string): number | null => {
       if (!query) return 0;
@@ -283,15 +276,8 @@ const items = [...nav, ...externalLinks].map((item) => ({
       if (!shellPane || !prompt) return;
 
       if (!shell) {
-        /*
-          Both land in one round trip, and only ever once per page.
-
-          Guarded, because an unhandled rejection here left the pane blank with
-          a live prompt: the reader typed into a shell whose filesystem had
-          never arrived, and every command answered as though the bucket were
-          empty. Saying so is the whole fix — there is nothing to retry
-          automatically, since reopening the shell tries again anyway.
-        */
+        // Guarded: without it a failure leaves a live prompt over a shell
+        // whose filesystem never arrived, answering as if the bucket were empty.
         let mod: typeof import("../lib/shell");
         let root: Root;
         try {
@@ -470,8 +456,7 @@ const items = [...nav, ...externalLinks].map((item) => ({
           setActive(active - 1);
         } else if (event.key === "Enter") {
           event.preventDefault();
-          // Click the row rather than navigating by hand, so a normal click
-          // and this take the same path — including the router's.
+          // Click the row rather than navigating by hand, so both paths agree.
           visible[active]?.click();
         }
       },
@@ -482,8 +467,7 @@ const items = [...nav, ...externalLinks].map((item) => ({
       "click",
       (event) => {
         if (!(event.target as HTMLElement).closest("[data-palette-item]")) return;
-        // Next tick: flipping `inert` mid-dispatch would cancel the very
-        // activation this is riding on.
+        // Flipping `inert` mid-dispatch would cancel the activation this rides on.
         setTimeout(() => setOpen(false));
       },
       { signal },

@@ -6,12 +6,9 @@ import { renderOgImage } from "../src/lib/og.ts";
 import { readingTime } from "../src/lib/utils.ts";
 
 /**
- * Draws a share card per post into public/og/blog/ and one per page into
- * public/og/pages/. A prebuild step rather than an endpoint because workerd
- * has neither sharp's native binding nor a font to read off disk.
- *
- * Incremental: a card is redrawn only when its source, the layout or this
- * script is newer than the PNG on disk.
+ * Draws a share card per post and per page into public/og/. A prebuild step
+ * rather than an endpoint because workerd has neither sharp's native binding
+ * nor a font to read off disk. Incremental against mtime.
  */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -51,10 +48,8 @@ async function mtime(file: string): Promise<number> {
   }
 }
 
-/**
- * Every .md under src/content/blog. No underscore filter — the glob loader
- * takes `_name.md` as an ordinary entry. `draft: true` is what hides a file.
- */
+/** No underscore filter: the glob loader takes `_name.md` as an ordinary
+ * entry, and `draft: true` is what hides a file. */
 async function findPosts(dir: string, prefix = ""): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
   const files: string[] = [];
@@ -125,11 +120,7 @@ async function prune(dir: string, keep: Set<string>, prefix = "") {
 
 type Page = { key: string; href: string; title: string; description: string };
 
-/**
- * The site's own pages, from the config that already describes them — the
- * titles and descriptions are the ones already in the <head>. Home is skipped;
- * the static /og.png is the card for the site.
- */
+/** Home is skipped; the static /og.png is the card for the site. */
 async function readPages(): Promise<Page[]> {
   const site = JSON.parse(await readFile(SITE_JSON, "utf8")) as {
     nav: { href: string }[];

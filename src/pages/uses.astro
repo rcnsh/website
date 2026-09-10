@@ -35,20 +35,10 @@ const page = pages.uses;
           </h2>
 
           {/*
-            Flex-wrap with a fixed basis rather than a grid.
-
-            The comment here used to claim these column counts divide the
-            groups into full rows at every width. They do not: the groups are
-            6, 5, 6 and 4 items against 2/3/6 columns, so at 1280 a five-item
-            group leaves 113px of dead space at the end of its row and a
-            four-item group leaves 226px — a third of the row, all of it dumped
-            on the right. At 375 one group ends with a single orphaned tile
-            hugging the left edge.
-
-            Wrapping and centring splits that space evenly on both sides
-            instead, so a partial row reads as a deliberately centred group
-            rather than a row that ran out. The basis values reproduce the old
-            column widths at each breakpoint.
+            Flex-wrap with a fixed basis, not a grid: the group sizes do not
+            divide into full rows at any breakpoint, and centring splits the
+            leftover space evenly rather than dumping it on the right. The
+            basis values reproduce the grid's column widths.
           */}
           <ul class="flex flex-wrap justify-center gap-x-4 gap-y-9">
             {group.items.map((item) => {

@@ -13,18 +13,16 @@ export interface Identity {
 export const MAX_PEERS = 20;
 
 /**
- * Why a room hung up on purpose. Sent over an open socket rather than by
- * refusing the upgrade, which the browser cannot tell from a dead server.
- * `flood` is aimed at a misbehaving client — see Budget. `busy` is the
- * upgrade budget in index.ts, and unlike the others it clears on its own.
+ * Why a room hung up on purpose. Sent over an open socket, since the browser
+ * cannot tell a refused upgrade from a dead server. `busy` clears on its own;
+ * the others do not.
  */
 export type ShutReason = "full" | "unknown" | "flood" | "busy";
 
 /** Application close codes start at 4000; anything below is the protocol's. */
 export const CLOSE_SHUT = 4001;
 
-/* Wider than the site palette — cursors must be told apart at a glance and
-   not read as chrome. Even lightness, so none vanish against #0d0d0c. */
+// Wider than the site palette, at even lightness so none vanish against the page.
 export const COLOURS: ReadonlyArray<readonly [name: string, hex: string]> = [
   ["amber", "#f2a65a"],
   ["coral", "#e8705f"],
@@ -70,9 +68,9 @@ export interface Move {
 }
 
 /**
- * Whether a parsed message is a position update. The socket is
- * unauthenticated, so this is the only guard on the room's state. Finite
- * specifically: NaN would poison every later interpolated frame.
+ * Whether a parsed message is a position update. The socket is unauthenticated,
+ * so this is the only guard on the room's state. Finite specifically: NaN
+ * would poison every later interpolated frame.
  */
 export function isMove(value: unknown): value is { t: "m" } & Move {
   if (typeof value !== "object" || value === null) return false;
@@ -87,13 +85,12 @@ export function isMove(value: unknown): value is { t: "m" } & Move {
 }
 
 /**
- * Rooms are keyed by page path, normalised hard so `/blog/x`, `/blog/x/` and
- * `/blog/X` are one room. Returns null for anything that is not a page here.
+ * Rooms are keyed by page path, normalised so `/blog/x`, `/blog/x/` and
+ * `/blog/X` are one room. Null for anything that is not a page here.
  *
- * `known` is the build-time path list (shared/rooms.generated.ts), and it is
- * load-bearing: each distinct key spawns a Durable Object on request, and the
- * shape checks alone would pass every spelling a script cares to try. Omitted
- * by the generator itself, which only needs the normalisation.
+ * `known` is load-bearing: each distinct key spawns a Durable Object on
+ * request, and the shape checks alone pass every spelling a script tries.
+ * Omitted by the generator itself, which only needs the normalisation.
  */
 export function roomKey(
   raw: string | null,
@@ -136,12 +133,9 @@ export function originAllowed(origin: string | null): boolean {
 }
 
 /**
- * Per-socket message allowance in a rolling one-second window.
- *
- * The inbound request is already billed by the time this runs, so exceeding
- * the budget closes the socket rather than dropping the frame — hanging up is
- * the only thing that stops the meter. The allowance is half again over the
- * client's own send rate, so an honest one never trips it.
+ * Per-socket message allowance in a rolling one-second window. The inbound
+ * request is already billed, so exceeding it closes the socket rather than
+ * dropping the frame — hanging up is the only thing that stops the meter.
  */
 export class Budget {
   private windows = new Map<number, { until: number; count: number }>();
@@ -191,13 +185,10 @@ function hash(text: string): number {
 }
 
 /**
- * An identity, preferring a colour nobody in the room has. Falls back to the
- * whole palette once the room outgrows it; `random` is injected so tests can
- * pin the choice.
- *
- * `seed` is the caller's session token, and keeps one reader from looking like
- * a crowd across reconnects. The animal comes from it and nothing else; the
- * colour is only preferred, since telling two cursors apart wins.
+ * An identity, preferring a colour nobody in the room has and falling back to
+ * the whole palette. `seed` is the caller's session token, which keeps one
+ * reader from looking like a crowd across reconnects; the animal comes from it
+ * alone, while the colour is only preferred.
  */
 export function mint(
   taken: readonly Identity[],
@@ -216,8 +207,7 @@ export function mint(
       ? palette[Math.floor(random() * palette.length)]
       : preferred(seeded, usedColours, palette);
 
-  /* 24 bits is well past collision risk at MAX_PEERS. Retries are bounded
-     with a fallback that cannot fail — a loop here would wedge the room. */
+  // Retries are bounded with a fallback that cannot fail: a loop wedges the room.
   let id = 0;
   if (seeded !== null) {
     // Same reader, same id, so a reconnect reads as one person moving.

@@ -4,9 +4,8 @@ import { cached } from "./cache";
 import { getDb, schema } from "./db";
 
 /**
- * Reading the guestbook. Paginated with the first page cached: D1 bills rows
- * read against a daily allowance, so an uncached 200-row select per view is a
- * few minutes of scripted traffic away from taking sessions down with it.
+ * Reading the guestbook. The first page is cached because D1 bills rows read
+ * against a daily allowance shared with sessions.
  */
 
 /** Rows per page. Roughly two screens on a phone. */
@@ -30,11 +29,9 @@ export type GuestbookEntry = {
 };
 
 /**
- * The sort key of the last row handed out: newest first, id breaking ties.
- *
- * Not an offset — rows are inserted while people read. Not the id alone
- * either: migration 0002 backdated the imported entries, so id order and time
- * order differ, and paginating on the wrong one strands them.
+ * Sort key of the last row handed out: newest first, id breaking ties. Not the
+ * id alone — migration 0002 backdated the imported entries, so id order and
+ * time order differ and paginating on the wrong one strands them.
  */
 export type Cursor = { createdAt: number; id: number };
 
@@ -128,15 +125,8 @@ export async function getPage(after: Cursor | null = null): Promise<GuestbookPag
 }
 
 /**
- * Below this many signatures, a country is folded into `unplaced` rather than
- * published.
- *
- * The histogram is public and the guestbook is small, so a bucket of one is a
- * disclosure: it says a named person in a public list of usernames signed from
- * a specific country. With a short enough list that identifies them. Folding
- * the thin buckets costs the map nothing visible — a single highlighted
- * country is not a shape anyone reads — and stops the aggregate being
- * per-signer data.
+ * Below this, a country folds into `unplaced`. The histogram is public and the
+ * signer list is short, so a bucket of one identifies a named person.
  */
 const MIN_COUNTRY_COUNT = 3;
 
@@ -176,9 +166,8 @@ export async function getStats(): Promise<GuestbookStats> {
 }
 
 /**
- * Drops the cached first page and totals together, so a writer sees their own
- * change on the redirect. Failures are swallowed — the write is committed and
- * the cache expires within the minute anyway.
+ * Drops the cached first page and totals, so a writer sees their own change on
+ * the redirect. Failures are swallowed: the write is already committed.
  */
 export async function invalidate(): Promise<void> {
   const kv = env.CACHE;
@@ -191,10 +180,7 @@ export async function invalidate(): Promise<void> {
   }
 }
 
-/**
- * When this signer last posted, for the rate limit. Its own query, since a
- * 25-row page usually will not contain it. Indexed, so it reads one row.
- */
+/** When this signer last posted, for the rate limit. Indexed; reads one row. */
 export async function lastPostedAt(githubId: number): Promise<Date | null> {
   const [row] = await getDb()
     .select({ createdAt: schema.guestbook.createdAt })

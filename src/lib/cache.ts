@@ -2,10 +2,9 @@ import { coalesce } from "./coalesce";
 import { env, waitUntil } from "cloudflare:workers";
 
 /**
- * Stale-while-revalidate over the CACHE KV namespace, so a visitor never waits
- * on Spotify or GitHub. Only a cold miss blocks; entries outlive `freshFor` by
- * a month of grace. `maxStale` is the counterweight, for date-anchored data
- * that looks plainly wrong when it is weeks old.
+ * Stale-while-revalidate over the CACHE KV namespace: only a cold miss blocks.
+ * `maxStale` is the counterweight, for date-anchored data that looks plainly
+ * wrong when it is weeks old.
  */
 
 type Entry<T> = { v: T; t: number };
@@ -14,10 +13,7 @@ type Entry<T> = { v: T; t: number };
 const STALE_GRACE_SECONDS = 60 * 60 * 24 * 30;
 
 export type CacheOptions = {
-  /**
-   * Age past which stale is worse than waiting. Defaults to the full grace
-   * window; set it lower for anything the reader can date at a glance.
-   */
+  /** Age past which stale is worse than waiting. Defaults to the grace window. */
   maxStaleSeconds?: number;
 };
 

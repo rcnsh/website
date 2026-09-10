@@ -4,11 +4,10 @@ import satori from "satori";
 import sharp from "sharp";
 
 /**
- * Share cards, drawn ahead of the build by scripts/generate-og.ts. satori lays
- * out and returns SVG, sharp rasterises; both are Node-only, so this is a
- * prebuild step writing into public/ rather than an endpoint.
+ * Share cards, drawn ahead of the build by scripts/generate-og.ts. satori and
+ * sharp are both Node-only, so this is a prebuild step rather than an endpoint.
  *
- * No `@/` imports, so plain `node scripts/…` can load it. The palette repeats
+ * No `@/` imports, so plain `node scripts/…` can load it; the palette repeats
  * styles/global.css, since satori resolves no custom properties.
  */
 
@@ -24,11 +23,8 @@ const COLOR = {
 const WIDTH = 1200;
 const HEIGHT = 630;
 
-/**
- * Static instances of the two faces the site uses. The Fontsource packages
- * that dress the site itself ship woff2, which satori cannot parse, so these
- * are vendored as TrueType alongside.
- */
+/** Vendored as TrueType: the Fontsource packages ship woff2, which satori
+ * cannot parse. */
 const FONT_FILES = {
   sans: "Geist-Regular.ttf",
   mono: "GeistMono-Regular.ttf",
@@ -78,11 +74,8 @@ function truncate(text: string, limit: number): string {
   return `${(lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
 }
 
-/*
-  satori takes React elements, but only reads `type`, `props.style` and
-  `props.children` — so plain objects do, and the module stays free of JSX and
-  of React itself.
-*/
+// satori reads only `type`, `props.style` and `props.children`, so plain
+// objects do and this module needs no React.
 type Node = {
   type: string;
   props: { style?: Record<string, unknown>; children?: unknown };

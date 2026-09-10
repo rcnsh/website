@@ -5,53 +5,31 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
 
-  /*
-    A ceiling on what one request can spend. The default is 30 seconds of CPU
-    per invocation, which on the Standard usage model is $0.02 per million
-    milliseconds with no account spend cap behind it — so a route that can be
-    made to loop is a bill someone else gets to write. Nothing here is close:
-    an SSR render is single-digit milliseconds and the bucket-tree scan is low
-    tens. 500ms leaves two orders of magnitude of headroom and still cuts the
-    worst case by 60x. A request that exceeds it fails; that is the trade.
-
-    Startup CPU is accounted separately, so this does not squeeze cold starts.
-  */
+  // A ceiling on what one request can spend, against a route that can be made
+  // to loop. The default is 30s and there is no account spend cap behind it.
+  // Startup CPU is accounted separately, so cold starts are unaffected.
   "limits": { "cpu_ms": 500 },
 
-  /*
-    Per-client request budgets, spent in src/lib/throttle.ts from the
-    middleware. Counted in-isolate: no subrequest, no charge, no latency.
-
-    `namespace_id` is an account-wide identifier rather than a name — two
-    bindings sharing one share their counters, here and in any other Worker on
-    the account. The multiplayer Worker uses the 2000 range for that reason.
-
-    Limits are per minute, per Cloudflare location, and sized far above what
-    the site's own JavaScript asks for: NowPlaying polls 3x a minute, the file
-    browser debounces its search, and a reader clicking through directories is
-    nowhere near 120. Tripping one of these takes a script.
-  */
+  // Per-client budgets, spent in src/lib/throttle.ts. Limits are per minute,
+  // per Cloudflare location, and sized well above what the site's own
+  // JavaScript asks for. `namespace_id` is account-wide, not per Worker — the
+  // multiplayer Worker uses the 2000 range so its counters stay separate.
   "ratelimits": [
-    // Everything the Worker renders that is not matched below: the API routes,
-    // and the handful of pages that opt out of prerendering.
+    // Everything the Worker renders that is not matched below.
     {
       "name": "API_BUDGET",
       "namespace_id": "1001",
       "simple": { "limit": 120, "period": 60 }
     },
-    // Every route that reads the whole cached tree out of KV: /api/files/*
-    // plus the FilesRoot server island. That read is the cost that is not
-    // flat, and it is the same on all of them. Raised from 40 when the two
-    // routes that had been sitting on the loose catch-all were moved here;
-    // the file browser lazy-loads a directory per expansion, so the ceiling
-    // has to clear a human clicking through folders.
+    // Every route that reads the whole cached tree out of KV. The ceiling has
+    // to clear a human clicking through folders — the browser lazy-loads one
+    // directory per expansion.
     {
       "name": "SCAN_BUDGET",
       "namespace_id": "1002",
       "simple": { "limit": 80, "period": 60 }
     },
-    // The OAuth round trip. Writes D1 rows, which is the priciest thing D1
-    // bills for ($1.00/million), and a human does it about once.
+    // The OAuth round trip. Writes D1 rows, and a human does it about once.
     {
       "name": "AUTH_BUDGET",
       "namespace_id": "1003",
@@ -70,10 +48,8 @@
     }
   ],
 
-  // Public file bucket. A native binding, so no S3 keys are needed any more.
-  // `remote: true` makes even local dev read the real bucket rather than an
-  // empty simulated one — the contents are public anyway, and it means the
-  // file browser shows real data while developing.
+  // Public file bucket. `remote: true` so local dev reads the real bucket
+  // rather than an empty simulated one; the contents are public anyway.
   "r2_buckets": [
     {
       "binding": "BUCKET",
@@ -93,12 +69,9 @@
 
   "vars": {
     // The bucket's custom domain (R2 → rcn → Settings → Custom Domains).
-    // The r2.dev URL also works if this is ever detached:
-    //   https://pub-8637e700566f4157b02a73fe9f7526df.r2.dev
     "PUBLIC_BUCKET_URL": "https://upload.rcn.sh",
 
-    // The music-warehouse Worker: listening history, plus live proxies for
-    // now-playing and top lists. Paired with the MUSIC_WAREHOUSE_TOKEN secret.
+    // Paired with the MUSIC_WAREHOUSE_TOKEN secret.
     "MUSIC_WAREHOUSE_URL": "https://music-api.rcn.sh",
     "GITHUB_USERNAME": "rcnsh"
   }

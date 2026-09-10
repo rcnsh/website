@@ -1,17 +1,6 @@
-/*
-  Most of this site is prerendered, and a prerendered response never reaches
-  src/middleware.ts — Workers Static Assets answers ahead of the Worker. Its
-  security headers come from dist/client/_headers, written by
-  generate-headers.ts out of shared/security.ts.
-
-  shared/security.test.ts proves the two sources agree. It cannot prove the
-  file made it into the build: public/_headers is gitignored and regenerated,
-  so if generate-headers.ts fails or is dropped from the `generate` chain,
-  every prerendered page loses every security header and nothing says so. The
-  only signal today is a wrangler log line.
-
-  So this runs after astro build and refuses to let a headerless build pass.
-*/
+// dist/client/_headers is the only source of security headers for prerendered
+// pages, and it is generated, gitignored, and silent when it goes missing.
+// This runs after astro build and refuses to let a headerless build pass.
 import { readFile } from "node:fs/promises";
 import { securityHeaders } from "../shared/security.ts";
 

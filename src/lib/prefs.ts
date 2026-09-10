@@ -1,11 +1,7 @@
 /**
- * The switches in the settings menu, and the storage behind them. Four
- * components read these without importing each other, so both the value and
- * the change announcement live here.
- *
- * Dependency-free and small — this lands in eager bundles. Every read is
- * guarded: private browsing throws, and every default is "behave as the site
- * did before there was a switch".
+ * The settings-menu switches and their storage, shared by components that never
+ * import each other. Keep it dependency-free: this lands in eager bundles.
+ * Every read is guarded because private browsing throws.
  */
 
 const EVENT = "rcn:pref";
@@ -33,10 +29,7 @@ export function writePref(key: PrefKey, value: string | null) {
   document.dispatchEvent(new CustomEvent<PrefKey>(EVENT, { detail: key }));
 }
 
-/**
- * Run `changed` whenever `key` is set, so a switch takes effect behind the
- * panel. Bound to the caller's signal, so a view transition retires it.
- */
+/** Run `changed` whenever `key` is set, so a switch takes effect behind the panel. */
 export function onPrefChange(
   key: PrefKey,
   changed: () => void,
@@ -55,10 +48,7 @@ export function onPrefChange(
 
 export const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
-/**
- * Whether to cut animation. The OS setting is the default; an explicit choice
- * here wins in either direction, since not everyone controls their OS setting.
- */
+/** The OS setting is the default; an explicit choice here wins either way. */
 export function motionReduced(): boolean {
   const stored = readPref("motion");
   if (stored === "reduce") return true;
@@ -71,17 +61,15 @@ export function setMotionReduced(reduce: boolean) {
   applyMotion();
 }
 
-/**
- * Stamps the answer on <html>, where global.css reads it. Duplicated inline in
- * the document head so it lands before first paint — see Layout.astro.
- */
+/** Stamps <html> for global.css. Duplicated inline in Layout.astro's head so
+ * it lands before first paint. */
 export function applyMotion() {
   document.documentElement.dataset.motion = motionReduced() ? "reduce" : "full";
 }
 
 // --- Live updates ---
 
-/** Whether the clock and now-playing poll keep running. On unless told otherwise. */
+/** On unless told otherwise. */
 export function liveUpdates(): boolean {
   return readPref("live") !== "off";
 }
