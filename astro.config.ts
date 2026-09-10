@@ -9,6 +9,7 @@ import sitemap from "@astrojs/sitemap";
 import tailwindcss from "@tailwindcss/vite";
 
 import { INLINE_SCRIPTS } from "./shared/inline-scripts.ts";
+import { SCRIPT_SOURCES } from "./shared/security.ts";
 
 /*
   Astro hashes the scripts it processes, but never an `is:inline` one — that is
@@ -103,6 +104,19 @@ export default defineConfig({
       },
       scriptDirective: {
         hashes: inlineScriptHashes,
+        /*
+          The hashes cover what this repo writes. They do not cover what
+          Cloudflare injects at the edge — the Web Analytics beacon, whose
+          host shared/security.ts already names in the header. A prerendered
+          page is bound by that header and by this meta at once, so a host in
+          only one of them is blocked by the other; that is what happened to
+          the beacon the moment this was switched on.
+
+          `resources` replaces Astro's default rather than extending it, so
+          the list carries `'self'` too, or every same-origin script would
+          fall out of the meta policy. Both live in SCRIPT_SOURCES.
+        */
+        resources: SCRIPT_SOURCES,
       },
     },
   },
