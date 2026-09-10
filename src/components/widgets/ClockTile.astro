@@ -69,18 +69,9 @@ import { clock } from "@/lib/site";
 
     onPrefChange("live", sync, bindings.signal);
     sync();
-
-    // Clear before the next transition so intervals don't stack up.
-    document.addEventListener(
-      "astro:before-swap",
-      () => {
-        window.clearInterval(id);
-        bindings.abort();
-      },
-      { once: true },
-    );
   };
 
+  // One document, one start: without the view-transitions router there is no
+  // swap to tear down for, and no second page-load to rebind on.
   start();
-  document.addEventListener("astro:page-load", start);
 </script>

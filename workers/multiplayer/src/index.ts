@@ -7,6 +7,8 @@ import {
 } from "../../../shared/multiplayer.ts";
 /* Every path the site has, written by scripts/generate-rooms.ts at build. */
 import { ROOMS } from "../../../shared/rooms.generated.ts";
+/* The same header set the site Worker sends, so this route is not the hole. */
+import { securityHeaders } from "../../../shared/security.ts";
 import {
   Budget,
   clamp,
@@ -299,53 +301,80 @@ function allowOrigin(response: Response, request: Request): Response {
   return allowed;
 }
 
+/**
+ * This Worker is routed ahead of the site Worker (see wrangler.jsonc), so
+ * src/middleware.ts never runs on /api/multiplayer/* and none of the site's
+ * security headers were reaching these responses. Everything else on the
+ * origin carried them; this was the one gap, and any endpoint added under this
+ * route would have inherited it.
+ *
+ * A 101 is left alone: its headers are the upgrade handshake, not a document's.
+ */
+function harden(response: Response): Response {
+  if (response.status === 101) return response;
+
+  const hardened = new Response(response.body, response);
+  for (const [name, value] of Object.entries(securityHeaders())) {
+    hardened.headers.set(name, value);
+  }
+  return hardened;
+}
+
 export default {
   async fetch(
     request: Request,
     env: Env,
     ctx: ExecutionContext,
   ): Promise<Response> {
-    const url = new URL(request.url);
-    const wantsSocket = request.headers.get("Upgrade") === "websocket";
-    const counting = url.pathname === "/api/multiplayer/count";
-
-    // A same-origin GET sends no Origin header, which in production is every
-    // count request — in development it is cross-origin and does. Only the
-    // count tolerates an unlabelled request: a browser always labels an
-    // upgrade, and the socket is the half billed by duration.
-    const origin = request.headers.get("Origin");
-    const vouched = origin ? originAllowed(origin) : counting && !wantsSocket;
-    if (!vouched) {
-      return new Response("Forbidden", { status: 403 });
-    }
-
-    if (!counting && url.pathname !== "/api/multiplayer") {
-      return new Response("Not found", { status: 404 });
-    }
-
-    // A page the site actually has, not merely a plausible path — otherwise a
-    // stranger conjures Durable Objects by asking for them.
-    const room = roomKey(url.searchParams.get("room"), KNOWN_ROOMS);
-    if (!room) {
-      // Down the socket where there is one, so the reader is told rather than
-      // left watching a reconnect loop.
-      if (wantsSocket) return shut("unknown");
-      return new Response("Bad room", { status: 400 });
-    }
-
-    if (counting) return presenceCount(request, env, ctx, room);
-
-    // Last gate before the Durable Object, which is where the meter is.
-    if (await churning(request, env)) {
-      // Down the socket where there is one, the same as an unknown room; a
-      // caller that did not ask for one cannot be handed a 101.
-      if (wantsSocket) return shut("busy");
-      return new Response("Too many requests", {
-        status: 429,
-        headers: { "retry-after": "60" },
-      });
-    }
-
-    return env.ROOMS.get(env.ROOMS.idFromName(room)).fetch(request);
+    return harden(await handle(request, env, ctx));
   },
 } satisfies ExportedHandler<Env>;
+
+async function handle(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
+  const url = new URL(request.url);
+  const wantsSocket = request.headers.get("Upgrade") === "websocket";
+  const counting = url.pathname === "/api/multiplayer/count";
+
+  // A same-origin GET sends no Origin header, which in production is every
+  // count request — in development it is cross-origin and does. Only the
+  // count tolerates an unlabelled request: a browser always labels an
+  // upgrade, and the socket is the half billed by duration.
+  const origin = request.headers.get("Origin");
+  const vouched = origin ? originAllowed(origin) : counting && !wantsSocket;
+  if (!vouched) {
+    return new Response("Forbidden", { status: 403 });
+  }
+
+  if (!counting && url.pathname !== "/api/multiplayer") {
+    return new Response("Not found", { status: 404 });
+  }
+
+  // A page the site actually has, not merely a plausible path — otherwise a
+  // stranger conjures Durable Objects by asking for them.
+  const room = roomKey(url.searchParams.get("room"), KNOWN_ROOMS);
+  if (!room) {
+    // Down the socket where there is one, so the reader is told rather than
+    // left watching a reconnect loop.
+    if (wantsSocket) return shut("unknown");
+    return new Response("Bad room", { status: 400 });
+  }
+
+  if (counting) return presenceCount(request, env, ctx, room);
+
+  // Last gate before the Durable Object, which is where the meter is.
+  if (await churning(request, env)) {
+    // Down the socket where there is one, the same as an unknown room; a
+    // caller that did not ask for one cannot be handed a 101.
+    if (wantsSocket) return shut("busy");
+    return new Response("Too many requests", {
+      status: 429,
+      headers: { "retry-after": "60" },
+    });
+  }
+
+  return env.ROOMS.get(env.ROOMS.idFromName(room)).fetch(request);
+}

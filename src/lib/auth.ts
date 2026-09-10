@@ -125,10 +125,41 @@ async function hashToken(token: string): Promise<string> {
   ).join("");
 }
 
+/**
+ * Expired rows hold a githubId, username, display name and avatar URL, and D1
+ * has no TTL of its own, so something has to delete them. This used to run
+ * only inside `createSession` — i.e. only when somebody completed an OAuth
+ * login — which on a personal site means expired rows can outlive their 30-day
+ * TTL by a long way. `getSession` samples it instead, so the sweep tracks
+ * traffic rather than logins.
+ *
+ * A Cron Trigger would be the tidier answer, but it needs a `scheduled` export
+ * on the Worker entry and @astrojs/cloudflare exposes no hook for one, so it
+ * would mean standing up a second Worker to delete a handful of rows.
+ */
+const SWEEP_SAMPLE_RATE = 50;
+
+export async function sweepExpiredSessions(): Promise<void> {
+  const db = getDb();
+  await db
+    .delete(schema.sessions)
+    .where(lt(schema.sessions.expiresAt, new Date()));
+}
+
+/**
+ * Whether cookies get the `Secure` flag. Deriving this from the request scheme
+ * looks equivalent and is not: rcn.sh answers plain http unless the zone has
+ * *Always Use HTTPS* on, and a first-ever visitor who lands on http:// would
+ * be handed a session cookie without `Secure`, then send it in the clear on
+ * every later http request. HSTS closes that for anyone who has already
+ * visited over https; it cannot help the first navigation. So the flag is
+ * unconditional in anything that is not a local dev build.
+ */
+export const COOKIE_SECURE = !import.meta.env.DEV;
+
 export async function createSession(
   user: SessionUser,
   cookies: AstroCookies,
-  secure: boolean,
 ): Promise<void> {
   const token = randomToken();
   const id = await hashToken(token);
@@ -137,13 +168,12 @@ export async function createSession(
   const db = getDb();
   await db.insert(schema.sessions).values({ id, expiresAt, ...user });
 
-  // Opportunistically sweep expired rows; D1 has no TTL of its own.
-  await db.delete(schema.sessions).where(lt(schema.sessions.expiresAt, new Date()));
+  await sweepExpiredSessions();
 
   cookies.set(SESSION_COOKIE, token, {
     path: "/",
     httpOnly: true,
-    secure,
+    secure: COOKIE_SECURE,
     sameSite: "lax",
     expires: expiresAt,
   });
@@ -176,6 +206,16 @@ export async function getSession(
       .update(schema.sessions)
       .set({ expiresAt: new Date(Date.now() + SESSION_TTL_MS) })
       .where(eq(schema.sessions.id, id));
+  }
+
+  // Roughly one signed-in request in fifty pays for the cleanup. Failing here
+  // must not cost the caller their session, so it is deliberately swallowed.
+  if (Math.floor(Math.random() * SWEEP_SAMPLE_RATE) === 0) {
+    try {
+      await sweepExpiredSessions();
+    } catch (error) {
+      console.error("[auth] session sweep failed", error);
+    }
   }
 
   return {

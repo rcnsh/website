@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "npm run generate && astro dev",
-    "build": "npm run generate && wrangler types && astro check && astro build",
+    "build": "npm run generate && wrangler types && astro check && astro build && npm run verify:headers",
+    "verify:headers": "node scripts/verify-headers.ts",
     "generate": "npm run og && npm run rooms && npm run headers && npm run badge",
     "og": "node scripts/generate-og.ts",
     "rooms": "node scripts/generate-rooms.ts",
