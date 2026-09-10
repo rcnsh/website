@@ -11,32 +11,51 @@ const page = pages.uses;
   description={page.description}
   image={pageOgHref("uses")}
 >
-  <header class="animate-rise pb-12">
+  <header class="animate-rise pb-10">
     <h1 class="display-face text-[2.25rem] text-ink">{page.title}</h1>
   </header>
 
   {/* Each group is a plate on the diagram; its name breaks the top rule. */}
-  <div class="flex flex-col gap-12 pb-6">
+  <div class="flex flex-col gap-14 pb-6">
     {
       uses.groups.map((group) => (
         <section class="relative rounded-xs border border-line px-5 pb-8 pt-10 sm:px-7">
+          {/*
+            The inset subtracts the label's own px-2.5, so the *text* lands on
+            the section's content edge rather than 10px right of it. It also
+            has to track the section's padding, which steps 1.25rem -> 1.75rem
+            at `sm`; the old `left-5 sm:left-6` tracked neither, so the label
+            sat 10px off below `sm` and 4px off above it — a misalignment that
+            changed at the breakpoint.
+          */}
           <h2
-            class="label absolute -top-[0.5em] left-5 select-none bg-base px-2.5 sm:left-6"
+            class="label absolute -top-[0.5em] left-[calc(1.25rem-0.625rem)] select-none bg-base px-2.5 sm:left-[calc(1.75rem-0.625rem)]"
           >
             {group.title}
           </h2>
 
           {/*
-            Fixed counts, not auto-fit: the groups are 6, 5, 6 and 4 items, and
-            auto-fit was landing 5 across and orphaning the last one on its own
-            row. These divide the groups into full rows at every width.
+            Flex-wrap with a fixed basis rather than a grid.
+
+            The comment here used to claim these column counts divide the
+            groups into full rows at every width. They do not: the groups are
+            6, 5, 6 and 4 items against 2/3/6 columns, so at 1280 a five-item
+            group leaves 113px of dead space at the end of its row and a
+            four-item group leaves 226px — a third of the row, all of it dumped
+            on the right. At 375 one group ends with a single orphaned tile
+            hugging the left edge.
+
+            Wrapping and centring splits that space evenly on both sides
+            instead, so a partial row reads as a deliberately centred group
+            rather than a row that ran out. The basis values reproduce the old
+            column widths at each breakpoint.
           */}
-          <ul class="grid grid-cols-2 gap-x-4 gap-y-9 sm:grid-cols-3 md:grid-cols-6">
+          <ul class="flex flex-wrap justify-center gap-x-4 gap-y-9">
             {group.items.map((item) => {
               const Tag = item.url ? "a" : "div";
 
               return (
-                <li>
+                <li class="basis-[calc(50%-0.5rem)] sm:basis-[calc(33.333%-0.75rem)] md:basis-[calc(16.666%-0.875rem)]">
                   <Tag
                     {...(item.url
                       ? {
@@ -53,7 +72,13 @@ const page = pages.uses;
                     />
 
                     <span class="flex flex-col gap-1">
-                      <span class="font-mono text-[0.75rem] leading-tight text-ink">
+                      {/*
+                        Two lines reserved, because a name that wraps used to
+                        push its detail line 15px out of the row's baseline at
+                        >=768 — the captions in one row stopped agreeing on
+                        where they start.
+                      */}
+                      <span class="min-h-[2lh] font-mono text-[0.75rem] leading-tight text-ink">
                         {item.name}
                       </span>
                       {item.detail && (
