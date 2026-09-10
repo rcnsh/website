@@ -508,6 +508,6 @@ const items = [...nav, ...externalLinks].map((item) => ({
     filter();
   }
 
-  // Fires on the initial load too.
-  document.addEventListener("astro:page-load", setupPalette);
+  // Module scripts are deferred, so the DOM is parsed by the time this runs.
+  setupPalette();
 </script>

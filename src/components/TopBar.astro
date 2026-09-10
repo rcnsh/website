@@ -237,6 +237,6 @@ const homeActive = isActive("/");
     place(activeTab(), false);
   }
 
-  // Fires on the initial load too.
-  document.addEventListener("astro:page-load", setupNav);
+  // Module scripts are deferred, so the DOM is parsed by the time this runs.
+  setupNav();
 </script>
