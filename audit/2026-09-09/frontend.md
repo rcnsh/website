@@ -2,8 +2,8 @@
 
 Scope: visual layout and spacing only, at 375×812 / 768×1024 / 1280×900 / 1920×1080.
 Measured against `astro dev` on `localhost:4321`. Security headers, D1, cold start and
-error handling are out of scope — see `audit/security.md`, `audit/d1.md`,
-`audit/reliability.md`, `audit/performance.md`.
+error handling are out of scope — see the other reports alongside this one:
+`security.md`, `d1.md`, `reliability.md`, `performance.md`.
 
 ## Summary
 
