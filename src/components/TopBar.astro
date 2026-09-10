@@ -3,14 +3,8 @@ import Icon from "./Icon.astro";
 import SettingsMenu from "./SettingsMenu.astro";
 import { nav } from "@/lib/site";
 
-/*
-  `build.format: "file"` emits the home page as index.html, and at prerender
-  time Astro.url.pathname is "/index.html" rather than "/". The trailing-slash
-  strip alone therefore left `path` as "/index.html", `isActive("/")` false,
-  and the home page shipped with no active nav marker at all — the underline
-  simply never appeared on "/". Invisible in `astro dev`, where the pathname is
-  already "/", which is why it survived this long.
-*/
+// `build.format: "file"` makes Astro.url.pathname "/index.html" at prerender
+// time, not "/" — see CLAUDE.md § Maintenance. Invisible under `astro dev`.
 const path =
   Astro.url.pathname.replace(/\/index\.html$/, "/").replace(/(.)\/+$/, "$1") || "/";
 
@@ -21,20 +15,11 @@ const tabs = nav.slice(1);
 const homeActive = isActive("/");
 ---
 
-{
-  /*
-    Not transition:persist — the active-route marker comes from Astro.url, so
-    persisting the header would freeze it on the first page loaded. Nothing in
-    here holds state worth carrying across a navigation anyway.
-  */
-}
 <header class="sticky top-0 z-50 border-b border-line bg-base/85 backdrop-blur-md">
   <div class="mx-auto flex h-14 max-w-3xl items-center px-5 sm:px-6">
     {
-      /*
-        Wordmark and links share one rail so a single underline can travel the
-        whole row. -ml-3 cancels the first tab's padding.
-      */
+      /* One rail, so a single underline can travel the whole row. -ml-3
+         cancels the first tab's padding. */
     }
     <div class="relative -ml-3 flex items-stretch self-stretch" data-nav-rail>
       <a
@@ -74,13 +59,8 @@ const homeActive = isActive("/");
     {/* The dialog itself is rendered by the layout — see CommandPalette.astro. */}
     <div class="ml-auto flex items-center gap-4">
       {
-        /*
-          `-m-2 p-2` is the cog's own pattern: the negative margin cancels the
-          padding, so nothing moves visually while the hit area grows from
-          14x14 to 30x30. Below `sm` the ⌘K label is hidden, which left this
-          button as the bare 14px icon — the smallest target on the site, and
-          8px from one with twice the area.
-        */
+        /* `-m-2 p-2` grows the hit area without moving anything: below `sm`
+           the ⌘K label is hidden and this is otherwise a bare 14px target. */
       }
       <button
         type="button"
@@ -121,8 +101,8 @@ const homeActive = isActive("/");
 </header>
 
 <style>
-  /* Registered as <color> so the gradient interpolates rather than snapping.
-     initial-value must be a literal, hence the repeated --color-ink hex. */
+  /* <color> so the gradient interpolates rather than snapping. initial-value
+     must be a literal, hence the repeated --color-ink hex. */
   @property --wm-from {
     syntax: "<color>";
     inherits: false;
@@ -151,10 +131,8 @@ const homeActive = isActive("/");
     --wm-to: var(--color-brand-alt);
   }
 
-  /*
-    One bar for the whole rail — width and offset come in as custom properties,
-    so hovering a tab moves a single element rather than cross-fading two.
-  */
+  /* One bar for the whole rail: width and offset arrive as custom properties,
+     so hovering a tab moves one element rather than cross-fading two. */
   .nav-underline {
     position: absolute;
     bottom: -1px;
@@ -188,8 +166,8 @@ const homeActive = isActive("/");
 </style>
 
 <script>
-  // The rail is rebuilt on every navigation. The `window` listener would
-  // outlive it and pin a detached rail, so each run retires the last one's.
+  // A second run must not leave the first run's `window` listener pinning a
+  // detached rail.
   let binding: AbortController | null = null;
 
   function setupNav() {
@@ -255,13 +233,8 @@ const homeActive = isActive("/");
     place(activeTab(), false);
   }
 
-  /*
-    Publish the real header height so global.css can offset in-page anchors by
-    it. The CSS carries a fallback, but the bar wraps a second row of links
-    below `sm` and gains one on a narrow-but-not-mobile screen, so a hard-coded
-    value drifts the moment the markup changes. Measuring costs one layout read
-    per resize.
-  */
+  // The header's real height, for global.css's in-page anchor offset. The bar
+  // wraps a second row below `sm`, so the CSS fallback alone drifts.
   function publishHeaderHeight() {
     const header = document.querySelector("header");
     if (!header) return;

@@ -1,9 +1,6 @@
 /**
- * Live cursors — the client half of workers/multiplayer.
- *
- * Reached only through a dynamic import when the toggle is first switched on,
- * so it costs nothing to a visitor who never touches it. Keep it off the eager
- * path.
+ * Live cursors — the client half of workers/multiplayer. Dynamically imported
+ * when the toggle is first switched on; keep it off the eager path.
  */
 
 import { SEND_INTERVAL_MS } from "../../shared/multiplayer.ts";
@@ -13,8 +10,7 @@ import { motionReduced } from "./prefs.ts";
 
 /**
  * A pointer precise enough to broadcast. Devices that fail still connect and
- * draw everyone else, they just never send. Matched live — a mouse can be
- * plugged into a tablet mid-session.
+ * draw everyone else. Matched live: a mouse can be plugged in mid-session.
  */
 const FINE_POINTER = "(any-pointer: fine)";
 
@@ -29,9 +25,8 @@ const ENDPOINT = import.meta.env.DEV
 const MOVE_EPSILON = 0.75;
 
 /**
- * Drop the socket on an idle tab, resume on the next movement. Deliberately
- * not shortened when alone — the room hibernates, and holding the socket open
- * is how you find out someone has arrived.
+ * Drop the socket on an idle tab, resume on the next movement. Not shortened
+ * when alone: holding the socket open is how you learn someone arrived.
  */
 const IDLE_MS = 4 * 60 * 1000;
 
@@ -42,9 +37,8 @@ const TOKEN_KEY = "rcn:mp-session";
 type Refusal = "full" | "unknown" | "flood" | "busy";
 
 /**
- * A stable name for this tab, so the room keeps assigning the same colour and
- * animal across reconnects. sessionStorage, so two tabs differ; private
- * browsing throws and the room falls back to minting at random.
+ * A stable name for this tab, so the room reassigns the same colour and animal
+ * across reconnects. Private browsing throws; the room then mints at random.
  */
 function token(): string | null {
   try {
@@ -93,19 +87,12 @@ export interface SessionState {
 export interface Session {
   /** Point the session at a different page. No-op if it is already there. */
   setRoom(path: string): void;
-  /**
-   * Watch the room. One listener, replaced per call — settings markup is
-   * rebuilt on every navigation, so a list would leak detached closures.
-   */
+  /** Watch the room. One listener, replaced per call, not a list. */
   onState(listener: (state: SessionState) => void): void;
   destroy(): void;
 }
 
-/**
- * The content column. Cursors are exchanged relative to it — x as a fraction
- * of its width, y as pixels below its top — so a cursor parked on a heading
- * lands on that heading at any window width. x outside 0..1 is the margins.
- */
+/** The content column that cursor positions are measured against. */
 function column(): Column {
   const el = document.getElementById("content");
   if (!el) return { left: 0, top: 0, width: Math.max(1, innerWidth) };
@@ -216,8 +203,7 @@ export function start(): Session {
 
   // --- Connection -----------------------------------------------------------
 
-  /* Reconnect policy lives in link.ts, testable without a browser. This half
-     just maps WebSocket events onto it. */
+  // Reconnect policy lives in link.ts; this half just maps WebSocket events onto it.
   const connection = link({
     open(handlers) {
       const seed = token();
@@ -293,8 +279,7 @@ export function start(): Session {
         }
         break;
 
-      /* A deliberate no — reconnecting gets the same answer back. Only
-         revive(), on navigation or tab focus, undoes this. */
+      // A deliberate no: reconnecting gets the same answer. Only revive() undoes it.
       case "shut":
         refused =
           message.why === "full" ||
@@ -331,8 +316,8 @@ export function start(): Session {
       drawn: null,
     });
 
-    // `sent` predates the silence, so clear it and let the arrival get a
-    // position without waiting for the pointer to move.
+    // `sent` predates the silence; clear it so the arrival gets a position
+    // without waiting for the pointer to move.
     sent = null;
     loop();
   }
@@ -411,12 +396,11 @@ export function start(): Session {
   }
 
   function send(now: number, box: Column) {
-    // Nobody to send to. Every message is a billed DO request and being alone
-    // is the common case; this is also what lets the room hibernate.
+    // Every message is a billed DO request, and being alone is the common
+    // case; this is also what lets the room hibernate.
     if (peers.size === 0) return;
 
-    // Belt to the handler's braces: some mobile browsers fire a stray
-    // non-touch pointermove while scrolling.
+    // Some mobile browsers fire a stray non-touch pointermove while scrolling.
     if (!pointer.matches) return;
     if (!mine || !connection.live) return;
     if (now - lastSendAt < SEND_INTERVAL_MS) return;
@@ -437,10 +421,7 @@ export function start(): Session {
 
   // --- Input ----------------------------------------------------------------
 
-  /**
-   * "Still here" — refreshes the idle timer and revives a dropped socket. Bound
-   * to more than pointermove, since a phone never fires one.
-   */
+  /** "Still here": refreshes the idle timer and revives a dropped socket. */
   function wake() {
     lastMoveAt = performance.now();
     if (!document.hidden) connection.wake();
@@ -450,8 +431,8 @@ export function start(): Session {
   document.addEventListener(
     "pointermove",
     (event) => {
-      // Device check keeps phones off the wire; pointerType covers the
-      // touchscreen on a laptop that passed it on the strength of its trackpad.
+      // pointerType covers the touchscreen on a laptop that passed the device
+      // check on the strength of its trackpad.
       if (!pointer.matches || event.pointerType === "touch") {
         wake();
         return;
@@ -486,8 +467,6 @@ export function start(): Session {
   return {
     setRoom(next) {
       const key = next.replace(/\/+$/, "") || "/";
-      /* A view transition replaces <head> and the contents of <body>, taking
-         these with it. Cheaper to re-attach than to persist them. */
       if (!style.isConnected) document.head.appendChild(style);
       if (!layer.isConnected) document.body.appendChild(layer);
       if (key === room) return;

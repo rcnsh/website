@@ -1,14 +1,8 @@
 @import "tailwindcss";
 
-/*
-  Height of the sticky header. scroll-margin-top on headings is derived from
-  it, so an in-page anchor lands below the chrome rather than behind it.
-
-  Overwritten at runtime with the measured height (TopBar.astro) so it cannot
-  drift from the markup. These are the fallbacks for before that script runs,
-  and they match what the classes render today: a 56px bar plus its 1px
-  border, plus the 45px mobile link row below `sm`.
-*/
+/* Height of the sticky header, which scroll-margin-top on headings derives
+   from. TopBar.astro overwrites it with the measured height; these are the
+   fallbacks for before that script runs. */
 :root {
   --header-h: 102px;
 }
@@ -65,13 +59,8 @@
   /* The incoming album cover, fading in over the outgoing one. */
   --animate-art-in: art-in 0.25s ease both;
 
-  /*
-    0.01, not 0. Chrome does not count a fully transparent element as painted,
-    so the LCP timestamp is deferred until the first frame where opacity clears
-    zero — the page title is inside this animation, so it was the LCP element
-    waiting on its own entrance. A hundredth of an opacity is invisible and
-    counts as painted.
-  */
+  /* 0.01, not 0: Chrome does not count a fully transparent element as
+     painted, which deferred LCP until this animation's first frame. */
   @keyframes rise {
     from {
       opacity: 0.01;
@@ -207,17 +196,8 @@
   & h3,
   & h4 {
     color: var(--color-ink);
-    /*
-      Clears the sticky header when an #anchor is jumped to.
-
-      Was a flat 5rem — 80px, which is fine against the 57px desktop header and
-      22px short of the 102px mobile one, where the bar wraps a second row of
-      links under itself. The heading a reader had just asked to be taken to
-      landed behind the chrome with 4px of it showing.
-
-      --header-h is measured from the real element by TopBar's script; the
-      values in the fallback block are what applies before that runs.
-    */
+    /* Clears the sticky header when an #anchor is jumped to. Must be measured,
+       not flat: the bar wraps a second row of links below `sm`. */
     scroll-margin-top: calc(var(--header-h) + 1.5rem);
   }
 

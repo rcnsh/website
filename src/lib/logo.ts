@@ -1,10 +1,7 @@
 /**
- * The rcn.sh mark as data, since it is drawn in more than one place —
- * Logo.astro on the page, badge.ts into an 88x31 PNG.
- *
- * No `@/` imports and nothing Astro-shaped: bare Node loads this through
- * scripts/generate-badge.ts. public/favicon.svg carries its own copy, since it
- * is fetched before any of this runs.
+ * The rcn.sh mark as data. No `@/` imports and nothing Astro-shaped: bare Node
+ * loads this through scripts/generate-badge.ts. public/favicon.svg carries its
+ * own copy, since it is fetched before any of this runs.
  */
 
 export type LogoPolygon = { fill: string; points: string };
@@ -34,16 +31,12 @@ export const LOGO_POLYGONS: LogoPolygon[] = [
   },
 ];
 
-/**
- * The same two blues lifted for a dark ground, in polygon order. The mark's own
- * #305b99 is ~2.5:1 on the badge plate — fine at 40px, a smudge at 8.
- */
+/** The two blues lifted for a dark ground, in polygon order; the mark's own
+ * #305b99 is ~2.5:1 on the badge plate. */
 export const LOGO_LIFTED = ["#7f8ad0", "#6f9bd8"] as const;
 
-/**
- * The mark as a standalone SVG at an explicit size — satori takes only an
- * `<img>`, so badge.ts passes this as a data URI. `fills` overrides in order.
- */
+/** Standalone SVG at an explicit size; satori takes only an `<img>`, so
+ * badge.ts passes this as a data URI. `fills` overrides in polygon order. */
 export function logoSvg(
   height: number,
   fills: readonly string[] = LOGO_POLYGONS.map((polygon) => polygon.fill),

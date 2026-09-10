@@ -40,10 +40,7 @@ const {
 
 const pageTitle = title ? `${site.name} • ${title}` : `${site.name} • Home`;
 
-/*
-  Descriptions come from config and post frontmatter, where `[label](url)` is a
-  habit — unwrap it to the label so raw Markdown never lands in a meta tag.
-*/
+// Unwrap `[label](url)`, so raw Markdown never lands in a meta tag.
 const metaDescription = description.replace(/\[([^\]]+)\]\([^)\s]+\)/g, "$1");
 const canonical =
   new URL(Astro.url.pathname, site.url).toString().replace(/\/+$/, "") ||
@@ -60,13 +57,9 @@ const ogImage = new URL(image, site.url).toString();
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
     {
-      /*
-        Without these the fonts are found only once the stylesheet has parsed
-        and layout has run, and the first paragraph paints twice — once in the
-        fallback, once in Geist. `crossorigin` because a font is fetched in CORS
-        mode even from this origin, and a preload that does not match is a
-        second download.
-      */
+      /* Without these the first paragraph paints twice. `crossorigin`
+         because fonts are fetched in CORS mode even from this origin, and a
+         preload that does not match is a second download. */
     }
     <link rel="preload" href={geistSans} as="font" type="font/woff2" crossorigin />
     <link rel="preload" href={geistMono} as="font" type="font/woff2" crossorigin />
@@ -113,12 +106,9 @@ const ogImage = new URL(image, site.url).toString();
 
 
     {
-      /*
-        The body lives in shared/inline-scripts.ts so astro.config.ts can hash
-        the identical string for the CSP — an is:inline script is one Astro
-        never hashes itself, and on a `prerender = false` route the policy is a
-        real header that governs it. See that file for the full reasoning.
-      */
+      /* The body lives in shared/inline-scripts.ts so astro.config.ts can
+         hash the identical string for the CSP. Any new is:inline script must
+         be registered there too. */
     }
     <script is:inline set:html={MOTION_BOOTSTRAP} />
   </head>

@@ -3,11 +3,7 @@ import { securityHeaders } from "../shared/security.ts";
 import { SESSION_COOKIE } from "@/lib/auth";
 import { throttle } from "@/lib/throttle";
 
-/**
- * Security headers for anything the Worker renders. Prerendered pages are
- * covered by public/_headers instead, from the same source. See
- * shared/security.ts for the set itself.
- */
+/** For anything the Worker renders; public/_headers covers the rest. */
 const SECURITY_HEADERS = securityHeaders({ dev: import.meta.env.DEV });
 
 const CSP = "Content-Security-Policy";
@@ -17,9 +13,8 @@ const FRAME_ANCESTORS = "frame-ancestors 'none'";
 
 function harden(response: Response) {
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
-    /* Never clobber a CSP a route already set. Nothing does today, but
-       overwriting a hashed per-response policy with this 'unsafe-inline' one
-       would downgrade exactly the best routes, silently. */
+    // Never clobber a route's own CSP: overwriting a hashed policy with this
+    // 'unsafe-inline' one would silently downgrade the best routes.
     if (name === CSP) {
       const existing = response.headers.get(CSP);
       if (existing) {
@@ -51,9 +46,8 @@ function finish(response: Response, store: string | null): Response {
     if (store) response.headers.set("Cache-Control", store);
     return response;
   } catch {
-    /* A Response from the Cache API or `fetch()` has immutable headers, and
-       setting one throws — a 500 with an empty body from middleware that looks
-       like it cannot fail. Reconstructing makes them mutable. */
+    // A Response from the Cache API or `fetch()` has immutable headers, and
+    // setting one throws. Reconstructing makes them mutable.
     const copy = new Response(response.body, response);
     harden(copy);
     if (store) copy.headers.set("Cache-Control", store);
@@ -62,32 +56,17 @@ function finish(response: Response, store: string | null): Response {
 }
 
 export const onRequest = defineMiddleware(async (context, next) => {
-  /* Before next(), deliberately: every route past this point spends money —
-     D1 rows, a KV read of the whole bucket tree, CPU rendering a page — and a
-     429 issued here costs a request and nothing else. Only routes the Worker
-     renders reach this at all; static assets are served ahead of it and are
-     not billed. See lib/throttle.ts for what it does and does not bound. */
+  // Before next(): every route past this point spends money, and a 429 issued
+  // here costs a request and nothing else.
   const refused = await throttle(context.request, context.url.pathname);
   if (refused) return finish(refused, "private, no-store");
 
   const response = await next();
 
-  /*
-    Server islands render public data and nothing else — GitHub stats, the
-    contribution calendar, repos, the bucket root, listening history, the
-    guestbook's country map. None of them reads the session, so a copy cached
-    from an anonymous request is the same bytes a signed-in visitor would have
-    got, and the edge can answer for all of them.
-
-    That is an invariant, not an observation: put a personalised island behind
-    this and the middleware will happily let the edge serve one reader's
-    fragment to another. If an island ever needs the session, it must be
-    excluded here.
-
-    They were the site's three uncacheable round trips per homepage view, and
-    everything behind them is already stale-while-revalidated in KV on a 30-60
-    minute clock, so a 5-minute edge TTL is strictly fresher than the data.
-  */
+  // Islands are cached as a class, so every island must stay non-personalised
+  // — see CLAUDE.md § Maintenance › Caching. An island that reads the session
+  // must be excluded here, or the edge will serve one reader's fragment to
+  // another.
   if (context.url.pathname.startsWith("/_server-islands/")) {
     return finish(
       response,
@@ -95,16 +74,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
     );
   }
 
-  /* A signed-in render is nobody else's to see — /guestbook carries the
-     signer's username and delete controls. Workers Caching is off today, but
-     it is one flag away, and this makes that flag safe to throw.
-
-     Deliberately NOT given a public Cache-Control on the anonymous branch:
-     Cloudflare's default cache key ignores cookies, so an anonymous copy at
-     the edge would be served to signed-in readers too, and they would be shown
-     a sign-in prompt while holding a valid session. Making that safe needs a
-     cache key that varies on the session cookie, which is zone config rather
-     than anything in this repo. */
+  // A signed-in render is nobody else's to see. The anonymous branch gets no
+  // public Cache-Control either — see CLAUDE.md § Maintenance › Caching.
   const store = personalised(context.cookies)
     ? "private, no-store"
     : null;

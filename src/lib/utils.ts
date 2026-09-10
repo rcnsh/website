@@ -1,9 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 
-/**
- * Joins class names. Plain clsx — nothing here takes a className prop, so there
- * are no outside classes for tailwind-merge to resolve against.
- */
+/** Plain clsx: nothing takes a className prop, so there is nothing to merge. */
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
 }
@@ -55,9 +52,8 @@ export function relativeTime(input: string | Date): string {
 const WORDS_PER_MINUTE = 200;
 
 /**
- * Deliberately rough: code is dropped, the rest counted as tokens. Lives here
- * rather than lib/blog.ts so the share-card script can import it without
- * dragging in `astro:content`.
+ * Rough by design: code is dropped, the rest counted as tokens. Here rather
+ * than lib/blog.ts so the share-card script avoids `astro:content`.
  */
 export function readingTime(body = ""): number {
   const prose = body.replace(/```[\s\S]*?```/g, " ").replace(/`[^`]*`/g, " ");

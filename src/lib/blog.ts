@@ -2,10 +2,7 @@ import { getCollection, type CollectionEntry } from "astro:content";
 
 export type Post = CollectionEntry<"blog">;
 
-/**
- * Newest first. Drafts stay visible under `astro dev` so a work in progress can
- * be read in place, and drop out of the production build.
- */
+/** Newest first. Drafts stay visible under `astro dev` only. */
 export async function getPosts(): Promise<Post[]> {
   const posts = await getCollection(
     "blog",
@@ -32,9 +29,7 @@ export const formatDate = (date: Date) => DATE_FORMAT.format(date);
 /** For <time datetime> — the machine-readable half of a rendered date. */
 export const isoDate = (date: Date) => date.toISOString().slice(0, 10);
 
-/*
-  Re-exported so post pages keep importing it from here, next to everything
-  else about a post. It lives in lib/utils.ts because scripts/generate-og.ts
-  needs the same count and cannot load this module.
-*/
+// Defined in lib/utils.ts because scripts/generate-og.ts needs the same count
+// and cannot load this module.
+
 export { readingTime } from "./utils";

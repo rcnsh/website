@@ -4,9 +4,6 @@ import { cached } from "@/lib/cache";
 /**
  * R2 listing through the native bucket binding. Files go over the wire as
  * tuples, with the key and public URL rebuilt in the browser from the prefix.
- *
- * `cachedTree()` is what the page calls — every directory at once, out of KV.
- * `listDirectory()` reads one at a time, once the bucket outgrows the tree.
  */
 
 /**
@@ -144,18 +141,8 @@ export async function listWholeTree(): Promise<R2Tree | null> {
   let count = 0;
   let cursor: string | undefined;
 
-  /*
-    Bounded, like both siblings above. This was the one `bucket.list` loop with
-    no page cap: `while (true)` with the only exit being `!result.truncated`,
-    so a bucket that kept returning a cursor kept it spinning until the Worker
-    hit its CPU limit. FULL_TREE_MAX_OBJECTS bounds objects but not pages, and
-    a bucket full of zero-byte or hidden keys advances the cursor without ever
-    incrementing the count.
-
-    20 pages x 1000 is comfortably past FULL_TREE_MAX_OBJECTS, so the object
-    cap is still what normally stops this; the page cap only catches the
-    pathological shape.
-  */
+  // Page cap as well as FULL_TREE_MAX_OBJECTS: a bucket full of zero-byte or
+  // hidden keys advances the cursor without ever incrementing the count.
   let exhausted = false;
   for (let page = 0; page < 20; page++) {
     const result = await bucket.list({ limit: 1000, cursor });
@@ -194,13 +181,8 @@ export async function listWholeTree(): Promise<R2Tree | null> {
     cursor = result.cursor;
   }
 
-  /*
-    Falling out of the loop still truncated means the tree is incomplete, and an
-    incomplete tree must not be returned: the caller caches it and serves it as
-    though it were the whole bucket, so folders would silently vanish from the
-    browser until the entry expired. `null` is the existing "too big, lazy-load
-    instead" signal and is exactly the right answer here.
-  */
+  // Still truncated means an incomplete tree, which the caller would cache and
+  // serve as the whole bucket. `null` sends it down the lazy-load path instead.
   if (!exhausted) return null;
 
   for (const listing of Object.values(tree)) {
@@ -222,12 +204,10 @@ export async function cachedTree(): Promise<R2Tree | null> {
 }
 
 /**
- * Flat search across the whole bucket; paths are full keys.
- *
- * Answered out of the cached tree rather than R2: the endpoint is
- * unauthenticated and its query string is the caller's, so a live pass would
- * be a bucket scan anyone can start as fast as they like. Falls back to
- * searchByListing past FULL_TREE_MAX_OBJECTS.
+ * Flat search across the whole bucket; paths are full keys. Answered out of the
+ * cached tree, not R2 — the endpoint is unauthenticated, so a live pass would
+ * be a bucket scan anyone can start. Falls back to searchByListing when there
+ * is no tree.
  */
 export async function searchBucket(query: string, limit = 100): Promise<R2File[]> {
   const needle = query.trim().toLowerCase();
@@ -251,10 +231,8 @@ export async function searchBucket(query: string, limit = 100): Promise<R2File[]
   return matches;
 }
 
-/**
- * A bounded walk over the bucket itself, for when it is too big to hold a tree
- * for. Expensive — the rate limit on /api/files/search is for this case.
- */
+/** A bounded walk over the bucket itself, for when it is too big to tree.
+ * Expensive — the rate limit on /api/files/search is for this case. */
 async function searchByListing(needle: string, limit: number): Promise<R2File[]> {
   const bucket = requireBucket();
 
@@ -281,9 +259,8 @@ async function searchByListing(needle: string, limit: number): Promise<R2File[]>
 }
 
 /**
- * One directory, out of the cached tree where there is one. Same reasoning as
- * searchBucket: `?prefix=` is the caller's, so a live LIST per request is a
- * scan anyone can start. An unknown prefix is an empty listing.
+ * One directory, out of the cached tree where there is one — same reasoning as
+ * searchBucket. An unknown prefix is an empty listing.
  */
 export async function cachedDirectory(prefix = ""): Promise<R2Listing> {
   const tree = await cachedTree();

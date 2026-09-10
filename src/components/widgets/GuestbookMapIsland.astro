@@ -3,23 +3,13 @@ import GuestbookMap from "./GuestbookMap.astro";
 import { getStats } from "@/lib/guestbook";
 
 /**
- * The map, as a deferred island.
+ * The map, as a deferred island — for cacheability, not latency. GuestbookMap
+ * inlines the whole world outline, and /guestbook itself cannot be edge-cached.
+ * This fragment reads no session, so the edge can hold it.
  *
- * The reason is size and cacheability, not latency. GuestbookMap inlines the
- * whole world outline — 118 KB of it, 60% of what /guestbook weighs — and
- * /guestbook is the one route that cannot be edge-cached, because it renders
- * differently for the signer than for everyone else. So the most expensive
- * fragment on the site was being re-rendered and re-sent on every single view,
- * to every visitor, forever.
- *
- * Nothing in here reads the session: it is a country histogram. Pulled out
- * into its own request, it is public, identical for everyone, and the
- * middleware can let the edge hold it.
- *
- * It takes no props on purpose. Server-island props are encrypted into the
- * `?e=` query parameter, so passing the counts in would make the island URL
- * change with the data and defeat the caching this exists for. Fetching its
- * own stats costs one KV read that the page has usually just warmed.
+ * It takes no props on purpose: island props ride the encrypted `?e=` query
+ * parameter, so passing the counts in would defeat the caching. See CLAUDE.md
+ * § Maintenance › Caching.
  */
 let counts: Record<string, number> = {};
 let unplaced = 0;

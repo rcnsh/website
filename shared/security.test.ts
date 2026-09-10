@@ -2,12 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { headersFile, securityHeaders, SCRIPT_SOURCES } from "./security.ts";
 
-/*
-  The two surfaces this site is served from — the asset store, via
-  public/_headers, and the Worker, via src/middleware.ts — used to carry two
-  hand-written copies of this list with a comment asking whoever changed one to
-  remember the other. This is that comment, in a form that fails.
-*/
+// public/_headers and src/middleware.ts must not drift apart.
 describe("security headers", () => {
   test("the generated file carries every header the Worker sets", () => {
     const file = headersFile();
@@ -41,10 +36,7 @@ describe("security headers", () => {
     );
   });
 
-  /*
-    The socket and the presence count are the same Worker on the same port, and
-    a CSP that admits one but not the other is a feature that half works.
-  */
+  // Same Worker, same port: admitting one but not the other half-works.
   test("development admits both halves of the cursor Worker", () => {
     const policy = securityHeaders({ dev: true })["Content-Security-Policy"];
 
@@ -52,18 +44,8 @@ describe("security headers", () => {
     assert.ok(policy.includes("http://localhost:8788"));
   });
 
-  /*
-    Nothing in this repo loads the beacon — Cloudflare injects it at the edge —
-    so the only place a path-scoped or missing allowance shows up is the
-    deployed page's console, which is where it showed up twice: once when the
-    allowance was path-scoped, and again when security.csp was switched on and
-    Astro's <meta> started intersecting with this header.
-
-    Asserting on SCRIPT_SOURCES rather than on the header alone is the point.
-    The header was never the broken half; astro.config.ts reads this same list
-    into scriptDirective.resources, so a host that is here is in both policies
-    and a host that is only in the header is in neither.
-  */
+  // Asserts on SCRIPT_SOURCES, not on the header: the header was never the
+  // broken half. A host in only the header is in neither binding policy.
   test("the Web Analytics beacon is admitted by host", () => {
     assert.ok(
       SCRIPT_SOURCES.includes("https://static.cloudflareinsights.com"),
@@ -75,11 +57,7 @@ describe("security headers", () => {
     );
   });
 
-  /*
-    Astro's `resources` replaces its default source list rather than extending
-    it, so dropping 'self' here would take every same-origin script out of the
-    <meta> policy — which is to say, off the page.
-  */
+  // Astro's `resources` replaces its default rather than extending it.
   test("same-origin scripts survive the meta policy", () => {
     assert.ok(SCRIPT_SOURCES.includes("'self'"));
   });
@@ -97,18 +75,9 @@ describe("security headers", () => {
   });
 });
 
-/*
-  Soft navigation is only safe because the policy is one string for the whole
-  site. A <ClientRouter /> swap does not reparse a header — the entry
-  document's policy keeps governing every page reached after it — so a
-  route-varying policy would break the second page onward, and do it
-  invisibly, because a direct load of that same page works fine.
-
-  Nothing structurally prevents someone adding a route argument here, and
-  middleware's harden() deliberately preserves a route-set CSP rather than
-  clobbering it, which makes the mistake easy to make and hard to see. This
-  fails instead.
-*/
+// A route-varying policy would break under soft navigation and only there, so
+// nothing catches it by hand. harden() preserves a route-set CSP rather than
+// clobbering it, which makes the mistake easy to make.
 describe("the CSP is route-invariant", () => {
   test("securityHeaders() takes no required argument", () => {
     assert.equal(

@@ -9,13 +9,12 @@ import atlas from "world-atlas/countries-110m.json" with { type: "json" };
 import detailed from "world-atlas/countries-50m.json" with { type: "json" };
 
 /**
- * Projects Natural Earth's country outlines once into src/lib/world.ts as flat
- * SVG path data. Run by hand (`npm run world`); committing the output keeps
- * d3-geo and topojson out of the Worker.
+ * Projects Natural Earth's country outlines once into src/lib/world.ts. Run by
+ * hand (`npm run world`); committing the output keeps d3-geo and topojson out
+ * of the Worker.
  *
- * Equal Earth, because a choropleth compares areas. 110m for the outlines,
- * since the map is inlined into the guestbook response — plus 50m centroids
- * for the countries 110m has no polygon for, which ship as dots.
+ * Equal Earth, because a choropleth compares areas. 110m outlines, since the
+ * map is inlined — plus 50m centroids for what 110m has no polygon for.
  */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -27,8 +26,7 @@ const HEIGHT = 400;
 
 /**
  * world-atlas keys by ISO 3166-1 numeric; `request.cf.country` gives alpha-2.
- * Polygons with no ISO code (Kosovo, disputed areas) come back null and are
- * drawn as background that never lights up.
+ * Polygons with no ISO code come back null and draw as inert background.
  */
 const alpha2For = (numeric: string): string | null =>
   isoCountries.numericToAlpha2(numeric) ?? null;
@@ -115,9 +113,8 @@ async function main() {
 
   shapes.push(...markers);
 
-  // Codes neither atlas draws would silently never light up. Mostly
-  // territories folded into a parent — worth seeing, not worth failing over.
-  // getAlpha2Codes() maps alpha-2 to alpha-3, so the codes are the keys.
+  // Codes neither atlas draws would silently never light up — mostly
+  // territories folded into a parent, so warn rather than fail.
   const missing = Object.keys(isoCountries.getAlpha2Codes()).filter(
     (code) => !drawn.has(code) && code !== "AQ",
   );

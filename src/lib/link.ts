@@ -1,11 +1,9 @@
 import { isStalled, reconnectDelay } from "./cursors.ts";
 
 /**
- * The connection half of the cursor engine: one socket, kept up.
- *
- * Opening a socket and waiting are both injected, so nothing below mentions
- * the DOM, a WebSocket or a timer and the state machine can be tested. The
- * timing itself lives in cursors.ts.
+ * The connection half of the cursor engine: one socket, kept up. Opening and
+ * waiting are injected so the state machine can be tested; the timing lives
+ * in cursors.ts.
  */
 
 /** WebSocket's "open" readyState, so nothing here depends on the global. */
@@ -34,11 +32,7 @@ export interface LinkOptions {
   open(handlers: LinkHandlers): Socket;
   /** Waits `ms`, then calls `fn`. Returns a function that cancels the wait. */
   wait(ms: number, fn: () => void): () => void;
-  /**
-   * Source of jitter for the reconnect backoff. Injected for the same reason
-   * `wait` is: a test wants an exact delay, not a sampled one. Defaults to
-   * Math.random in the browser.
-   */
+  /** Jitter for the reconnect backoff. Defaults to Math.random. */
   random?(): number;
   /** The socket is up. */
   onOpen?(): void;
@@ -86,11 +80,9 @@ export function link(options: LinkOptions): Link {
   let halted = false;
   let done = false;
 
-  /**
-   * Which attempt the live handlers belong to. A socket keeps talking after we
-   * stop listening — one failure is `error` then `close` — so handlers carry
-   * their generation and go quiet once it moves on.
-   */
+  // A socket keeps talking after we stop listening — one failure is `error`
+  // then `close` — so handlers carry their generation and go quiet once it moves.
+
   let generation = 0;
 
   function connect() {
@@ -163,8 +155,6 @@ export function link(options: LinkOptions): Link {
     options.onState?.();
   }
 
-  // A link that exists is a link that is trying. Sockets open asynchronously,
-  // so the caller's wiring is in place before anything arrives.
   connect();
 
   return {
