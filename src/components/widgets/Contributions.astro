@@ -54,7 +54,11 @@ const monthLabels = monthStarts.filter((start, position) => {
 {
   data ? (
     <div>
-      <div class="overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* prettier-ignore */}
+      <div
+        data-contrib-scroller
+        class="overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [--fade-l:0px] [--fade-r:0px] [mask-image:linear-gradient(to_right,transparent_0,#000_var(--fade-l),#000_calc(100%-var(--fade-r)),transparent_100%)]"
+      >
         <div class="inline-block min-w-full">
           <div class="relative mb-1 ml-[26px] h-3">
             {monthLabels.map(({ index, label }) => (
@@ -140,3 +144,71 @@ const monthLabels = monthStarts.filter((start, position) => {
     background: var(--color-brand);
   }
 </style>
+
+<script>
+  import { edgeFade } from "@/lib/edge-fade";
+
+  /*
+    The graph is a fixed 715px inside a scroller with the scrollbar deliberately
+    suppressed, which looks right on desktop where the whole year fits — and at
+    375 left 47% of it hidden with nothing on screen saying so.
+
+    Two changes, both about which end the reader is looking at:
+
+    - A fade on the right edge, so the cut reads as "there is more" rather than
+      a hard crop. Dropped once scrolled to the end, or it would imply content
+      that isn't there.
+    - Scrolled to the right on mount, because the weeks worth looking at are the
+      recent ones. That also moves the 4px clipped at exactly 768 — where
+      `scrollbar-gutter: stable` takes clientWidth to 759 against 711px of
+      content — onto the oldest column rather than the newest.
+
+    This is a server island, so its markup arrives after this script has already
+    run: Astro hoists component scripts into the page bundle, and the island's
+    HTML is fetched and swapped in later. Hence the observer.
+  */
+  /*
+    Fade whichever edge is actually cutting content off. `edgeFade` holds that
+    decision because getting it wrong is silent — a fade on the right while
+    scrolled to the right end draws a gradient over nothing and leaves the
+    genuinely hidden content unmarked — and it is far better checked by a unit
+    test than by squinting at a browser at one specific scroll offset.
+  */
+  function initScroller(scroller: HTMLElement) {
+    if (scroller.hasAttribute("data-contrib-ready")) return;
+    scroller.setAttribute("data-contrib-ready", "");
+
+    const sync = () => {
+      const { left, right } = edgeFade(
+        scroller.scrollLeft,
+        scroller.scrollWidth,
+        scroller.clientWidth,
+      );
+      scroller.style.setProperty("--fade-l", `${left}px`);
+      scroller.style.setProperty("--fade-r", `${right}px`);
+    };
+
+    const overflow = scroller.scrollWidth - scroller.clientWidth;
+    // `instant`, so it is not motion a reader has to sit through and not
+    // something the reduce-motion switch would have an opinion about.
+    if (overflow > 0) scroller.scrollTo({ left: overflow, behavior: "instant" });
+
+    sync();
+    scroller.addEventListener("scroll", sync, { passive: true });
+    window.addEventListener("resize", sync, { passive: true });
+  }
+
+  function setupContributions(): boolean {
+    const scrollers = document.querySelectorAll<HTMLElement>("[data-contrib-scroller]");
+    for (const scroller of scrollers) initScroller(scroller);
+    return scrollers.length > 0;
+  }
+
+  if (!setupContributions()) {
+    // Disconnects as soon as the island lands, so this is not a standing cost.
+    const observer = new MutationObserver(() => {
+      if (setupContributions()) observer.disconnect();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+</script>
