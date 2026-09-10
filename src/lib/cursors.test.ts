@@ -145,16 +145,32 @@ describe("reconnect backoff", () => {
     waits the identical time and returns as one thundering herd.
   */
   test("spreads attempts across the window rather than stacking them", () => {
-    const low = reconnectDelay(4, () => 0.1);
-    const high = reconnectDelay(4, () => 0.9);
+    const low = reconnectDelay(4, () => 0);
+    const high = reconnectDelay(4, () => 1);
 
     assert.ok(low < high, "the delay must actually vary with the RNG");
-    assert.ok(high <= 8000, "never above the doubling ceiling");
-    assert.ok(low >= RECONNECT_MIN_MS, "never below the floor");
+    assert.equal(high, 8000, "the top of the window is the doubling ceiling");
+    assert.equal(low, 4000, "the bottom is half of it, not zero");
   });
 
-  test("a pathological RNG still cannot produce a busy loop", () => {
-    assert.equal(reconnectDelay(10, () => 0), RECONNECT_MIN_MS);
+  /*
+    Equal jitter, not full jitter, and this is the assertion that pins the
+    difference. Full jitter would allow ~0 here, which halves the expected time
+    to `isStalled` — see "waits several seconds before crying wolf" below, which
+    is the test that caught it.
+  */
+  test("keeps a floor under every delay", () => {
+    for (let attempt = 0; attempt < 16; attempt++) {
+      const shortest = reconnectDelay(attempt, () => 0);
+      assert.ok(
+        shortest >= RECONNECT_MIN_MS,
+        `attempt ${attempt} could wait only ${shortest}ms`,
+      );
+      assert.ok(
+        shortest >= reconnectDelay(attempt, () => 1) / 2,
+        `attempt ${attempt} dropped below half its ceiling`,
+      );
+    }
   });
 
   /*

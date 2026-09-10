@@ -92,8 +92,16 @@ export const STALL_AFTER_ATTEMPTS = 4;
  * Jittered, because the exponential alone is synchronised: every client that
  * was connected when a room Worker went down computes the same delay from the
  * same attempt count, so they all come back in the same millisecond and knock
- * it over again. Full jitter — a uniform pick from [0, backoff) — spreads a
- * reconnect storm across the whole window instead of stacking it on one edge.
+ * it over again.
+ *
+ * Equal jitter — a pick from [ceiling/2, ceiling) — rather than full jitter
+ * from [0, ceiling). Full jitter disperses better but halves the *expected*
+ * total wait and has no useful lower bound, which collides with the other
+ * promise this backoff makes: `isStalled` reports a broken connection to the
+ * reader only after STALL_AFTER_ATTEMPTS, and that is supposed to take several
+ * seconds so a momentary hiccup is never shown as a broken feature. Under full
+ * jitter that total sometimes came in under five seconds. Halving the window
+ * still breaks lockstep; giving up the floor was the part that cost something.
  *
  * `random` is injected so the tests can assert the envelope exactly rather
  * than sampling and hoping; production passes nothing and gets Math.random.
@@ -104,8 +112,11 @@ export function reconnectDelay(attempt: number, random: () => number = Math.rand
     RECONNECT_MIN_MS * 2 ** Math.max(0, attempt),
   );
 
-  // Never below the floor: a jittered value of ~0 would be a busy loop.
-  return Math.max(RECONNECT_MIN_MS, Math.round(ceiling * random()));
+  // Half the ceiling, plus a random share of the other half.
+  const jittered = ceiling / 2 + (ceiling / 2) * random();
+
+  // Never below the floor, whatever the RNG does.
+  return Math.max(RECONNECT_MIN_MS, Math.round(jittered));
 }
 
 /** Whether enough attempts have failed to be worth telling the reader about. */
