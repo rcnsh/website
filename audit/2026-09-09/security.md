@@ -6,7 +6,7 @@ Each finding was deleted from this file as it was closed. What remains is the "V
 
 **Originally verified empirically:** `npm run build` + `npx wrangler dev --port 8787` (remote R2/D1/KV bindings), then curl against 19 routes. Header parity across hard loads, middleware bypass on prerendered pages, rate-limit enforcement, CSRF origin enforcement, path-traversal rejection, the live R2 bucket contents, and Astro's own CSP/origin-check source in `node_modules`.
 
-**Still not verified empirically:** production TLS behaviour. The `Secure` cookie flag is now unconditional outside dev, but *Always Use HTTPS* on the Cloudflare zone is a dashboard setting outside this repo and was not confirmed.
+**Since verified (2026-09-11):** production TLS behaviour. `http://rcn.sh` answers `301 Moved Permanently` to `https://rcn.sh/` from `Server: cloudflare`, so the redirect happens at the edge and never reaches the Worker; HTTPS responses carry `strict-transport-security: max-age=63072000; includeSubDomains`. Whether that 301 comes from the *Always Use HTTPS* toggle or from an equivalent redirect rule is not visible from outside, and does not matter here — the behaviour is the same. `COOKIE_SECURE = !import.meta.env.DEV` still earns its keep regardless, since HSTS cannot protect a first-ever navigation.
 
 ---
 
