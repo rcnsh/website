@@ -25,7 +25,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
 
   // Scoped to the signer's own githubId, not just the row id, so one signed-in
   // user can never delete another's entry by guessing or tampering with the id.
-  await db
+  const result = await db
     .delete(schema.guestbook)
     .where(
       and(
@@ -34,9 +34,21 @@ export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
       ),
     );
 
-  // Unconditional: the delete is scoped, and dropping two keys is cheaper than
-  // asking whether it removed anything.
-  await invalidate();
+  /*
+    Conditional, and the condition is the point.
+
+    Being scoped means a foreign or nonexistent id deletes nothing — but it
+    still reached this line, and invalidating dropped `guestbook:page:1` and
+    `guestbook:stats` anyway. Those two keys are the only thing standing
+    between an anonymous /guestbook render and getStats()'s full scan, so a
+    signed-in caller could put that scan back on the read path 120 times a
+    minute at a cost to themselves of one indexed session lookup and zero rows
+    written. The KV write amplification was the sharper edge: 240 writes/min is
+    ~10.4M/month against a 1M included allowance.
+
+    A delete that removed nothing cannot have made anything stale.
+  */
+  if (result.meta.changes > 0) await invalidate();
 
   return redirect("/guestbook", 302);
 };
