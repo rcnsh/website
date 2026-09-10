@@ -67,8 +67,12 @@ if (dbReady && Astro.request.method === "POST") {
   const formData = await Astro.request.formData();
   const message = String(formData.get("message") ?? "").trim();
 
-  // No CSRF check here on purpose: Astro's `security.checkOrigin` is on by
-  // default and rejects a cross-site POST with a 403 before this runs.
+  // Astro's `security.checkOrigin` is on by default and rejects a cross-site
+  // POST with a 403 before this runs. That covers this form, because a real
+  // form post is always one of the three form-like content types checkOrigin
+  // inspects; it does NOT cover a cross-origin JSON POST, which checkOrigin
+  // exempts. The two API routes that accept JSON check the origin explicitly
+  // (see lib/csrf) — this one is a form submit and needs no repeat.
   if (!session) {
     error = "auth";
   } else if (!message) {

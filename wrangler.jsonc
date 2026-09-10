@@ -39,12 +39,16 @@
       "namespace_id": "1001",
       "simple": { "limit": 120, "period": 60 }
     },
-    // /api/files/search alone. It reads the whole cached tree out of KV and
-    // walks every key, so its cost per call is the one that is not flat.
+    // Every route that reads the whole cached tree out of KV: /api/files/*
+    // plus the FilesRoot server island. That read is the cost that is not
+    // flat, and it is the same on all of them. Raised from 40 when the two
+    // routes that had been sitting on the loose catch-all were moved here;
+    // the file browser lazy-loads a directory per expansion, so the ceiling
+    // has to clear a human clicking through folders.
     {
       "name": "SCAN_BUDGET",
       "namespace_id": "1002",
-      "simple": { "limit": 40, "period": 60 }
+      "simple": { "limit": 80, "period": 60 }
     },
     // The OAuth round trip. Writes D1 rows, which is the priciest thing D1
     // bills for ($1.00/million), and a human does it about once.
