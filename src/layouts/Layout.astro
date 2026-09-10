@@ -1,5 +1,5 @@
 ---
-import { ClientRouter } from "astro:transitions";
+import { MOTION_BOOTSTRAP } from "../../shared/inline-scripts.ts";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 /* The two subsets an English page actually uses, so they can be preloaded —
@@ -111,38 +111,16 @@ const ogImage = new URL(image, site.url).toString();
     <meta name="color-scheme" content="dark" />
     <meta name="generator" content={Astro.generator} />
 
-    <ClientRouter />
 
     {
       /*
-        Reduce motion, decided before anything paints. Inline and unbundled: a
-        module script runs after layout, by which time the masthead has already
-        animated. lib/prefs.ts owns the same logic; change both together.
-
-        Re-run after a swap, since Astro's router copies the incoming <html>
-        attributes over the live ones.
+        The body lives in shared/inline-scripts.ts so astro.config.ts can hash
+        the identical string for the CSP — an is:inline script is one Astro
+        never hashes itself, and on a `prerender = false` route the policy is a
+        real header that governs it. See that file for the full reasoning.
       */
     }
-    <script is:inline>
-      (() => {
-        const apply = () => {
-          try {
-            const stored = localStorage.getItem("rcn:motion");
-            const reduce =
-              stored === "reduce" ||
-              (stored !== "full" &&
-                matchMedia("(prefers-reduced-motion: reduce)").matches);
-            document.documentElement.dataset.motion = reduce ? "reduce" : "full";
-          } catch {
-            // Storage is walled off. Leaving the attribute unset is what hands
-            // the decision back to the media query in global.css.
-          }
-        };
-
-        apply();
-        document.addEventListener("astro:after-swap", apply);
-      })();
-    </script>
+    <script is:inline set:html={MOTION_BOOTSTRAP} />
   </head>
 
   <body class="min-h-dvh">
@@ -166,27 +144,3 @@ const ogImage = new URL(image, site.url).toString();
   </body>
 </html>
 
-<style is:global>
-  /* Cross-page transition: a short cross-fade, no travel. */
-  @view-transition {
-    navigation: auto;
-  }
-
-  ::view-transition-old(root) {
-    animation: vt-out 0.12s ease both;
-  }
-  ::view-transition-new(root) {
-    animation: vt-in 0.22s ease both;
-  }
-
-  @keyframes vt-out {
-    to {
-      opacity: 0;
-    }
-  }
-  @keyframes vt-in {
-    from {
-      opacity: 0;
-    }
-  }
-</style>

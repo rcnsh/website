@@ -478,5 +478,6 @@ const settings = [
     }
   }
 
-  document.addEventListener("astro:page-load", setupSettings);
+  // Module scripts are deferred, so the DOM is parsed by the time this runs.
+  setupSettings();
 </script>

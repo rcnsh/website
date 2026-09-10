@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { defineConfig } from "astro/config";
 import cloudflare from "@astrojs/cloudflare";
 
@@ -5,6 +7,20 @@ import expressiveCode from "astro-expressive-code";
 import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
 import tailwindcss from "@tailwindcss/vite";
+
+import { INLINE_SCRIPTS } from "./shared/inline-scripts.ts";
+
+/*
+  Astro hashes the scripts it processes, but never an `is:inline` one — that is
+  what is:inline means. Hashing them here from the same strings the layout
+  renders is what keeps `prerender = false` routes working: those get a real
+  CSP header, which governs the whole document, where a prerendered page's
+  <meta> policy only governs what follows it.
+*/
+const inlineScriptHashes = INLINE_SCRIPTS.map(
+  (source): `sha256-${string}` =>
+    `sha256-${createHash("sha256").update(source).digest("base64")}`,
+);
 
 // https://astro.build/config
 export default defineConfig({
@@ -23,30 +39,73 @@ export default defineConfig({
   }),
 
   /*
-    `security.csp` is deliberately NOT enabled. It is the obvious thing to
-    reach for here and it breaks the site.
+    Hashed inline scripts, enforced.
 
-    Astro hashes the inline scripts it emits and publishes them in a <meta>
-    Content-Security-Policy. A meta CSP binds the document it was parsed with,
-    and <ClientRouter /> does not parse a new one — it swaps the contents of
-    the existing document. So after the first soft navigation the entry page's
-    hash list is still the policy being enforced, every later page's island
-    hydration scripts hash to something that is not on it, and they are
-    blocked. Astro's router has no CSP handling to reconcile the two.
+    This was off, and the comment here explained why: Astro publishes the
+    hashes of the inline scripts it emits in a <meta> Content-Security-Policy,
+    a meta CSP binds the document it was parsed with, and <ClientRouter /> does
+    not parse a new one — it swaps the contents of the existing document. So
+    after the first soft navigation the entry page's hash list was still the
+    policy being enforced, and every later page's island hydration scripts
+    hashed to something not on it. /music and /files rendered perfectly when
+    their URL was opened and lost MusicExplorer and FileBrowser when reached
+    from the nav.
 
-    The failure is invisible from a direct page load, which is what makes it
-    worth this comment: /music and /files render perfectly when their URL is
-    opened, and lose MusicExplorer and FileBrowser when reached from the nav.
+    That was a real constraint, and the resolution was to give up the feature
+    on the other side of it: <ClientRouter /> is gone from Layout.astro, so
+    every navigation is a document load that parses its own policy, and the
+    hashes are correct by construction. The security audit's finding was that
+    `script-src 'unsafe-inline'` left the CSP with no XSS mitigation at all —
+    it was a same-origin resource policy and nothing more.
 
-    So it is view transitions or hashed inline scripts, not both, and the
-    transitions are a feature people can see. If this is ever revisited, the
-    options are to drop <ClientRouter /> from Layout.astro, or to give every
-    page the union of all pages' hashes via csp.scriptDirective.hashes — which
-    needs a two-pass build and silently breaks the day someone forgets the
-    second pass.
+    Three things follow, and all three are load-bearing:
 
-    shared/security.ts carries the header policy in the meantime.
+    1. Nothing may reintroduce <ClientRouter />, or the original bug returns.
+       The `astro:page-load` event it dispatches is also gone, so TopBar,
+       CommandPalette and SettingsMenu now self-invoke; ClockTile no longer
+       needs its before-swap teardown.
+
+    2. `script-src 'unsafe-inline'` stays in shared/security.ts, and removing
+       it would break the site. Prerendered routes are served by Static Assets
+       with the header from _headers AND Astro's <meta> with the hashes, and a
+       browser enforces both — a script must satisfy every policy present. The
+       header is the permissive floor and the meta is what actually binds. Take
+       'unsafe-inline' out of the header and prerendered pages become
+       header(no inline) ∩ meta(hashes) = no inline script at all.
+
+    3. /guestbook is `prerender = false`, so Astro gives it a header rather
+       than a meta (the Cloudflare adapter declares no staticHeaders feature,
+       so the destination falls back to prerender ? "meta" : "header").
+       middleware.ts preserves a route-set CSP rather than clobbering it, which
+       is what lets that through.
   */
+  security: {
+    csp: {
+      /*
+        Scripts are hashed, which is the whole point of turning this on.
+
+        Styles need a carve-out. Astro hashes inline <style> elements the same
+        way, and CSP hashes do not apply to style *attributes* — so with a bare
+        `csp: true` every runtime `element.style.setProperty(...)` is refused,
+        which is not a theoretical set: it is the nav underline placing itself
+        (TopBar's --nav-x/--nav-w), and anything else that writes a custom
+        property onto an element. The console fills with "Applying inline style
+        violates..." and the chrome quietly stops moving.
+
+        `kind: "attribute"` puts 'unsafe-inline' on `style-src-attr` only, so
+        style attributes and CSSOM writes are allowed while `style-src` keeps
+        the hashes for real <style> elements. Loosening styles is a much
+        smaller concession than loosening scripts: a style injection cannot
+        execute, and script-src is still hash-locked.
+      */
+      styleDirective: {
+        resources: [{ resource: "'unsafe-inline'", kind: "attribute" }],
+      },
+      scriptDirective: {
+        hashes: inlineScriptHashes,
+      },
+    },
+  },
 
   integrations: [
     /*
