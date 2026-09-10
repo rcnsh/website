@@ -49,13 +49,21 @@ function limiter(bucket: Bucket): RateLimit | undefined {
  * Which bucket a path spends from. Order matters: the specific prefixes are
  * tested before the catch-all.
  *
- * `/api/files/search` is alone in `scan` because it is the one route whose
- * cost is not flat — it reads the whole cached bucket tree out of KV and walks
- * every key in it, so each call is milliseconds of CPU rather than fractions
- * of one, and CPU past the included 30M ms/month is $0.02 per million.
+ * `scan` covers every route that reads the whole cached bucket tree out of KV.
+ * The dominant cost is that read plus the JSON.parse of the tree, not what the
+ * route then does with it — search's extra substring walk is noise next to it.
+ * So `/api/files/search` is not special: `/api/files/list` (via
+ * `cachedDirectory`) and the FilesRoot server island (via `cachedTree`) do the
+ * identical work and belong on the identical budget. They previously fell
+ * through to the 3x looser `api` catch-all, which made singling out search
+ * mostly decorative.
+ *
+ * CPU past the included 30M ms/month is $0.02 per million, which is what the
+ * tight bucket is protecting.
  */
 export function bucketFor(pathname: string): Bucket {
-  if (pathname === "/api/files/search") return "scan";
+  if (pathname.startsWith("/api/files/")) return "scan";
+  if (pathname.startsWith("/_server-islands/FilesRoot")) return "scan";
   if (pathname.startsWith("/api/auth/")) return "auth";
   return "api";
 }

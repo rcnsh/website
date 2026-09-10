@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import {
+  COOKIE_SECURE,
   OAUTH_STATE_COOKIE,
   createAuthorizationUrl,
   generateState,
@@ -14,7 +15,7 @@ export const GET: APIRoute = async ({ cookies, url, redirect }) => {
   cookies.set(OAUTH_STATE_COOKIE, state, {
     path: "/",
     httpOnly: true,
-    secure: url.protocol === "https:",
+    secure: COOKIE_SECURE,
     sameSite: "lax",
     maxAge: 60 * 10,
   });
