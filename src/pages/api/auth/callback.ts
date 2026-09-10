@@ -24,7 +24,7 @@ export const GET: APIRoute = async ({ cookies, url, redirect }) => {
     const accessToken = await exchangeCodeForToken(url.origin, code);
     const user = await fetchGitHubUser(accessToken);
 
-    await createSession(user, cookies, url.protocol === "https:");
+    await createSession(user, cookies);
 
     return redirect("/guestbook", 302);
   } catch (error) {

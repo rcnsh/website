@@ -127,6 +127,19 @@ export async function getPage(after: Cursor | null = null): Promise<GuestbookPag
   return cached(FIRST_PAGE_KEY, FRESH_SECONDS, () => readPage(null));
 }
 
+/**
+ * Below this many signatures, a country is folded into `unplaced` rather than
+ * published.
+ *
+ * The histogram is public and the guestbook is small, so a bucket of one is a
+ * disclosure: it says a named person in a public list of usernames signed from
+ * a specific country. With a short enough list that identifies them. Folding
+ * the thin buckets costs the map nothing visible — a single highlighted
+ * country is not a shape anyone reads — and stops the aggregate being
+ * per-signer data.
+ */
+const MIN_COUNTRY_COUNT = 3;
+
 /** Totals for the map and the heading, in one grouped pass. */
 export async function getStats(): Promise<GuestbookStats> {
   return cached(STATS_KEY, FRESH_SECONDS, async () => {
@@ -136,14 +149,25 @@ export async function getStats(): Promise<GuestbookStats> {
       .groupBy(schema.guestbook.country);
 
     const stats: GuestbookStats = { total: 0, counts: {}, unplaced: 0 };
+    const placed: Record<string, number> = {};
 
     for (const row of rows) {
       stats.total += row.n;
       // `T1` is Tor's placeholder; imported rows have no country. Both unplaced.
       if (row.country && row.country !== "T1" && /^[A-Z]{2}$/.test(row.country)) {
-        stats.counts[row.country] = (stats.counts[row.country] ?? 0) + row.n;
+        placed[row.country] = (placed[row.country] ?? 0) + row.n;
       } else {
         stats.unplaced += row.n;
+      }
+    }
+
+    // Second pass, because the threshold applies to the country's whole count,
+    // not to whichever row happened to be read first.
+    for (const [country, n] of Object.entries(placed)) {
+      if (n >= MIN_COUNTRY_COUNT) {
+        stats.counts[country] = n;
+      } else {
+        stats.unplaced += n;
       }
     }
 
