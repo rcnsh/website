@@ -3,7 +3,16 @@ import Icon from "./Icon.astro";
 import SettingsMenu from "./SettingsMenu.astro";
 import { nav } from "@/lib/site";
 
-const path = Astro.url.pathname.replace(/\/+$/, "") || "/";
+/*
+  `build.format: "file"` emits the home page as index.html, and at prerender
+  time Astro.url.pathname is "/index.html" rather than "/". The trailing-slash
+  strip alone therefore left `path` as "/index.html", `isActive("/")` false,
+  and the home page shipped with no active nav marker at all — the underline
+  simply never appeared on "/". Invisible in `astro dev`, where the pathname is
+  already "/", which is why it survived this long.
+*/
+const path =
+  Astro.url.pathname.replace(/\/index\.html$/, "/").replace(/(.)\/+$/, "$1") || "/";
 
 // "/" needs an exact match, since it would prefix-match every route.
 const isActive = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
@@ -64,11 +73,20 @@ const homeActive = isActive("/");
 
     {/* The dialog itself is rendered by the layout — see CommandPalette.astro. */}
     <div class="ml-auto flex items-center gap-4">
+      {
+        /*
+          `-m-2 p-2` is the cog's own pattern: the negative margin cancels the
+          padding, so nothing moves visually while the hit area grows from
+          14x14 to 30x30. Below `sm` the ⌘K label is hidden, which left this
+          button as the bare 14px icon — the smallest target on the site, and
+          8px from one with twice the area.
+        */
+      }
       <button
         type="button"
         data-palette-trigger
         aria-label="Open command palette"
-        class="flex items-center gap-2 font-mono text-xs text-ink-faint transition-colors hover:text-ink-dim"
+        class="-m-2 flex items-center gap-2 p-2 font-mono text-xs text-ink-faint transition-colors hover:text-ink-dim"
       >
         <Icon name="search" class="h-3.5 w-3.5" />
         <span class="hidden sm:inline">⌘K</span>
@@ -237,6 +255,24 @@ const homeActive = isActive("/");
     place(activeTab(), false);
   }
 
+  /*
+    Publish the real header height so global.css can offset in-page anchors by
+    it. The CSS carries a fallback, but the bar wraps a second row of links
+    below `sm` and gains one on a narrow-but-not-mobile screen, so a hard-coded
+    value drifts the moment the markup changes. Measuring costs one layout read
+    per resize.
+  */
+  function publishHeaderHeight() {
+    const header = document.querySelector("header");
+    if (!header) return;
+    document.documentElement.style.setProperty(
+      "--header-h",
+      `${Math.round(header.getBoundingClientRect().height)}px`,
+    );
+  }
+
   // Module scripts are deferred, so the DOM is parsed by the time this runs.
   setupNav();
+  publishHeaderHeight();
+  window.addEventListener("resize", publishHeaderHeight, { passive: true });
 </script>
