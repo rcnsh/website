@@ -7,9 +7,11 @@ const initialRange: TimeRange = "long_term";
 // The first tab arrives rendered; the island fetches other ranges on demand.
 let tracks: Track[] = [];
 let artists: Artist[] = [];
+let failed = false;
 try {
   ({ tracks, artists } = await getTop(initialRange, 12));
 } catch (error) {
+  failed = true;
   console.error("[music] top island failed", error);
 }
 ---
@@ -19,4 +21,5 @@ try {
   initialRange={initialRange}
   initialTracks={tracks}
   initialArtists={artists}
+  initialFailed={failed}
 />

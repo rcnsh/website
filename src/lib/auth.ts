@@ -1,3 +1,4 @@
+import { deadline } from "./upstream";
 import { eq, lt } from "drizzle-orm";
 import { env, waitUntil } from "cloudflare:workers";
 import type { AstroCookies } from "astro";
@@ -79,6 +80,10 @@ export async function exchangeCodeForToken(
       code,
       redirect_uri: callbackUrl(origin),
     }),
+    // Without a deadline a hung GitHub holds the OAuth callback open and the
+    // visitor watches a login that never resolves. callback.ts already turns a
+    // throw here into ?error=auth.
+    signal: deadline(),
   });
 
   if (!response.ok) {
@@ -257,6 +262,7 @@ export async function fetchGitHubUser(accessToken: string): Promise<SessionUser>
       Accept: "application/vnd.github+json",
       "User-Agent": USER_AGENT,
     },
+    signal: deadline(),
   });
 
   if (!response.ok) {

@@ -12,6 +12,14 @@ type Props = {
   initialRange: TimeRange;
   initialTracks: Track[];
   initialArtists: Artist[];
+  /*
+    Whether the server-rendered range failed to load. Without it a warehouse
+    outage arrives as two empty arrays, indistinguishable from a genuinely
+    empty listening history — the island would say "Nothing listened to in this
+    period" about an upstream being down. Ranges fetched client-side already
+    carry this; only the seeded one was missing it.
+  */
+  initialFailed?: boolean;
 };
 
 type Bucket = { tracks: Track[]; artists: Artist[]; failed?: boolean };
@@ -20,17 +28,32 @@ export default function MusicExplorer({
   initialRange,
   initialTracks,
   initialArtists,
+  initialFailed = false,
 }: Props) {
   const [range, setRange] = useState<TimeRange>(initialRange);
   const [view, setView] = useState<"tracks" | "artists">("tracks");
   const [loading, setLoading] = useState(false);
   // Ranges already fetched are kept so toggling back is instant.
   const [cache, setCache] = useState<Partial<Record<TimeRange, Bucket>>>({
-    [initialRange]: { tracks: initialTracks, artists: initialArtists },
+    [initialRange]: {
+      tracks: initialTracks,
+      artists: initialArtists,
+      failed: initialFailed,
+    },
   });
 
   useEffect(() => {
-    if (cache[range]) return;
+    /*
+      Reset here, not just in the fetch's `finally`. That `finally` is guarded
+      on `alive`, so switching range mid-flight skips it — and if the range
+      switched to is already cached, this early return used to fire without
+      ever clearing the flag. The spinner then stayed up forever on a range
+      whose data was sitting right there.
+    */
+    if (cache[range]) {
+      setLoading(false);
+      return;
+    }
 
     let alive = true;
     setLoading(true);
@@ -71,6 +94,7 @@ export default function MusicExplorer({
   const lastResolved = useRef<Bucket>({
     tracks: initialTracks,
     artists: initialArtists,
+    failed: initialFailed,
   });
   useEffect(() => {
     if (bucket) lastResolved.current = bucket;

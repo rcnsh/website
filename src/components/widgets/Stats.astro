@@ -3,7 +3,16 @@ import { getProfile } from "@/lib/github";
 
 // Deferred island. The page owns the <dl>; <astro-island> is display:contents,
 // so these land as its direct children.
-const profile = await getProfile();
+//
+// The loader throws on failure now rather than caching a null, so the catch is
+// here. The strip still degrades to em dashes — there is nowhere in a three-cell
+// <dl> to put a sentence — but the failure is logged rather than silent.
+let profile: Awaited<ReturnType<typeof getProfile>> = null;
+try {
+  profile = await getProfile();
+} catch (error) {
+  console.error("[github] stats island failed", error);
+}
 const since = profile ? new Date(profile.createdAt).getFullYear() : null;
 
 const facts = [
