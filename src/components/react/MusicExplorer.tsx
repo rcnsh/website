@@ -117,7 +117,12 @@ export default function MusicExplorer({
               type="button"
               onClick={() => setView(option)}
               className={cn(
-                "pb-0.5 transition-colors",
+                // `pb-0.5` sets the gap to the underline, so it cannot absorb padding
+                // without moving the border. The pseudo-element extends the
+                // clickable box 10px above and below instead — clicks on it
+                // dispatch to the button — so the hit area goes 19px -> 39px
+                // with the text and underline pixel-identical.
+                "relative pb-0.5 transition-colors after:absolute after:inset-x-0 after:-inset-y-[0.625rem] after:content-['']",
                 view === option
                   ? "border-b border-brand text-ink"
                   : "border-b border-transparent text-ink-faint hover:text-ink-dim",
@@ -139,7 +144,12 @@ export default function MusicExplorer({
               type="button"
               onClick={() => setRange(option.id)}
               className={cn(
-                "pb-0.5 transition-colors",
+                // `pb-0.5` sets the gap to the underline, so it cannot absorb padding
+                // without moving the border. The pseudo-element extends the
+                // clickable box 10px above and below instead — clicks on it
+                // dispatch to the button — so the hit area goes 19px -> 39px
+                // with the text and underline pixel-identical.
+                "relative pb-0.5 transition-colors after:absolute after:inset-x-0 after:-inset-y-[0.625rem] after:content-['']",
                 range === option.id
                   ? "border-b border-brand text-ink"
                   : "border-b border-transparent text-ink-faint hover:text-ink-dim",

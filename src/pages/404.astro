@@ -6,7 +6,14 @@ const page = pages.notFound;
 ---
 
 <Layout title="404" description={page.description}>
-  <section class="animate-rise pb-20">
+  {/*
+    `main` is `flex-1` inside a `min-h-dvh` column, so on a tall window the 404
+    left ~780px of empty space below it and the whole block sat jammed against
+    the header. Centring uses the height the layout already reserves rather
+    than adding any. Guarded at `sm` so the short-viewport case, where there is
+    nothing spare to centre in, is untouched.
+  */}
+  <section class="animate-rise pb-20 sm:flex sm:min-h-[55vh] sm:flex-col sm:justify-center sm:pb-0">
     <p class="font-mono text-sm text-ink-faint">404</p>
     <h1 class="display-face mt-3 text-[2.25rem] text-ink">{page.title}</h1>
     <p class="mt-2.5 max-w-[46ch] text-ink-dim">
