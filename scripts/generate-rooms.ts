@@ -5,11 +5,8 @@ import { roomKey } from "../workers/multiplayer/src/protocol.ts";
 
 /**
  * Writes shared/rooms.generated.ts: every path a cursor room may exist for.
- *
- * Each distinct room key spawns a Durable Object on request, and roomKey()
- * only checks the shape — `/aaa`, `/aab` and every other spelling pass it. A
- * list of the pages that actually exist is what bounds that. Generated so it
- * cannot drift from the content it describes.
+ * Each distinct key spawns a Durable Object on request and roomKey() only
+ * checks the shape, so this list is what bounds it.
  */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -17,11 +14,7 @@ const POSTS_DIR = path.join(ROOT, "src/content/blog");
 const SITE_JSON = path.join(ROOT, "src/content/site.json");
 const OUT = path.join(ROOT, "shared/rooms.generated.ts");
 
-/**
- * Every .md under src/content/blog, as collection ids. Drafts included: they
- * are real pages under `astro dev`, and in production the extra key is just a
- * room nobody can reach. The list needs to be bounded, not minimal.
- */
+/** Drafts included: the list needs to be bounded, not minimal. */
 async function findPosts(dir: string, prefix = ""): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
   const ids: string[] = [];

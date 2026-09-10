@@ -9,27 +9,15 @@ type Payload =
   | { state: "idle" }
   | { state: "error" };
 
-/*
-  Every open tab costs a Worker invocation per poll, and the bar is
-  interpolated locally between them, so the cadence buys nothing visible — it
-  only decides how quickly a *track change* is noticed. 30s rather than 20s is
-  a third fewer invocations for the same apparent liveness, because the one
-  moment the reading actually goes stale is handled directly below.
-*/
+// The bar is interpolated locally between polls, so the cadence only decides
+// how fast a *track change* is noticed — and the end of a track is handled
+// directly below.
 const POLL_MS = 30_000;
 
-/*
-  A poll must not outlive its own interval, or a slow endpoint stacks requests
-  faster than they drain.
-*/
+// A poll must not outlive its own interval, or requests stack.
 const REQUEST_TIMEOUT_MS = 8_000;
 
-/*
-  How many polls in a row must fail before the card stops claiming to be live.
-  One is noise — a dropped connection on a phone — but three in a minute means
-  the reading on screen is not current, and a frozen progress bar under a "Now
-  playing" label is a worse lie than saying nothing.
-*/
+// A frozen bar under a "Now playing" label is a worse lie than saying nothing.
 const STALE_AFTER_FAILURES = 3;
 
 export default function NowPlaying() {
@@ -37,25 +25,16 @@ export default function NowPlaying() {
   // Interpolated between polls so the bar moves every second, not every 20.
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
-  /*
-    Lets the interpolation effect ask the polling effect for an immediate
-    refresh. A ref rather than state: it is a channel between two effects, not
-    something the render reads.
-  */
+  // A channel between two effects, not something the render reads.
   const refreshRef = useRef<(() => void) | null>(null);
-  /*
-    The track an end-of-track refresh has already been fired for. Keyed rather
-    than a boolean: if the refresh comes back still reporting the same finished
-    track — which Spotify does briefly — a boolean reset on every new payload
-    would re-fire every second, turning the saving into a request storm.
-  */
+  // Keyed, not a boolean: Spotify briefly keeps reporting the finished track,
+  // and a boolean reset per payload would re-fire every second.
   const endRequestedRef = useRef<string | null>(null);
   // Consecutive failed polls. Reset by any success.
   const [failures, setFailures] = useState(0);
 
-  // The live-updates switch, read lazily so someone who turned it off never
-  // gets the mount poll. lib/prefs answers `true` on the server, so hydration
-  // matches the markup.
+  // Read lazily so someone who turned it off never gets the mount poll.
+  // lib/prefs answers `true` on the server, so hydration matches the markup.
   const [live, setLive] = useState(liveUpdates);
 
   useEffect(() => {
@@ -71,12 +50,7 @@ export default function NowPlaying() {
     let inFlight: AbortController | undefined;
 
     const load = async () => {
-      /*
-        Abort whatever is still running before starting another. With
-        setInterval a response slower than POLL_MS meant two requests open at
-        once, and whichever landed last won — so an older reading could
-        overwrite a newer one and the bar would jump backwards.
-      */
+      // Two open requests can land out of order, and the bar jumps backwards.
       inFlight?.abort();
       const controller = new AbortController();
       inFlight = controller;
@@ -106,18 +80,14 @@ export default function NowPlaying() {
       }
     };
 
-    /*
-      Re-armed from the end of each attempt rather than on a fixed interval, so
-      the next poll cannot be scheduled while the previous one is still open.
-      Stacking is structurally impossible rather than merely unlikely.
-    */
+    // Re-armed from the end of each attempt, not on a fixed interval, so a
+    // poll can never be scheduled while the previous one is still open.
     const cycle = async () => {
       await load();
       if (alive && live) timer = setTimeout(cycle, POLL_MS);
     };
 
-    /* One request either way — an empty panel is a worse answer than a stale
-       one. The switch buys everything after: no interval, no refocus refetch. */
+    // One request either way; the switch buys everything after it.
     if (!live) {
       void load();
       return () => {
@@ -128,8 +98,8 @@ export default function NowPlaying() {
 
     void cycle();
 
-    /* Restart the cycle now, cancelling whatever was queued, so an immediate
-       refresh does not also leave the old timer to fire seconds later. */
+    // Cancel what was queued, so an immediate refresh does not also leave the
+    // old timer to fire seconds later.
     const restart = () => {
       if (timer) clearTimeout(timer);
       void cycle();
@@ -154,32 +124,20 @@ export default function NowPlaying() {
   }, [live]);
 
   useEffect(() => {
-    // Interpolating a progress bar is exactly the kind of motion-without-news
-    // the switch is there to stop, and it would drift away from a reading that
-    // is no longer being refreshed anyway.
-    // Also stops once the endpoint is unreachable: interpolating a bar forward
-    // on a reading we can no longer refresh is inventing progress.
+    // Interpolating forward on a reading that is no longer being refreshed is
+    // inventing progress.
     if (!live || data?.state !== "playing" || failures >= STALE_AFTER_FAILURES) return;
 
-    /*
-      Identity, not equality of the object: a poll returning the same track
-      makes a new payload every time. A repeat play of the same track back to
-      back therefore will not re-trigger — the ordinary 30s poll picks that up,
-      which is the right trade against a loop.
-    */
+    // Identity, not object equality: every poll makes a new payload. A track
+    // repeated back to back is picked up by the ordinary poll instead.
     const trackKey = `${data.title}|${data.durationMs}`;
 
     const tick = setInterval(() => {
       progressRef.current = Math.min(progressRef.current + 1000, data.durationMs);
       setProgress(progressRef.current);
 
-      /*
-        The track just ran out. Waiting up to POLL_MS to notice is the one case
-        where the slower cadence would be visible — the card would sit showing
-        a finished track with a full bar — so ask for a reading now instead.
-        Guarded, because the tick keeps firing while progress sits pinned at
-        the duration, and one ended track should cost one request.
-      */
+      // The one case where the poll cadence would be visible, so ask now.
+      // Guarded: the tick keeps firing while progress sits at the duration.
       if (progressRef.current >= data.durationMs && endRequestedRef.current !== trackKey) {
         endRequestedRef.current = trackKey;
         refreshRef.current?.();
@@ -217,13 +175,8 @@ export default function NowPlaying() {
     );
   }
 
-  /*
-    Once the card had data, every later failure was invisible: the last good
-    reading stayed on screen under a "Now playing" label with a bar still
-    interpolating, so a dead endpoint looked exactly like a paused track. After
-    a few consecutive failures the card keeps the track — it is still the best
-    thing we know — but stops asserting that it is current.
-  */
+  // Keeps the last good track — still the best thing known — but stops
+  // asserting it is current, so a dead endpoint cannot read as a paused one.
   const disconnected = failures >= STALE_AFTER_FAILURES;
   const playing = data.state === "playing" && !disconnected;
   const pct = playing ? Math.min((progress / Math.max(data.durationMs, 1)) * 100, 100) : 0;

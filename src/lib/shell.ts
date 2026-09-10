@@ -177,12 +177,8 @@ function inputLines(
 
 const pad = (text: string, width: number) => text.padStart(width);
 
-/**
- * A dot-entry, hidden from listings unless -a is given.
- *
- * `find` deliberately does not use this — real find walks everything, and the
- * whole point of `find / -name .egg` is that it can be found deliberately.
- */
+/** A dot-entry, hidden from listings unless -a. `find` does not use this:
+ * real find walks everything. */
 const hidden = (node: VNode) => node.name.startsWith(".");
 
 export const COMMANDS: Record<string, Command> = {
@@ -676,11 +672,7 @@ export function complete(
     const parent = lookup(state.root, resolvePath(state.cwd, head || "."));
     if (parent?.type !== "dir") return unchanged;
 
-    /*
-      Dot-entries are offered only once the dot has been typed, the way bash
-      does it. Without this, Tab on an empty prefix would hand back exactly
-      the files `ls` just went to the trouble of hiding.
-    */
+    // Dot-entries only once the dot is typed, the way bash does it.
     tails = parent.children
       .filter(
         (child) =>

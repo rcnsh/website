@@ -7,10 +7,8 @@ import { invalidate } from "@/lib/guestbook";
 
 export const prerender = false;
 
-// POST-only, same as logout. Astro's `security.checkOrigin` refuses cross-site
-// *form* posts, but it exempts non-form content types, so a cross-origin JSON
-// POST reaches the handler — see lib/csrf. The explicit check closes that
-// rather than leaning on the browser preflighting for us.
+// POST-only, same as logout; the explicit origin check covers what
+// `security.checkOrigin` exempts — see lib/csrf.
 export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
   if (!sameOrigin(request, url.origin)) return forbidden();
 
@@ -23,8 +21,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
 
   const db = getDb();
 
-  // Scoped to the signer's own githubId, not just the row id, so one signed-in
-  // user can never delete another's entry by guessing or tampering with the id.
+  // Scoped to the signer's own githubId, not the row id alone.
   const result = await db
     .delete(schema.guestbook)
     .where(
@@ -34,20 +31,9 @@ export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
       ),
     );
 
-  /*
-    Conditional, and the condition is the point.
-
-    Being scoped means a foreign or nonexistent id deletes nothing — but it
-    still reached this line, and invalidating dropped `guestbook:page:1` and
-    `guestbook:stats` anyway. Those two keys are the only thing standing
-    between an anonymous /guestbook render and getStats()'s full scan, so a
-    signed-in caller could put that scan back on the read path 120 times a
-    minute at a cost to themselves of one indexed session lookup and zero rows
-    written. The KV write amplification was the sharper edge: 240 writes/min is
-    ~10.4M/month against a 1M included allowance.
-
-    A delete that removed nothing cannot have made anything stale.
-  */
+  // Conditional: a delete that removed nothing cannot have made anything
+  // stale, and invalidating unconditionally would let a signed-in caller drop
+  // the two keys guarding getStats()'s full scan as fast as they like.
   if (result.meta.changes > 0) await invalidate();
 
   return redirect("/guestbook", 302);

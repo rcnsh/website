@@ -3,12 +3,8 @@ import { getFeaturedRepos } from "@/lib/github";
 import { pinnedRepos } from "@/lib/site";
 import { relativeTime } from "@/lib/utils";
 
-/*
-  The loader throws on an upstream failure now, rather than swallowing it and
-  caching an empty list as if GitHub had said "no repositories". That means the
-  catch belongs here, and it means an empty result and a failed one are finally
-  distinguishable — they used to render the same sentence.
-*/
+// The loader throws rather than caching an empty list, so an empty result and
+// a failed one stay distinguishable here.
 let repos: Awaited<ReturnType<typeof getFeaturedRepos>> = [];
 let failed = false;
 try {

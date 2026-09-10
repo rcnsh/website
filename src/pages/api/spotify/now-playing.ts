@@ -5,9 +5,8 @@ import { getNowPlaying, getRecentTracks } from "@/lib/spotify";
 export const prerender = false;
 
 /**
- * Live listening state for the home page card, falling back to the last played
- * track. Every visitor polls every 20s and `getNowPlaying()` is uncached
- * upstream, so this window collapses them into one warehouse call per colo.
+ * Live listening state for the home page card. `getNowPlaying()` is uncached
+ * upstream, so this window collapses visitor polls into one call per colo.
  */
 const CACHE_SECONDS = 10;
 
@@ -18,11 +17,8 @@ type Payload = Record<string, unknown> & { state: string };
 
 /**
  * Serves a cache hit, advancing the stored progress by the entry's age so the
- * client's bar does not rewind on every poll.
- *
- * Every path builds a new Response rather than returning the cached one: a
- * cached Response has immutable headers, and the middleware throws setting
- * security headers on it.
+ * client's bar does not rewind on every poll. Rebuilt rather than returned: a
+ * cached Response has immutable headers.
  */
 async function fromCache(hit: Response): Promise<Response> {
   const body = (await hit.json()) as Payload;

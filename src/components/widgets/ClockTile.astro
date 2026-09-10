@@ -3,8 +3,8 @@ import { clock } from "@/lib/site";
 
 /**
  * Static, not a server island: Astro hoists component <script> tags to page
- * load, before a deferred island's HTML exists, so the script would find
- * nothing. Shows my time, not the visitor's — see `clock.timeZone`.
+ * load, before a deferred island's HTML exists. Shows my time, not the
+ * visitor's — see `clock.timeZone`.
  */
 ---
 
@@ -43,15 +43,11 @@ import { clock } from "@/lib/site";
       node.textContent = format.format(new Date());
     };
 
-    // Everything this page-load binds, retired together before the next swap.
     const bindings = new AbortController();
     let id = 0;
 
-    /**
-     * Start or stop the tick. Stopping alone would leave a wrong time on
-     * screen, which reads as broken — so the reading is redrawn whenever the
-     * tab is looked at again, and only the second hand stands still.
-     */
+    /** Start or stop the tick; the reading is redrawn either way, so a
+     * stopped clock is never a wrong one. */
     const sync = () => {
       window.clearInterval(id);
       id = 0;
@@ -71,7 +67,6 @@ import { clock } from "@/lib/site";
     sync();
   };
 
-  // One document, one start: without the view-transitions router there is no
-  // swap to tear down for, and no second page-load to rebind on.
+  // One document, one start: there is no router, so nothing to rebind on.
   start();
 </script>

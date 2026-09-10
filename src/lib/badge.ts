@@ -4,13 +4,12 @@ import { LOGO_ASPECT, LOGO_LIFTED, logoSvg } from "./logo.ts";
 import { loadFonts } from "./og.ts";
 
 /**
- * The 88x31 button, drawn ahead of the build by scripts/generate-badge.ts. A
- * real raster at those exact pixels, since 88x31 is the one size the web ever
- * agreed on and someone else has to be able to hotlink it.
+ * The 88x31 button, drawn ahead of the build by scripts/generate-badge.ts —
+ * a real raster, since someone else has to be able to hotlink it.
  *
- * satori then sharp, neither of which runs in workerd — see lib/og.ts. No `@/`
- * imports, so plain `node scripts/…` can load it. The palette repeats
- * styles/global.css, since satori resolves no custom properties.
+ * satori then sharp, neither of which runs in workerd. No `@/` imports, so
+ * plain `node scripts/…` can load it; the palette repeats styles/global.css,
+ * since satori resolves no custom properties.
  */
 
 const COLOR = {

@@ -4,26 +4,18 @@ import { searchBucket } from "@/lib/r2";
 
 export const prerender = false;
 
-/**
- * How long a result set is held at the edge. The bucket tree behind it is
- * itself refreshed every five minutes, so a minute here adds no staleness
- * worth speaking of.
- */
+/** The tree behind this refreshes every five minutes anyway. */
 const CACHE_SECONDS = 60;
 
 /**
- * Longest query answered. Beyond this it cannot match a key anyone would
- * upload, and the point of the cap is upstream of matching: an unbounded query
- * is an unbounded cache key, which is how a caller turns this endpoint's cache
- * into a miss generator and every call back into a full walk of the tree.
+ * An unbounded query is an unbounded cache key, which turns this endpoint's
+ * cache into a miss generator and every call back into a full walk of the tree.
  */
 const MAX_QUERY = 64;
 
 /**
- * Flat search over the bucket. The most expensive route on the site — it reads
- * the whole cached tree out of KV and walks every key in it — so it is the one
- * with its own rate limit budget (see lib/throttle.ts) and the one that keeps
- * its answers at the edge.
+ * Flat search over the bucket: reads the whole cached tree out of KV and walks
+ * every key. Hence the tight rate-limit budget and the edge cache.
  */
 export const GET: APIRoute = async ({ url, request }) => {
   const query = (url.searchParams.get("q") ?? "").trim().slice(0, MAX_QUERY);
@@ -34,8 +26,8 @@ export const GET: APIRoute = async ({ url, request }) => {
     });
   }
 
-  /* Keyed on the normalised query, not the request: `?q=x&`, `?q=X` and a
-     stray second parameter are one entry between them rather than three. */
+  // Keyed on the normalised query, so `?q=x&`, `?q=X` and a stray second
+  // parameter share one entry rather than minting three.
   const cacheKey = new Request(
     `${new URL(request.url).origin}/api/files/search?q=${encodeURIComponent(
       query.toLowerCase(),

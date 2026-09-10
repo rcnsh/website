@@ -1,9 +1,6 @@
 /**
- * The command palette and the settings popover both want the whole screen, and
- * never import each other. Whichever opens announces itself; everyone else
- * closes on hearing a name that is not theirs.
- *
- * Only opening is announced, so a close cannot provoke another close.
+ * Full-screen overlays that never import each other. Whichever opens announces
+ * itself; the rest close. Only opening is announced, so a close cannot cascade.
  */
 
 const EVENT = "rcn:overlay-open";

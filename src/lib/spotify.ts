@@ -4,20 +4,12 @@ import { z } from "zod";
 import { cached } from "./cache";
 
 /**
- * Listening data, read from the music-warehouse Worker rather than from
- * Spotify directly.
+ * Listening data, read from the music-warehouse Worker, which holds the only
+ * Spotify grant — so this site carries no Spotify credential.
  *
- * The warehouse holds the only Spotify grant, so this site carries no Spotify
- * credential and has no six-month refresh-token clock of its own. Two of the
- * three reads are answered from the warehouse's own database and survive a
- * dead Spotify grant; `now-playing` and `top` are live proxies, because
- * neither answer exists in stored rows — nothing recorded says what is playing
- * *now*, and `recently-played` never carries artist images.
- *
- * Every call here runs server-side, in the Worker. The browser only ever talks
- * to this site's own /api/spotify/* routes, so there is no cross-origin request
- * to configure and the warehouse token never reaches client JavaScript. Keep it
- * that way.
+ * Every call runs server-side. The browser talks only to this site's own
+ * /api/spotify/* routes, so the warehouse token never reaches client
+ * JavaScript. Keep it that way.
  *
  * The schemas describe only the fields actually rendered, so a field the
  * upstream adds or nulls can't take the page down.
@@ -27,11 +19,7 @@ const imageSchema = z
   .array(z.object({ url: z.string(), width: z.number().nullish() }))
   .default([]);
 
-/**
- * The smallest cover at least `minWidth` across, falling back to the largest
- * on offer. Spotify hands back 640px art for every one of these, and the
- * biggest it is ever drawn at here is 56px.
- */
+/** Smallest cover at least `minWidth` across, else the largest on offer. */
 function artwork(
   images: z.infer<typeof imageSchema>,
   minWidth: number,
@@ -43,7 +31,7 @@ function artwork(
   return pick?.url ?? null;
 }
 
-/** Track art is drawn at 56px at most, so 2x on the densest screen worth it. */
+/** Track art is drawn at 56px at most; this is 2x on the densest screen. */
 const TRACK_ART = 128;
 /** Artist tiles are a grid column wide — around 160px on a phone. */
 const ARTIST_ART = 320;
@@ -96,9 +84,8 @@ export type NowPlaying =
 
 export type TimeRange = "short_term" | "medium_term" | "long_term";
 
-/*
-How long each range stays fresh, matched to how fast it moves. A long window only means the warehouse is polled less — `cached()` serves stale instantly either way.
-*/
+// A long window only means the warehouse is polled less; `cached()` serves
+// stale instantly either way.
 const TOP_FRESHNESS: Record<TimeRange, number> = {
   short_term: 60 * 60, // "4 weeks" — shifts day to day
   medium_term: 60 * 60 * 6, // "6 months" — shifts over weeks
@@ -131,8 +118,7 @@ async function warehouse(path: string): Promise<unknown> {
   });
 
   if (!response.ok) {
-    // 503 means the warehouse's Spotify grant needs re-authorising; it is worth
-    // saying so plainly, because no amount of retrying will fix it.
+    // 503 means the warehouse's grant needs re-authorising; retrying will not fix it.
     const detail = response.status === 503 ? " (warehouse needs re-authorisation)" : "";
     throw new Error(`music-warehouse ${path} failed: ${response.status}${detail}`);
   }
@@ -144,8 +130,7 @@ async function warehouse(path: string): Promise<unknown> {
 
 /** Live: proxied straight through the warehouse to Spotify. */
 export async function getNowPlaying(): Promise<NowPlaying> {
-  // Never cached here — the whole point is that it is live. The API route in
-  // front of this collapses visitor polls into one call per colo.
+  // Never cached here. The API route in front collapses visitor polls per colo.
   const data = await warehouse("/api/now-playing");
 
   const parsed = z
@@ -193,21 +178,15 @@ const topSchema = z.object({
     .nullable(),
 });
 
-/**
- * Both top lists in one round trip.
- *
- * The warehouse returns tracks and artists together, and every caller wants
- * both, so fetching them separately would double the upstream cost for nothing.
- */
+/** Both top lists in one round trip; the warehouse returns them together. */
 export async function getTop(
   range: TimeRange,
   limit = 12,
 ): Promise<{ tracks: Track[]; artists: Artist[] }> {
   return cached(`warehouse:top:${range}:${limit}`, TOP_FRESHNESS[range], async () => {
     const parsed = topSchema.safeParse(await warehouse(`/api/top?range=${range}&limit=${limit}`));
-    // A shape change is a failure, not an empty listening history. Returning
-    // `[]` here would cache "you listened to nothing" for up to 24h on
-    // long_term; throwing keeps whatever the cache already holds.
+    // A shape change is a failure, not an empty listening history — see
+    // CLAUDE.md § Maintenance › Data.
     if (!parsed.success) {
       throw new Error(`warehouse /api/top returned an unexpected shape: ${parsed.error.message}`);
     }
@@ -232,16 +211,11 @@ const playRowSchema = z.object({
   duration_ms: z.number().nullish(),
   album_name: z.string().nullish(),
   image_url: z.string().nullish(),
-  // The warehouse joins credited artists into one ordered, comma-separated
-  // string, which is exactly how every row here renders them.
+  // Credited artists arrive pre-joined, comma-separated, in credit order.
   artists: z.string().nullish(),
 });
 
-/**
- * Stored, not live: these rows come from the warehouse's own database, so this
- * list keeps rendering even while the Spotify grant is dead — it just stops
- * gaining new entries.
- */
+/** Stored, not live: these rows survive a dead Spotify grant. */
 export async function getRecentTracks(limit = 20): Promise<RecentTrack[]> {
   return cached(
     `warehouse:recent:${limit}`,
@@ -268,8 +242,7 @@ export async function getRecentTracks(limit = 20): Promise<RecentTrack[]> {
         playedAt: new Date(row.played_at_ms).toISOString(),
       }));
     },
-    // Every row renders as "played 3 hours ago", so a list left over from last
-    // week reads as broken. Past six hours, wait for real data instead.
+    // Every row renders as "played 3 hours ago", so week-old stale reads as broken.
     { maxStaleSeconds: 60 * 60 * 6 },
   );
 }

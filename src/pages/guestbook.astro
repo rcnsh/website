@@ -40,12 +40,9 @@ let nextPostAt: Date | null = null;
 let dbReady = true;
 
 /**
- * The signer's country, straight off the edge — no lookup, and nothing more
- * precise than a country stored. Read from the request, since the adapter's
- * typed locals expose only `cfContext`; hence the cast.
- *
- * Null unless it is two letters: `cf` is absent under `astro dev`, and Tor
- * reports `T1`.
+ * The signer's country, straight off the edge. Read from the request because
+ * the adapter's typed locals expose only `cfContext`; hence the cast. Null
+ * unless two letters — `cf` is absent under `astro dev`, and Tor reports `T1`.
  */
 function signerCountry(): string | null {
   const { cf } = Astro.request as Request & {
@@ -67,12 +64,8 @@ if (dbReady && Astro.request.method === "POST") {
   const formData = await Astro.request.formData();
   const message = String(formData.get("message") ?? "").trim();
 
-  // Astro's `security.checkOrigin` is on by default and rejects a cross-site
-  // POST with a 403 before this runs. That covers this form, because a real
-  // form post is always one of the three form-like content types checkOrigin
-  // inspects; it does NOT cover a cross-origin JSON POST, which checkOrigin
-  // exempts. The two API routes that accept JSON check the origin explicitly
-  // (see lib/csrf) — this one is a form submit and needs no repeat.
+  // A form post is always form-like, so `security.checkOrigin` covers this one
+  // and no explicit check is needed — unlike the JSON routes; see lib/csrf.
   if (!session) {
     error = "auth";
   } else if (!message) {
@@ -83,8 +76,7 @@ if (dbReady && Astro.request.method === "POST") {
     error = "profanity";
   } else {
     try {
-      // Re-check the limit here rather than trusting the render below: the
-      // form could have been sitting open since before the last message.
+      // The form could have been sitting open since before the last message.
       nextPostAt = nextAllowedAt(await lastPostedAt(session.githubId));
 
       if (nextPostAt) {
@@ -99,8 +91,7 @@ if (dbReady && Astro.request.method === "POST") {
           country: signerCountry(),
         });
 
-        // The cached first page and the totals both just went stale, and the
-        // signer is about to be shown them. Drop them before reading below.
+        // The signer is about to be shown both; drop them before reading below.
         await invalidate();
 
         posted = true;
@@ -116,9 +107,8 @@ if (dbReady && Astro.request.method === "POST") {
 
 if (dbReady) {
   try {
-    // One page, not the lot. GuestbookList fetches the rest as the reader
-    // scrolls; the totals under the map come from a grouped count rather than
-    // from tallying rows this page no longer has.
+    // One page; GuestbookList fetches the rest as the reader scrolls, and the
+    // totals come from a grouped count rather than from tallying rows.
     const [page, totals] = await Promise.all([getPage(), getStats()]);
 
     entries = page.entries;
@@ -140,14 +130,12 @@ const ERRORS: Record<string, string> = {
   db: "Couldn't save that. Try again in a moment.",
 };
 
-// The signer's own last message, for the "you can sign again" line. Its own
-// indexed query, since a one-page list usually will not contain it.
+// The signer's own last message, for the "you can sign again" line.
 if (dbReady && session && Astro.request.method !== "POST") {
   try {
     nextPostAt = nextAllowedAt(await lastPostedAt(session.githubId));
   } catch (limitError) {
-    // Not worth taking the page down for. The POST path re-checks anyway, so
-    // the limit still holds; the reader is just shown the form to find out.
+    // The POST path re-checks, so the limit still holds.
     console.error("[guestbook] rate-limit lookup failed", limitError);
   }
 }

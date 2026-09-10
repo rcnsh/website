@@ -2,11 +2,9 @@
 import { TINY_AREA, WORLD_SHAPES, WORLD_VIEWBOX } from "@/lib/world";
 
 /**
- * Where the guestbook has been signed from.
- *
- * The outlines are precomputed by scripts/generate-world.ts, so nothing here
- * projects anything — it picks a fill per country and emits one <svg>. No
- * client JavaScript: the hover state is CSS and the tooltips are <title>.
+ * Where the guestbook has been signed from. Outlines are precomputed by
+ * scripts/generate-world.ts, so this only picks a fill per country. No client
+ * JavaScript: hover is CSS and the tooltips are <title>.
  */
 
 interface Props {
@@ -22,11 +20,8 @@ const placed = Object.values(counts).reduce((total, n) => total + n, 0);
 const busiest = Math.max(1, ...Object.values(counts));
 const countries = Object.keys(counts).length;
 
-/*
-  One accent, so depth carries the count rather than hue. The floor keeps a
-  single signature clearly lit — the difference that matters most on this map
-  is "someone" versus "no one", not 1 versus 2.
-*/
+// One accent, so depth carries the count. The floor keeps a single signature
+// lit: the difference that reads is "someone" versus "no one".
 const opacityFor = (count: number) => 0.4 + 0.6 * (count / busiest);
 
 const named = new Map(
@@ -79,11 +74,8 @@ const summary = countries
     }
 
     {
-      /*
-        Drawn after the outlines so they sit on top. A country under TINY_AREA
-        is a speck or nothing at all — Singapore has no polygon at this scale —
-        so the dot is the only thing that would tell you it was signed.
-      */
+      /* After the outlines, so they sit on top. Under TINY_AREA a country is
+         a speck or has no polygon at all, and the dot is all there is. */
     }
     {
       dotted.map((shape) => (
@@ -111,10 +103,7 @@ const summary = countries
 </figure>
 
 {
-  /*
-    Sorted by count so the list reads as a leaderboard, and so the map stays
-    legible to anyone who can't hover — touch has no tooltip.
-  */
+  /* Sorted by count, and present at all because touch has no tooltip. */
 }
 {
   countries > 0 && (
@@ -149,8 +138,7 @@ const summary = countries
     transition: opacity 0.2s var(--ease-out-quint);
   }
 
-  /* Full strength, unlike the filled countries — 3.5px is too small to read an
-     opacity difference. The ring keeps a dot distinct from a neighbour. */
+  /* Full strength: 3.5px is too small to read an opacity difference. */
   .dot {
     fill: var(--color-brand);
     stroke: var(--color-base);

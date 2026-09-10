@@ -5,26 +5,13 @@
   "compatibility_date": "2026-08-01",
   "observability": { "enabled": true },
 
-  /*
-    This Worker parses a URL and hands off to a Durable Object; it has no
-    business using milliseconds of CPU, let alone the default 30 seconds.
-  */
+  // Parses a URL and hands off to a Durable Object. The default is 30s.
   "limits": { "cpu_ms": 50 },
 
-  /*
-    Upgrades per client per minute. MAX_PEERS already caps how many sockets can
-    be *open* at once — 20 a room, seven rooms — and Budget in protocol.ts caps
-    how fast an open one may talk. Neither bounds churn: connect, disconnect,
-    repeat is a billed Durable Object request each time, with no ceiling and
-    without ever filling a room.
-
-    30 is generous for honest use. <ClientRouter /> reconnects on every soft
-    navigation and prefetch is set to hover, so a reader moving quickly through
-    the site opens a handful a minute.
-
-    The 2000 range because namespace ids are account-wide: sharing 1001 with
-    the site Worker would mean these upgrades spending the site's API budget.
-  */
+  // Upgrades per client per minute. MAX_PEERS caps open sockets and Budget in
+  // protocol.ts caps how fast one may talk, but neither bounds churn —
+  // connect/disconnect is a billed Durable Object request each time.
+  // The 2000 range because namespace ids are account-wide.
   "ratelimits": [
     {
       "name": "SOCKET_BUDGET",
@@ -33,39 +20,21 @@
     }
   ],
 
-  /*
-    A route rather than a Custom Domain. rcn.sh itself is a Custom Domain
-    pointing at the `rcnsh` worker, and a route on a subpath of that hostname
-    runs *before* it — so this worker answers /api/multiplayer and the site
-    worker never sees the request. Same origin, which keeps the connection
-    inside `connect-src 'self'` and means no second hostname to certificate.
-
-    The zone already has the proxied DNS record the route needs; the Custom
-    Domain created it.
-  */
+  // A route, not a Custom Domain: a route on a subpath of rcn.sh runs before
+  // the site Worker's Custom Domain, so this stays same-origin and inside
+  // `connect-src 'self'` with no second hostname to certificate.
   "routes": [{ "pattern": "rcn.sh/api/multiplayer*", "zone_name": "rcn.sh" }],
 
-  /*
-    The room list this Worker imports is generated, not committed — see
-    scripts/generate-rooms.ts. Cloudflare Workers Builds deploys this Worker
-    straight from a push with no build command of its own: it clones, runs
-    `npm clean-install`, and goes directly to `wrangler versions upload`. So
-    the one thing that knows this Worker cannot be bundled without that file
-    has to be this file.
-
-    No `cwd`: Wrangler resolves it against the directory it was invoked from,
-    not against this file, so `../..` overshot the repository root entirely.
-    The default is that same invocation directory — the repository root, where
-    the script and its package.json are — which is what this needs anyway.
-    Wrangler runs it ahead of bundling for `dev`, `deploy` and `versions
-    upload` alike, which is every path that needs it.
-  */
+  // The room list this Worker imports is generated, not committed. Workers
+  // Builds deploys straight from a push with no build step of its own, so this
+  // file is the only place that can know. No `cwd`: Wrangler resolves it
+  // against the invocation directory, which is already the repository root.
   "build": {
     "command": "npm run rooms"
   },
 
-  // One instance per page path. `new_sqlite_classes` is not optional — the
-  // key-value backend is Workers Paid only, and nothing here is stored anyway.
+  // One instance per page path. `new_sqlite_classes` is not optional: the
+  // key-value backend is Workers Paid only.
   "durable_objects": {
     "bindings": [{ "name": "ROOMS", "class_name": "CursorRoom" }]
   },

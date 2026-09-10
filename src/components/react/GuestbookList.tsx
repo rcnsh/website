@@ -73,9 +73,8 @@ export default function GuestbookList({
     }
   }, []);
 
-  /* `cursor` is load-bearing here. An observer reports transitions, not
-     states, and on a tall screen the sentinel stays inside the margin after a
-     page lands — rebuilding it re-reports the current intersection. */
+  // `cursor` is load-bearing: an observer reports transitions, not states, and
+  // on a tall screen the sentinel stays inside the margin after a page lands.
   // biome-ignore lint/correctness/useExhaustiveDependencies: see above
   useEffect(() => {
     const target = sentinel.current;
@@ -166,9 +165,8 @@ export default function GuestbookList({
       </ul>
 
       {cursor && (
-        /* A real button, not a bare sentinel: the observer presses it for you,
-           and it stays reachable from the keyboard when the observer does not
-           fire. aria-live so a screen reader is told the list grew. */
+        /* A real button, not a bare sentinel, so it stays reachable from the
+           keyboard when the observer does not fire. */
         <div ref={sentinel} className="pt-5 text-center">
           <button
             type="button"

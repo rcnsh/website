@@ -37,10 +37,7 @@ const ICONS = {
   file: { Icon: File, colour: "text-ink-faint" },
 } as const;
 
-/**
- * The bucket's public origin. Constant for the life of the page and wanted by
- * every row, so it rides a context rather than a sixth drilled prop.
- */
+/** Constant for the page and wanted by every row, hence a context. */
 const BucketBase = createContext("");
 
 /**
@@ -71,22 +68,14 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   /** Folders whose children have ever been rendered. See `toggle`. */
   const [mounted, setMounted] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState<Set<string>>(new Set());
-  /*
-    Folders whose last load failed. Without this a failed fetch left `listings`
-    without an entry, which renders identically to a folder that really is
-    empty — an R2 outage or a 429 read as "nothing here".
-  */
+  // Without this a failed fetch renders identically to an empty folder.
   const [failed, setFailed] = useState<Set<string>>(new Set());
   const [rootError, setRootError] = useState(!tree && !initial);
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<R2File[] | null>(null);
   const [searching, setSearching] = useState(false);
-  /*
-    A 429 from SCAN_BUDGET or a bucket failure used to land in the same catch
-    as an abort and leave the previous results up, so the reader saw "Nothing
-    matches" about a search that never ran.
-  */
+  // Otherwise a search that never ran reads as "Nothing matches".
   const [searchFailed, setSearchFailed] = useState(false);
 
   const load = useCallback(
@@ -103,9 +92,7 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
         const response = await fetch(
           `/api/files/list?prefix=${encodeURIComponent(prefix)}`,
         );
-        // A 429 from the throttle and a 500 from R2 both arrive as JSON; the
-        // route also sets `error` on a payload it could not fill. Either is a
-        // failure, and neither is an empty folder.
+        // A 429 and a 500 both arrive as JSON, and neither is an empty folder.
         if (!response.ok) throw new Error(String(response.status));
         const data = (await response.json()) as R2Listing & { error?: boolean };
         if (data.error) throw new Error("listing unavailable");
@@ -199,8 +186,7 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
         setResults(data.files ?? []);
         setSearchFailed(false);
       } catch {
-        // An abort is us superseding the request, not a failure — and writing
-        // state here is what made the indicator blink on every keystroke.
+        // An abort is us superseding the request, not a failure.
         if (controller.signal.aborted) return;
         setSearchFailed(true);
       } finally {
@@ -254,12 +240,7 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
           ) : results !== null ? (
             <SearchResults results={results} query={query} />
           ) : rootError ? (
-            /*
-              A transient R2 failure and a missing binding used to render the
-              same sentence, which told a visitor to go and check a config file
-              they cannot see. The binding hint is a developer's problem, so it
-              is shown only in dev.
-            */
+            /* The binding hint is a developer's problem, so dev only. */
             <p className="py-8 text-sm text-ink-faint">
               Couldn't reach the bucket.
               {import.meta.env.DEV && (
@@ -334,10 +315,7 @@ function Level({
 }: LevelProps) {
   const listing = listings[prefix];
 
-  /*
-    No listing and a recorded failure means the fetch did not work. Rendering
-    nothing here is what made an outage look like an empty folder.
-  */
+  // No listing plus a recorded failure is an outage, not an empty folder.
   if (!listing) {
     if (!failed.has(prefix)) return null;
     return (

@@ -2,18 +2,11 @@
 import Icon from "./Icon.astro";
 
 /**
- * The cog in the header, and the popover it opens. Every row turns down
- * something the page does on its own; a setting that adds behaviour wants a
- * different home.
- *
- * Only the markup and this script are eager — src/lib/multiplayer.ts is behind
- * a dynamic import that runs when the switch is turned on.
+ * The cog in the header and the popover it opens. Only the markup and this
+ * script are eager; src/lib/multiplayer.ts is behind a dynamic import.
  */
 
-/**
- * The rows, in order. `key` is both the lib/prefs.ts storage name and the hook
- * the script binds by. Multiplayer's description is rewritten at runtime.
- */
+/** `key` is both the lib/prefs.ts storage name and the hook the script binds by. */
 const settings = [
   {
     key: "multiplayer",
@@ -169,16 +162,11 @@ const settings = [
     writePref,
   } from "@/lib/prefs";
 
-  /* Module scope, not per-page: view transitions swap the document without
-     re-evaluating a loaded module, so the session survives a navigation. */
   let session: Session | null = null;
   let starting = false;
   let bindings: AbortController | null = null;
 
-  /**
-   * The presence count, and which page it was counted on. Module scope so a
-   * navigation does not re-ask; the TTL matches the Worker's edge cache.
-   */
+  /** The presence count, and which page it was counted on. */
   let countedRoom = "";
   let countedAt = 0;
   let counted = 0;
@@ -238,8 +226,7 @@ const settings = [
       // The socket knows better than the poll, so the poll gets out of the way.
       count.hidden = true;
 
-      /* A refusal is not a failure. Both stay true until something changes,
-         so "still trying" would be a lie twice over. */
+      // A refusal is not a failure: "still trying" would be a lie.
       if (state.refused === "full") {
         status.textContent = "On — this page is full. Try again in a bit.";
         return;
@@ -248,8 +235,7 @@ const settings = [
         status.textContent = "On — cursors aren't available on this page.";
         return;
       }
-      /* Reconnecting too fast — a tab left reloading, or someone else on the
-         same address. Waiting is the fix, so say so. */
+      // Reconnecting too fast, or someone else on the same address; waiting fixes it.
       if (state.refused === "busy") {
         status.textContent = "On — reconnecting too often. Try again in a minute.";
         return;
@@ -341,8 +327,7 @@ const settings = [
 
     closeOnOtherOverlay("settings", () => setOpen(false), signal);
 
-    // Arrow consts, not declarations: a hoisted `function` would not inherit
-    // the null-narrowing from the guard above.
+    // Arrow consts: a hoisted `function` would not inherit the null-narrowing above.
     const enable = async () => {
       // Two clicks before the chunk lands should not open two sockets.
       if (session || starting) return;
@@ -385,10 +370,7 @@ const settings = [
       { signal },
     );
 
-    /**
-     * The two switches that are nothing but a stored boolean. Neither reaches
-     * for what it affects — each consumer listens to lib/prefs itself.
-     */
+    /** Switches that are nothing but a stored boolean; consumers listen to lib/prefs. */
     const bindPlain = (
       button: HTMLButtonElement,
       read: () => boolean,
@@ -410,8 +392,7 @@ const settings = [
     bindPlain(live, liveUpdates, setLiveUpdates);
     bindPlain(motion, motionReduced, setMotionReduced);
 
-    /* Untouched, the motion switch reports the OS setting, so it has to move
-       with it. Once a choice is stored this repaints the same value. */
+    // Untouched, the switch reports the OS setting, so it must move with it.
     matchMedia(REDUCED_MOTION_QUERY).addEventListener(
       "change",
       () => {
@@ -439,8 +420,7 @@ const settings = [
       { signal },
     );
 
-    /* A background tab loads hidden and is not asked for a count, so ask when
-       the reader actually arrives. */
+    // A background tab loads hidden and is never asked for a count.
     document.addEventListener(
       "visibilitychange",
       () => {
