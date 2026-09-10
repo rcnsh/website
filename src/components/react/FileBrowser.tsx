@@ -405,7 +405,7 @@ function FolderRow({
         type="button"
         onClick={() => onToggle(prefix)}
         aria-expanded={isOpen}
-        className="group flex w-full items-center gap-2 py-1 text-left"
+        className="group flex w-full items-center gap-2 py-2 text-left sm:py-1"
         style={{ paddingLeft: `${depth * 16}px` }}
       >
         <span
@@ -492,7 +492,7 @@ function FileRow({
 
   return (
     <div
-      className="group flex items-center gap-2 py-1"
+      className="group flex items-center gap-2 py-2 sm:py-1"
       style={{ paddingLeft: `${depth * 16}px` }}
     >
       <span className="w-3.5 shrink-0" />
@@ -541,7 +541,7 @@ function CopyLink({ url }: { url: string }) {
       type="button"
       onClick={copy}
       aria-label="Copy link"
-      className="shrink-0 p-1 text-ink-faint opacity-0 transition-opacity hover:text-ink focus-visible:opacity-100 group-hover:opacity-100"
+      className="-m-2 shrink-0 p-2 text-ink-faint opacity-0 transition-opacity hover:text-ink focus-visible:opacity-100 group-hover:opacity-100"
     >
       {copied ? (
         <Check className="h-3 w-3 text-emerald-400" />
@@ -574,7 +574,7 @@ function SearchResults({ results, query }: { results: R2File[]; query: string })
         const url = urlFor(base, key);
 
         return (
-          <div key={key} className="group flex items-center gap-2 py-1">
+          <div key={key} className="group flex items-center gap-2 py-2 sm:py-1">
             <Icon className={cn("h-4 w-4 shrink-0", colour)} />
             <a
               href={url}
