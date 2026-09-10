@@ -1,103 +1,73 @@
 # rcn.sh
 
-Personal site. Astro 7 + React 19 islands on Cloudflare Workers.
+My personal site: **[rcn.sh](https://rcn.sh)**. Writing, music, files and a
+guestbook, on Astro 7 and Cloudflare Workers.
 
 Replaces [`rcnsh-astro`](https://github.com/rcnsh/rcnsh-astro), which stopped
 building against current packages.
 
-## Stack
+## How it's built
 
-- **Astro 7** — pages are prerendered; live data arrives through server islands
-  (`server:defer`) or routes with `export const prerender = false`
+Static by default. Pages prerender at build time; anything live arrives through
+a server island (`server:defer`) or a route that opts out with
+`export const prerender = false`.
+
+- **Astro 7** — the site
 - **React 19** — command palette, file browser, music explorer, now-playing card
 - **Tailwind 4** — tokens live in `@theme` at the top of `src/styles/global.css`
-- **Drizzle + D1** for the guestbook and sessions, **R2** for files, **KV** for
-  caching, and a hand-rolled GitHub OAuth flow in `src/lib/auth.ts`
+- **D1 + Drizzle** for the guestbook and sessions, **R2** for files, **KV** for
+  stale-while-revalidate caching
+- **GitHub OAuth**, hand-rolled in `src/lib/auth.ts`
 
-## Setup
+A second Worker under `workers/multiplayer/` serves cursor presence over Durable
+Objects. It deploys separately and agrees with the client on its rates through
+`shared/multiplayer.ts`.
+
+Listening data comes from a separate music-warehouse Worker rather than from
+Spotify, so this site holds no Spotify credential of its own.
+
+The command palette has a shell in it. `$` at the prompt gets a small POSIX-ish
+one over a read-only view of the site.
+
+## Running it
 
 ```bash
 npm install
-```
-
-npm holds back install scripts it hasn't been told to trust, and `workerd` and
-`esbuild` download their binaries in one. The approvals are already committed
-in the `allowScripts` field of `package.json`, so this should be quiet — but if
-npm reports anything pending, review and approve it:
-
-```bash
-npm approve-scripts --allow-scripts-pending
-```
-
-Create the Cloudflare resources and paste the ids into `wrangler.jsonc`:
-
-```bash
-npx wrangler d1 create rcnsh
-npx wrangler kv namespace create CACHE
-```
-
-Then:
-
-```bash
-cp .dev.vars.example .dev.vars   # fill it in
+cp .dev.vars.example .dev.vars   # that file says what each one is for
 npm run db:migrate:local
 npm run dev
 ```
 
-### Secrets
+The Cloudflare resources already exist and their ids are committed in
+`wrangler.jsonc`. Nothing in `.dev.vars` is mandatory — every integration falls
+back to an empty state, so a blank file still gives a working site with the live
+parts missing.
 
-Nothing is mandatory — each integration falls back to an empty state.
-
-- **`GITHUB_TOKEN`** — classic PAT with `read:user`. Needed for the contribution
-  graph, which GitHub only exposes over GraphQL.
-- **`GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`** — an OAuth app has only one
-  callback URL, so register two: `http://localhost:4321/api/auth/callback` for
-  `.dev.vars`, and `https://rcn.sh/api/auth/callback` for the Worker secrets.
-  The redirect is built from the request origin, so no code changes.
-- **Spotify** — a refresh token with `user-read-currently-playing`,
-  `user-top-read`, and `user-read-recently-played`.
+`npm run generate` writes the derived files git does not carry: share cards, the
+cursor room list, the 88x31 button and `public/_headers`. It already runs inside
+`dev`, `build` and `preview` — run it alone after a fresh clone if the editor
+wants the imports resolved.
 
 ## Deploying
 
 ```bash
-npm run db:migrate:remote
-npx wrangler secret put GITHUB_CLIENT_ID   # repeat per secret
 npm run deploy
 ```
 
-`PUBLIC_BUCKET_URL` is the custom domain on the `rcn` bucket. Empty it and file
-links fall back to `/api/files/download`, which streams through the Worker —
-correct, but slower and uncached.
+Builds, deploys the site Worker, then the multiplayer one. Migrations are not
+part of it; `npm run db:migrate:remote` is separate and deliberate.
 
-On a paid plan the site bills per request, per CPU millisecond and per Durable
-Object second, with no spend cap behind any of them. **[`docs/abuse.md`](docs/abuse.md)**
-covers what that exposes, the CPU ceilings and per-client budgets in the two
+The site bills per request, per CPU millisecond and per Durable Object second,
+with no spend cap behind any of them. [`docs/abuse.md`](docs/abuse.md) covers
+what that exposes, the CPU ceilings and per-client budgets in the two
 `wrangler.jsonc` files, the two things that have to be set in the dashboard
 because code cannot express them, and what to do if it is happening now.
-
-## Content
-
-Everything you're likely to change lives in **`src/content/site.json`** — name,
-bio, page titles, nav, links, the "uses" list, pinned repos, the clock. No code.
-
-`src/lib/site.ts` validates it at build time, so a typo fails the build naming
-the exact path:
-
-```
-Invalid src/content/site.json:
-  identity.author: Invalid input
-```
-
-Prose fields accept `[text](url)` links and nothing else. Two things aren't in
-the JSON: icons (mapped by name in `src/components/react/icon-map.ts`, since
-JSON can't hold a component) and the command palette's contents (built from
-`nav` + `links`).
 
 ## Layout
 
 ```
 src/
-  content/    site.json — the file to edit
+  content/    site.json, and the blog posts
   lib/        config, utils, one module per integration
     db/       Drizzle schema + D1 client
   components/
@@ -106,7 +76,11 @@ src/
   layouts/    the page shell
   pages/
     api/      endpoints (prerender = false)
-migrations/   D1 migrations, generated by drizzle-kit
+shared/       dependency-free TS, imported by both Workers and the scripts
+workers/
+  multiplayer/  cursor presence, over Durable Objects
+scripts/      the generators behind `npm run generate`
+migrations/   D1 migrations, from drizzle-kit
 ```
 
 Bindings come from `cloudflare:workers`:
@@ -116,17 +90,49 @@ import { env } from "cloudflare:workers";
 env.DB; // D1   env.BUCKET; // R2   env.CACHE; // KV
 ```
 
+`src/content/site.json` holds the parts that are text rather than code — name,
+bio, page titles, nav, links, the /uses list, pinned repos, the clock.
+`src/lib/site.ts` validates it at build time, so a typo fails the build naming
+the exact path:
+
+```
+Invalid src/content/site.json:
+  identity.author: Invalid input
+```
+
+Prose fields take `[text](url)` links and nothing else. Two things are not in
+the JSON: icons, mapped by name in `src/components/icons.ts` because JSON cannot
+hold a component, and the command palette's contents, built from `nav` + `links`.
+
 ## Scripts
 
 | Command | Does |
 | --- | --- |
 | `npm run dev` | Dev server in workerd, with local D1/R2/KV |
-| `npm run build` | `astro check`, then a production build |
-| `npm run generate` | Share cards, the cursor room list, the 88x31 button and `public/_headers` — derived files git does not carry. Already inside `dev`, `build` and `preview`; run it alone after a fresh clone if your editor wants the imports resolved |
-| `npm test` | Unit tests, via the Node test runner — no framework to install |
-| `npm run lint` / `lint:fix` | Biome across the codebase |
-| `npm run preview` | Build, then serve with wrangler |
-| `npm run deploy` | Build and deploy to Cloudflare |
+| `npm run dev:multiplayer` | The cursor Worker, on :8788 |
+| `npm run build` | `astro check`, a production build, then a headers check |
+| `npm run generate` | The derived files git does not carry |
+| `npm test` | Unit tests, on the Node test runner — no framework |
+| `npm run lint` / `lint:fix` | Biome. Lint only; the repo is not format-clean |
+| `npm run preview` | Build, then serve on the real bindings |
+| `npm run deploy` | Build and deploy both Workers |
 | `npm run cf-types` | Regenerate `worker-configuration.d.ts` after editing bindings |
 | `npm run db:generate` | New migration from the Drizzle schema |
 | `npm run db:migrate:local` / `:remote` | Apply migrations |
+| `npm run db:studio` | Drizzle Studio against D1 |
+| `npm run world` / `marks` | Redraw the map outlines and the brand marks. Rarely |
+
+## Notes to self
+
+[`CLAUDE.md`](CLAUDE.md) records the invariants that are expensive to
+rediscover — why the CSP is shaped the way it is, which caches must stay
+non-personalised, and what will quietly break if they change. Worth reading
+before touching the middleware, `astro.config.ts` or `shared/security.ts`.
+
+`audit/` holds point-in-time reports. Every finding in them is closed; they are
+kept as a record, not a to-do list.
+
+---
+
+MIT. It is built around my own accounts and content, so it is not meant to be
+run as-is by anyone else, but take whatever is useful.
