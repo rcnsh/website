@@ -1,5 +1,5 @@
 import { eq, lt } from "drizzle-orm";
-import { env } from "cloudflare:workers";
+import { env, waitUntil } from "cloudflare:workers";
 import type { AstroCookies } from "astro";
 import { getDb, schema } from "./db";
 
@@ -127,21 +127,28 @@ async function hashToken(token: string): Promise<string> {
 
 /**
  * Expired rows hold a githubId, username, display name and avatar URL, and D1
- * has no TTL of its own, so something has to delete them. This used to run
- * only inside `createSession` — i.e. only when somebody completed an OAuth
- * login — which on a personal site means expired rows can outlive their 30-day
- * TTL by a long way. `getSession` samples it instead, so the sweep tracks
- * traffic rather than logins.
+ * has no TTL of its own, so something has to delete them.
  *
- * A Cron Trigger would be the tidier answer, but it needs a `scheduled` export
- * on the Worker entry and @astrojs/cloudflare exposes no hook for one, so it
- * would mean standing up a second Worker to delete a handful of rows.
+ * This ran inside `createSession` originally, meaning it fired only when
+ * somebody completed an OAuth login — on a site with infrequent logins that
+ * lets rows outlive their 30-day TTL indefinitely, and then makes one unlucky
+ * login pay for the entire accumulated backlog in a single statement.
+ * Sampling it from `getSession` ties it to traffic instead.
+ *
+ * A Cron Trigger is the tidier shape and is not available here:
+ * @astrojs/cloudflare registers with `entrypointResolution: "auto"` and its
+ * generated entry is `{ fetch: handle }`, with no hook for a `scheduled`
+ * export. The alternatives were a Worker of its own for one DELETE, or
+ * patching the adapter's build output — both disproportionate to a table that
+ * holds a handful of rows.
+ *
+ * `sessions_expires_at_idx` covers the predicate, so this is a cheap indexed
+ * range delete rather than a scan.
  */
 const SWEEP_SAMPLE_RATE = 50;
 
-export async function sweepExpiredSessions(): Promise<void> {
-  const db = getDb();
-  await db
+async function sweepExpiredSessions(): Promise<void> {
+  await getDb()
     .delete(schema.sessions)
     .where(lt(schema.sessions.expiresAt, new Date()));
 }
@@ -166,9 +173,10 @@ export async function createSession(
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
   const db = getDb();
+  // One statement, one round trip. The expired-row sweep used to follow this
+  // insert, which made it a second serialised trip to D1 inside the OAuth
+  // callback with the user waiting on both. It is sampled from getSession now.
   await db.insert(schema.sessions).values({ id, expiresAt, ...user });
-
-  await sweepExpiredSessions();
 
   cookies.set(SESSION_COOKIE, token, {
     path: "/",
@@ -208,14 +216,19 @@ export async function getSession(
       .where(eq(schema.sessions.id, id));
   }
 
-  // Roughly one signed-in request in fifty pays for the cleanup. Failing here
-  // must not cost the caller their session, so it is deliberately swallowed.
+  /*
+    Roughly one signed-in request in fifty triggers the cleanup, and none of
+    them wait for it: `waitUntil` keeps the Worker alive past the response, so
+    this costs the caller nothing but a scheduled continuation. Nothing depends
+    on it having run — an unswept expired row is already rejected above — so a
+    failure is logged rather than propagated.
+  */
   if (Math.floor(Math.random() * SWEEP_SAMPLE_RATE) === 0) {
-    try {
-      await sweepExpiredSessions();
-    } catch (error) {
-      console.error("[auth] session sweep failed", error);
-    }
+    waitUntil(
+      sweepExpiredSessions().catch((error) => {
+        console.error("[auth] session sweep failed", error);
+      }),
+    );
   }
 
   return {

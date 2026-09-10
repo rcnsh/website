@@ -1,0 +1,15 @@
+-- getStats() groups by country to build the map. Without an index that plan is
+-- a full SCAN plus a USE TEMP B-TREE FOR GROUP BY, and D1 bills the temp b-tree
+-- materialisation too: the same query measured 2N rows_read where an indexed
+-- equivalent measured N. With this index the plan becomes
+--   SCAN guestbook USING COVERING INDEX guestbook_country_idx
+-- and the cost halves.
+--
+-- Still O(N) — it reads every row either way. If the guestbook ever gets large
+-- the durable fix is a roll-up table maintained alongside the insert, so
+-- getStats reads ~250 rows instead of N. Not worth it at this size.
+--
+-- Costs a fourth written row on every guestbook INSERT and DELETE, which is
+-- noise against the 50M rows/month included write allowance at one message per
+-- signer per day.
+CREATE INDEX `guestbook_country_idx` ON `guestbook` (`country`);
