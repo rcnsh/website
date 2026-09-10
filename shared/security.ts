@@ -84,5 +84,6 @@ export function headersFile(): string {
 
 /*
 ${rules}
+  Cache-Control: public, max-age=0, s-maxage=600, stale-while-revalidate=86400
 `;
 }

@@ -65,9 +65,16 @@
   /* The incoming album cover, fading in over the outgoing one. */
   --animate-art-in: art-in 0.25s ease both;
 
+  /*
+    0.01, not 0. Chrome does not count a fully transparent element as painted,
+    so the LCP timestamp is deferred until the first frame where opacity clears
+    zero — the page title is inside this animation, so it was the LCP element
+    waiting on its own entrance. A hundredth of an opacity is invisible and
+    counts as painted.
+  */
   @keyframes rise {
     from {
-      opacity: 0;
+      opacity: 0.01;
       transform: translateY(6px);
     }
     to {
