@@ -27,6 +27,9 @@ export const guestbook = sqliteTable(
     index("guestbook_created_at_idx").on(table.createdAt),
     // Covers the rate-limit lookup: newest message for one signer.
     index("guestbook_github_id_created_at_idx").on(table.githubId, table.createdAt),
+    // Lets getStats()'s GROUP BY run covering instead of SCAN + temp b-tree,
+    // which D1 bills at 2x the row count. See migrations/0005.
+    index("guestbook_country_idx").on(table.country),
   ],
 );
 
