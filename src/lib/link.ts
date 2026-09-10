@@ -34,6 +34,12 @@ export interface LinkOptions {
   open(handlers: LinkHandlers): Socket;
   /** Waits `ms`, then calls `fn`. Returns a function that cancels the wait. */
   wait(ms: number, fn: () => void): () => void;
+  /**
+   * Source of jitter for the reconnect backoff. Injected for the same reason
+   * `wait` is: a test wants an exact delay, not a sampled one. Defaults to
+   * Math.random in the browser.
+   */
+  random?(): number;
   /** The socket is up. */
   onOpen?(): void;
   onMessage?(data: string): void;
@@ -124,7 +130,7 @@ export function link(options: LinkOptions): Link {
   function schedule() {
     if (cancelWait !== null || done) return;
 
-    const delay = reconnectDelay(attempt);
+    const delay = reconnectDelay(attempt, options.random);
     attempt += 1;
     // Crossing the stall threshold is a change worth reporting.
     options.onState?.();

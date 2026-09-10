@@ -144,7 +144,20 @@ export async function listWholeTree(): Promise<R2Tree | null> {
   let count = 0;
   let cursor: string | undefined;
 
-  while (true) {
+  /*
+    Bounded, like both siblings above. This was the one `bucket.list` loop with
+    no page cap: `while (true)` with the only exit being `!result.truncated`,
+    so a bucket that kept returning a cursor kept it spinning until the Worker
+    hit its CPU limit. FULL_TREE_MAX_OBJECTS bounds objects but not pages, and
+    a bucket full of zero-byte or hidden keys advances the cursor without ever
+    incrementing the count.
+
+    20 pages x 1000 is comfortably past FULL_TREE_MAX_OBJECTS, so the object
+    cap is still what normally stops this; the page cap only catches the
+    pathological shape.
+  */
+  let exhausted = false;
+  for (let page = 0; page < 20; page++) {
     const result = await bucket.list({ limit: 1000, cursor });
 
     for (const object of result.objects) {
@@ -174,9 +187,21 @@ export async function listWholeTree(): Promise<R2Tree | null> {
       ]);
     }
 
-    if (!result.truncated) break;
+    if (!result.truncated) {
+      exhausted = true;
+      break;
+    }
     cursor = result.cursor;
   }
+
+  /*
+    Falling out of the loop still truncated means the tree is incomplete, and an
+    incomplete tree must not be returned: the caller caches it and serves it as
+    though it were the whole bucket, so folders would silently vanish from the
+    browser until the entry expired. `null` is the existing "too big, lazy-load
+    instead" signal and is exactly the right answer here.
+  */
+  if (!exhausted) return null;
 
   for (const listing of Object.values(tree)) {
     listing.folders.sort(collator.compare);

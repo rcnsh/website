@@ -1,3 +1,4 @@
+import { deadline, ensureOk } from "./upstream";
 import { env } from "cloudflare:workers";
 import { cached } from "./cache";
 import { site } from "./site";
@@ -70,19 +71,19 @@ export async function getContributions(): Promise<Contributions | null> {
     `github:contributions:${username()}`,
     60 * 60,
     async () => {
-      try {
-        const response = await fetch(`${GITHUB_API}/graphql`, {
-          method: "POST",
-          headers: { ...headers(), "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query: CONTRIBUTIONS_QUERY,
-            variables: { login: username() },
-          }),
-        });
+      const response = await fetch(`${GITHUB_API}/graphql`, {
+        method: "POST",
+        headers: { ...headers(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: CONTRIBUTIONS_QUERY,
+          variables: { login: username() },
+        }),
+        signal: deadline(),
+      });
 
-        if (!response.ok) return null;
+      ensureOk(response, "GitHub GraphQL");
 
-        const json = (await response.json()) as {
+      const json = (await response.json()) as {
           data?: {
             user?: {
               contributionsCollection?: {
@@ -101,23 +102,22 @@ export async function getContributions(): Promise<Contributions | null> {
           };
         };
 
-        const calendar =
-          json.data?.user?.contributionsCollection?.contributionCalendar;
-        if (!calendar) return null;
+      const calendar =
+        json.data?.user?.contributionsCollection?.contributionCalendar;
+      // A 200 with no calendar in it is a malformed answer, not an empty one —
+      // throwing keeps the last good copy rather than caching the absence.
+      if (!calendar) throw new Error("GitHub GraphQL returned no contribution calendar");
 
-        return {
-          total: calendar.totalContributions,
-          weeks: calendar.weeks.map((week) =>
-            week.contributionDays.map((day) => ({
-              date: day.date,
-              count: day.contributionCount,
-              level: LEVELS[day.contributionLevel] ?? 0,
-            })),
-          ),
-        };
-      } catch {
-        return null;
-      }
+      return {
+        total: calendar.totalContributions,
+        weeks: calendar.weeks.map((week) =>
+          week.contributionDays.map((day) => ({
+            date: day.date,
+            count: day.contributionCount,
+            level: LEVELS[day.contributionLevel] ?? 0,
+          })),
+        ),
+      };
     },
     // The calendar is anchored to today's date, so a month-old copy would
     // render with a blank strip at the right-hand edge. Past a day, wait.
@@ -138,37 +138,33 @@ export type Repo = {
 
 export async function getRepos(): Promise<Repo[]> {
   return cached(`github:repos:${username()}`, 60 * 30, async () => {
-    try {
-      const response = await fetch(
-        `${GITHUB_API}/users/${username()}/repos?per_page=100&sort=updated`,
-        { headers: headers() },
-      );
-      if (!response.ok) return [];
+    const response = await fetch(
+      `${GITHUB_API}/users/${username()}/repos?per_page=100&sort=updated`,
+      { headers: headers(), signal: deadline() },
+    );
+    ensureOk(response, "GitHub repos");
 
-      const repos = (await response.json()) as {
-        name: string;
-        description: string | null;
-        html_url: string;
-        stargazers_count: number;
-        language: string | null;
-        updated_at: string;
-        fork: boolean;
-        archived: boolean;
-      }[];
+    const repos = (await response.json()) as {
+      name: string;
+      description: string | null;
+      html_url: string;
+      stargazers_count: number;
+      language: string | null;
+      updated_at: string;
+      fork: boolean;
+      archived: boolean;
+    }[];
 
-      return repos
-        .filter((repo) => !repo.fork && !repo.archived)
-        .map((repo) => ({
-          name: repo.name,
-          description: repo.description,
-          url: repo.html_url,
-          stars: repo.stargazers_count,
-          language: repo.language,
-          updatedAt: repo.updated_at,
-        }));
-    } catch {
-      return [];
-    }
+    return repos
+      .filter((repo) => !repo.fork && !repo.archived)
+      .map((repo) => ({
+        name: repo.name,
+        description: repo.description,
+        url: repo.html_url,
+        stars: repo.stargazers_count,
+        language: repo.language,
+        updatedAt: repo.updated_at,
+      }));
   });
 }
 
@@ -205,25 +201,22 @@ export type Profile = {
 
 export async function getProfile(): Promise<Profile | null> {
   return cached(`github:profile:${username()}`, 60 * 60, async () => {
-    try {
-      const response = await fetch(`${GITHUB_API}/users/${username()}`, {
-        headers: headers(),
-      });
-      if (!response.ok) return null;
+    const response = await fetch(`${GITHUB_API}/users/${username()}`, {
+      headers: headers(),
+      signal: deadline(),
+    });
+    ensureOk(response, "GitHub profile");
 
-      const user = (await response.json()) as {
-        followers: number;
-        public_repos: number;
-        created_at: string;
-      };
+    const user = (await response.json()) as {
+      followers: number;
+      public_repos: number;
+      created_at: string;
+    };
 
-      return {
-        followers: user.followers,
-        publicRepos: user.public_repos,
-        createdAt: user.created_at,
-      };
-    } catch {
-      return null;
-    }
+    return {
+      followers: user.followers,
+      publicRepos: user.public_repos,
+      createdAt: user.created_at,
+    };
   });
 }
