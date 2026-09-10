@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { headersFile, securityHeaders } from "./security.ts";
+import { headersFile, securityHeaders, SCRIPT_SOURCES } from "./security.ts";
 
 /*
   The two surfaces this site is served from — the asset store, via
@@ -55,13 +55,41 @@ describe("security headers", () => {
   /*
     Nothing in this repo loads the beacon — Cloudflare injects it at the edge —
     so the only place a path-scoped or missing allowance shows up is the
-    deployed page's console, which is where it showed up last time.
+    deployed page's console, which is where it showed up twice: once when the
+    allowance was path-scoped, and again when security.csp was switched on and
+    Astro's <meta> started intersecting with this header.
+
+    Asserting on SCRIPT_SOURCES rather than on the header alone is the point.
+    The header was never the broken half; astro.config.ts reads this same list
+    into scriptDirective.resources, so a host that is here is in both policies
+    and a host that is only in the header is in neither.
   */
   test("the Web Analytics beacon is admitted by host", () => {
+    assert.ok(
+      SCRIPT_SOURCES.includes("https://static.cloudflareinsights.com"),
+      "the beacon host must be in SCRIPT_SOURCES, or Astro's <meta> blocks it",
+    );
     assert.match(
       securityHeaders()["Content-Security-Policy"],
       /script-src[^;]* https:\/\/static\.cloudflareinsights\.com(?=[ ;]|$)/,
     );
+  });
+
+  /*
+    Astro's `resources` replaces its default source list rather than extending
+    it, so dropping 'self' here would take every same-origin script out of the
+    <meta> policy — which is to say, off the page.
+  */
+  test("same-origin scripts survive the meta policy", () => {
+    assert.ok(SCRIPT_SOURCES.includes("'self'"));
+  });
+
+  test("every script source reaches the header", () => {
+    const policy = securityHeaders()["Content-Security-Policy"];
+
+    for (const source of SCRIPT_SOURCES) {
+      assert.ok(policy.includes(source), `script-src is missing ${source}`);
+    }
   });
 
   test("the file says it is generated", () => {

@@ -49,23 +49,43 @@ function baseDirectives(dev = false): string[] {
 }
 
 /**
+ * Sources for `script-src`, beyond the 'unsafe-inline' this header adds and
+ * the hashes Astro adds to its own policy. Exported because astro.config.ts
+ * feeds the same list to `security.csp.scriptDirective.resources`: a
+ * prerendered page carries this header AND Astro's <meta>, a browser enforces
+ * both, and a host named in only one is a host that is blocked. That is how
+ * the beacon broke — the header allowed it and the meta did not.
+ *
+ * `'self'` is in the list because Astro's `resources` replaces its default
+ * rather than extending it, so leaving it out would drop every same-origin
+ * script from the meta policy.
+ *
+ * Cloudflare injects the Web Analytics beacon at the edge. The host and not
+ * the file, because the injected URL carries a version after it, and a CSP
+ * path without a trailing slash has to match exactly. It reports back to
+ * /cdn-cgi/rum here, which connect-src 'self' already covers.
+ */
+export const SCRIPT_SOURCES = [
+  "'self'",
+  "https://static.cloudflareinsights.com",
+];
+
+/**
  * The policy. `script-src` and `style-src` carry 'unsafe-inline' because this
  * header is written ahead of time and cannot name Astro's inline scripts.
  *
- * Hashing them is `security.csp`, which is off: it publishes the hashes in a
- * <meta> element, and <ClientRouter /> swaps document contents rather than
- * reparsing, so the entry page's hashes block every page reached from the nav.
- * See astro.config.ts. A known gap; nothing here renders raw HTML today.
+ * Hashing them is `security.csp`, which is on — see astro.config.ts, which
+ * explains at length why 'unsafe-inline' has to stay here anyway. In short:
+ * a prerendered page is bound by this header and by Astro's <meta> at once,
+ * the meta is the hash-locked one, and their intersection is what runs. Drop
+ * 'unsafe-inline' from this header and that intersection admits no inline
+ * script at all.
  */
 function contentSecurityPolicy(dev: boolean): string {
   return [
     ...baseDirectives(dev),
     "frame-ancestors 'none'",
-    // Cloudflare injects the Web Analytics beacon at the edge. The host and not
-    // the file, because the injected URL carries a version after it, and a CSP
-    // path without a trailing slash has to match exactly. It reports back to
-    // /cdn-cgi/rum here, which connect-src 'self' already covers.
-    "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com",
+    `script-src ${SCRIPT_SOURCES.join(" ")} 'unsafe-inline'`,
     "style-src 'self' 'unsafe-inline'",
   ].join("; ");
 }
