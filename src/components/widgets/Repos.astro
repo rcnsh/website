@@ -3,7 +3,20 @@ import { getFeaturedRepos } from "@/lib/github";
 import { pinnedRepos } from "@/lib/site";
 import { relativeTime } from "@/lib/utils";
 
-const repos = await getFeaturedRepos(pinnedRepos);
+/*
+  The loader throws on an upstream failure now, rather than swallowing it and
+  caching an empty list as if GitHub had said "no repositories". That means the
+  catch belongs here, and it means an empty result and a failed one are finally
+  distinguishable — they used to render the same sentence.
+*/
+let repos: Awaited<ReturnType<typeof getFeaturedRepos>> = [];
+let failed = false;
+try {
+  repos = await getFeaturedRepos(pinnedRepos);
+} catch (error) {
+  failed = true;
+  console.error("[github] repos island failed", error);
+}
 ---
 
 <section>
@@ -21,12 +34,18 @@ const repos = await getFeaturedRepos(pinnedRepos);
   </div>
 
   {
-    repos.length === 0 ? (
+    failed ? (
       <p class="py-6 text-sm text-ink-faint">
-        Couldn't reach GitHub. Set{" "}
-        <code class="font-mono text-ink-dim">GITHUB_TOKEN</code> to raise the
-        rate limit.
+        Couldn't reach GitHub.
+        {import.meta.env.DEV && (
+          <>
+            {" "}Set <code class="font-mono text-ink-dim">GITHUB_TOKEN</code> to
+            raise the rate limit.
+          </>
+        )}
       </p>
+    ) : repos.length === 0 ? (
+      <p class="py-6 text-sm text-ink-faint">Nothing to show yet.</p>
     ) : (
       <ul class="divide-y divide-line border-y border-line">
         {repos.map((repo) => (

@@ -1,8 +1,24 @@
 ---
 import { getContributions } from "@/lib/github";
 
-// Rendered as a server island, so a slow GitHub response never blocks the page.
-const data = await getContributions();
+/*
+  Rendered as a server island, so a slow GitHub response never blocks the page.
+
+  The loader throws on failure now instead of returning null, so the catch is
+  here. `data === null` therefore means one specific thing — no GITHUB_TOKEN,
+  checked before the request is made — and `failed` means the request itself
+  did not work. They used to be the same value and rendered the same sentence,
+  which told a visitor to set an environment variable when GitHub was simply
+  down.
+*/
+let data: Awaited<ReturnType<typeof getContributions>> = null;
+let failed = false;
+try {
+  data = await getContributions();
+} catch (error) {
+  failed = true;
+  console.error("[github] contributions island failed", error);
+}
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -97,6 +113,8 @@ const monthLabels = monthStarts.filter((start, position) => {
         <span>More</span>
       </div>
     </div>
+  ) : failed ? (
+    <p class="py-4 text-sm text-ink-faint">Couldn't reach GitHub.</p>
   ) : (
     <p class="py-4 text-sm text-ink-faint">
       Set <code class="font-mono text-ink-dim">GITHUB_TOKEN</code> to show the
