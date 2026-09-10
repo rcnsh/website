@@ -1,3 +1,4 @@
+import { coalesce } from "./coalesce";
 import { env, waitUntil } from "cloudflare:workers";
 
 /**
@@ -37,7 +38,7 @@ export async function cached<T>(
   { maxStaleSeconds = STALE_GRACE_SECONDS }: CacheOptions = {},
 ): Promise<T> {
   const kv = env.CACHE;
-  if (!kv) return loader();
+  if (!kv) return coalesce(key, loader);
 
   const write = async (value: T) => {
     try {
@@ -62,7 +63,7 @@ export async function cached<T>(
     if (age >= maxStaleSeconds * 1000) {
       // Too old to show. Block, but fall back to stale rather than throwing.
       try {
-        const value = await loader();
+        const value = await coalesce(key, loader);
         await write(value);
         return value;
       } catch (error) {
@@ -73,7 +74,7 @@ export async function cached<T>(
 
     if (age >= freshForSeconds * 1000) {
       // Failures are swallowed — the visitor already has a usable value.
-      const refresh = loader()
+      const refresh = coalesce(key, loader)
         .then(write)
         .catch((error) => {
           console.error(`[cache] background refresh failed for ${key}`, error);
@@ -89,7 +90,7 @@ export async function cached<T>(
     return hit.v;
   }
 
-  const value = await loader();
+  const value = await coalesce(key, loader);
   await write(value);
   return value;
 }
