@@ -71,24 +71,49 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   /** Folders whose children have ever been rendered. See `toggle`. */
   const [mounted, setMounted] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState<Set<string>>(new Set());
+  /*
+    Folders whose last load failed. Without this a failed fetch left `listings`
+    without an entry, which renders identically to a folder that really is
+    empty — an R2 outage or a 429 read as "nothing here".
+  */
+  const [failed, setFailed] = useState<Set<string>>(new Set());
   const [rootError, setRootError] = useState(!tree && !initial);
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<R2File[] | null>(null);
   const [searching, setSearching] = useState(false);
+  /*
+    A 429 from SCAN_BUDGET or a bucket failure used to land in the same catch
+    as an abort and leave the previous results up, so the reader saw "Nothing
+    matches" about a search that never ran.
+  */
+  const [searchFailed, setSearchFailed] = useState(false);
 
   const load = useCallback(
     async (prefix: string) => {
       if (complete || listings[prefix]) return;
       setLoading((prev) => new Set(prev).add(prefix));
+      setFailed((prev) => {
+        if (!prev.has(prefix)) return prev;
+        const next = new Set(prev);
+        next.delete(prefix);
+        return next;
+      });
       try {
         const response = await fetch(
           `/api/files/list?prefix=${encodeURIComponent(prefix)}`,
         );
-        const data = (await response.json()) as R2Listing;
+        // A 429 from the throttle and a 500 from R2 both arrive as JSON; the
+        // route also sets `error` on a payload it could not fill. Either is a
+        // failure, and neither is an empty folder.
+        if (!response.ok) throw new Error(String(response.status));
+        const data = (await response.json()) as R2Listing & { error?: boolean };
+        if (data.error) throw new Error("listing unavailable");
+
         setListings((prev) => ({ ...prev, [prefix]: data }));
         if (prefix === "") setRootError(false);
       } catch {
+        setFailed((prev) => new Set(prev).add(prefix));
         if (prefix === "") setRootError(true);
       } finally {
         setLoading((prev) => {
@@ -160,6 +185,7 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
     }
 
     setSearching(true);
+    setSearchFailed(false);
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
@@ -167,12 +193,18 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
           `/api/files/search?q=${encodeURIComponent(term)}`,
           { signal: controller.signal },
         );
-        const data = (await response.json()) as { files: R2File[] };
+        if (!response.ok) throw new Error(String(response.status));
+        const data = (await response.json()) as { files: R2File[]; error?: boolean };
+        if (data.error) throw new Error("search unavailable");
         setResults(data.files ?? []);
+        setSearchFailed(false);
       } catch {
-        // Aborted or failed — keep the previous results.
+        // An abort is us superseding the request, not a failure — and writing
+        // state here is what made the indicator blink on every keystroke.
+        if (controller.signal.aborted) return;
+        setSearchFailed(true);
       } finally {
-        setSearching(false);
+        if (!controller.signal.aborted) setSearching(false);
       }
     }, 280);
 
@@ -215,13 +247,28 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
         </div>
 
         <div className="border-b border-line">
-          {results !== null ? (
+          {searchFailed ? (
+            <p className="py-8 text-sm text-ink-faint">
+              Couldn't search just now — try again.
+            </p>
+          ) : results !== null ? (
             <SearchResults results={results} query={query} />
           ) : rootError ? (
+            /*
+              A transient R2 failure and a missing binding used to render the
+              same sentence, which told a visitor to go and check a config file
+              they cannot see. The binding hint is a developer's problem, so it
+              is shown only in dev.
+            */
             <p className="py-8 text-sm text-ink-faint">
-              Couldn't reach the bucket. Check the{" "}
-              <code className="font-mono text-ink-dim">BUCKET</code> binding in
-              wrangler.jsonc.
+              Couldn't reach the bucket.
+              {import.meta.env.DEV && (
+                <>
+                  {" "}Check the{" "}
+                  <code className="font-mono text-ink-dim">BUCKET</code> binding
+                  in wrangler.jsonc.
+                </>
+              )}
             </p>
           ) : !root ? (
             <div className="py-2">
@@ -243,6 +290,7 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
                 expanded={expanded}
                 mounted={mounted}
                 loading={loading}
+                failed={failed}
                 onToggle={toggle}
               />
             </div>
@@ -269,6 +317,8 @@ type LevelProps = {
   /** Folders whose children have been rendered at least once. */
   mounted: Set<string>;
   loading: Set<string>;
+  /** Folders whose last load failed, so a failure is not drawn as emptiness. */
+  failed: Set<string>;
   onToggle: (prefix: string) => void;
 };
 
@@ -279,10 +329,28 @@ function Level({
   expanded,
   mounted,
   loading,
+  failed,
   onToggle,
 }: LevelProps) {
   const listing = listings[prefix];
-  if (!listing) return null;
+
+  /*
+    No listing and a recorded failure means the fetch did not work. Rendering
+    nothing here is what made an outage look like an empty folder.
+  */
+  if (!listing) {
+    if (!failed.has(prefix)) return null;
+    return (
+      <button
+        type="button"
+        onClick={() => onToggle(prefix)}
+        className="py-1 font-mono text-[0.8125rem] text-ink-faint underline decoration-line-strong underline-offset-[4px] transition-colors hover:text-ink-dim hover:decoration-brand"
+        style={{ paddingLeft: `${depth * 16}px` }}
+      >
+        couldn't load — retry
+      </button>
+    );
+  }
 
   return (
     <>
@@ -300,6 +368,7 @@ function Level({
             expanded={expanded}
             mounted={mounted}
             loading={loading}
+            failed={failed}
             onToggle={onToggle}
           />
         );
@@ -321,6 +390,7 @@ function FolderRow({
   expanded,
   mounted,
   loading,
+  failed,
   onToggle,
 }: {
   name: string;
@@ -393,6 +463,7 @@ function FolderRow({
                   expanded={expanded}
                   mounted={mounted}
                   loading={loading}
+                  failed={failed}
                   onToggle={onToggle}
                 />
               )}
