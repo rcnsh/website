@@ -34,6 +34,12 @@ export default defineConfig({
     imageService: "compile",
   }),
 
+  // Expressive Code does the highlighting and sets this itself, but only after
+  // Astro's CSP check has already warned about the default Shiki highlighter.
+  markdown: {
+    syntaxHighlight: false,
+  },
+
   // Hashed inline scripts. This is only correct while <ClientRouter /> stays
   // out of Layout.astro, and it is why 'unsafe-inline' must stay in the
   // _headers policy — see CLAUDE.md § Maintenance › CSP and the router.
