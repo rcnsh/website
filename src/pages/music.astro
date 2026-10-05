@@ -38,9 +38,40 @@ const profileUrl = `https://open.spotify.com/user/${site.spotifyUser}`;
     <section>
       <h2 class="rule-heading label mb-5">Top</h2>
       <TopMusic server:defer>
-        <div slot="fallback">
-          <div class="placeholder-block mb-5 h-3 w-64 rounded-xs"></div>
-          <div class="placeholder-block h-[420px] rounded-xs"></div>
+        <!-- Mirrors MusicExplorer's controls and twelve rows, so the
+             sections below don't jump when it lands. -->
+        <div slot="fallback" aria-hidden="true">
+          <div class="mb-5 flex flex-wrap items-baseline gap-x-6 gap-y-3 font-mono text-xs text-ink-faint">
+            <div class="flex gap-4">
+              {["tracks", "artists"].map((label) => (
+                <span class="border-b border-transparent pb-0.5">{label}</span>
+              ))}
+            </div>
+            <span class="hidden text-line-strong sm:inline">/</span>
+            <div class="flex gap-4">
+              {["4 weeks", "6 months", "all time"].map((label) => (
+                <span class="border-b border-transparent pb-0.5">{label}</span>
+              ))}
+            </div>
+          </div>
+          <ol class="divide-y divide-line border-y border-line">
+            {
+              Array.from({ length: 12 }).map(() => (
+                <li class="flex items-center gap-4 py-2.5">
+                  <span class="w-5 shrink-0" />
+                  <div class="placeholder-block h-9 w-9 shrink-0 rounded-xs" />
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-[0.9375rem]">
+                      <span class="placeholder-block inline-block h-3 w-40 rounded-xs align-middle" />
+                    </span>
+                    <span class="block text-xs">
+                      <span class="placeholder-block inline-block h-2.5 w-24 rounded-xs align-middle" />
+                    </span>
+                  </span>
+                </li>
+              ))
+            }
+          </ol>
         </div>
       </TopMusic>
     </section>
@@ -48,8 +79,24 @@ const profileUrl = `https://open.spotify.com/user/${site.spotifyUser}`;
     <section>
       <h2 class="rule-heading label mb-5">Recently played</h2>
       <RecentTracks server:defer>
-        <div slot="fallback" class="placeholder-block h-[420px] rounded-xs">
-        </div>
+        <!-- Row for row with RecentTracks.astro's fifteen. -->
+        <ol slot="fallback" aria-hidden="true" class="divide-y divide-line border-y border-line">
+          {
+            Array.from({ length: 15 }).map(() => (
+              <li class="flex items-center gap-4 py-2.5">
+                <div class="placeholder-block h-8 w-8 shrink-0 rounded-xs" />
+                <span class="min-w-0 flex-1">
+                  <span class="block text-[0.9375rem]">
+                    <span class="placeholder-block inline-block h-3 w-40 rounded-xs align-middle" />
+                  </span>
+                  <span class="block text-xs">
+                    <span class="placeholder-block inline-block h-2.5 w-24 rounded-xs align-middle" />
+                  </span>
+                </span>
+              </li>
+            ))
+          }
+        </ol>
       </RecentTracks>
     </section>
   </div>

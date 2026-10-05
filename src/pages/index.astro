@@ -82,7 +82,7 @@ const recentPosts = (await getPosts()).slice(0, 3);
     <section>
       <h2 class="rule-heading label mb-5">Contributions</h2>
       <Contributions server:defer>
-        <div slot="fallback" class="placeholder-block h-[124px] rounded-xs">
+        <div slot="fallback" class="placeholder-block h-[137px] rounded-xs">
         </div>
       </Contributions>
     </section>
@@ -93,9 +93,28 @@ const recentPosts = (await getPosts()).slice(0, 3);
     </section>
 
     <Repos server:defer>
-      <div slot="fallback">
+      <!-- Row for row with Repos.astro (four repos), so nothing below jumps. -->
+      <div slot="fallback" aria-hidden="true">
         <div class="rule-heading label mb-5">Selected work</div>
-        <div class="placeholder-block h-[260px] rounded-xs"></div>
+        <ul class="divide-y divide-line border-y border-line">
+          {
+            Array.from({ length: 4 }).map(() => (
+              <li class="flex flex-col gap-1 py-4 sm:flex-row sm:items-baseline sm:gap-6">
+                <span class="w-full shrink-0 font-mono text-sm sm:w-[15rem]">
+                  <span class="placeholder-block inline-block h-3 w-32 rounded-xs align-middle" />
+                </span>
+                <span class="flex-1 text-[0.9375rem] leading-relaxed">
+                  <span class="placeholder-block inline-block h-3 w-full max-w-72 rounded-xs align-middle" />
+                  {/* Descriptions usually wrap to a second line. */}
+                  <span class="placeholder-block inline-block h-3 w-40 rounded-xs align-middle" />
+                </span>
+                <span class="shrink-0 font-mono text-[11px]">
+                  <span class="placeholder-block inline-block h-2.5 w-20 rounded-xs align-middle" />
+                </span>
+              </li>
+            ))
+          }
+        </ul>
       </div>
     </Repos>
   </div>
