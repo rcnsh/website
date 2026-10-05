@@ -8,7 +8,7 @@ import { relativeTime } from "@/lib/utils";
 let repos: Awaited<ReturnType<typeof getFeaturedRepos>> = [];
 let failed = false;
 try {
-  repos = await getFeaturedRepos(pinnedRepos);
+  repos = await getFeaturedRepos(pinnedRepos, 4);
 } catch (error) {
   failed = true;
   console.error("[github] repos island failed", error);

@@ -149,11 +149,9 @@
   ],
 
   "pinnedRepos": [
+    "terminus",
     "website",
-    "notes",
-    "virtue-gymnastics-website",
-    "RaspberryPyGame",
-    "Edexcel-Large-Data-Set-Analysis",
-    "pmt_bypass"
+    "music-warehouse",
+    "virtue-gymnastics-website"
   ]
 }
