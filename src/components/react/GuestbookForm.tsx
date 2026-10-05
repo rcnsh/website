@@ -1,23 +1,60 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 type Props = {
   maxLength: number;
+  /** The last submit was refused, so put the reader's text back. */
+  restoreDraft: boolean;
 };
+
+/** Survives the post/redirect/get round trip, which re-renders an empty form. */
+const DRAFT_KEY = "guestbook:draft";
+
+function storage(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Progressive enhancement: this is a normal <form method="POST"> that the page
  * handles server-side. React only adds the live counter and pending state.
  */
-export default function GuestbookForm({ maxLength }: Props) {
+export default function GuestbookForm({ maxLength, restoreDraft }: Props) {
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    const store = storage();
+    const draft = store?.getItem(DRAFT_KEY);
+    store?.removeItem(DRAFT_KEY);
+    if (restoreDraft && draft) setMessage(draft.slice(0, maxLength));
+
+    // Back from the POST restores this page from bfcache with the button stuck.
+    const reset = (event: PageTransitionEvent) => {
+      if (event.persisted) setPending(false);
+    };
+    window.addEventListener("pageshow", reset);
+    return () => window.removeEventListener("pageshow", reset);
+  }, [restoreDraft, maxLength]);
 
   const remaining = maxLength - message.length;
   const empty = message.trim().length === 0;
 
   return (
-    <form method="POST" onSubmit={() => setPending(true)}>
+    <form
+      method="POST"
+      onSubmit={() => {
+        try {
+          storage()?.setItem(DRAFT_KEY, message);
+        } catch {
+          // Quota or privacy mode; the post still goes through.
+        }
+        setPending(true);
+      }}
+    >
       <textarea
         name="message"
         value={message}

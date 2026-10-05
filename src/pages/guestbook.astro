@@ -4,7 +4,7 @@ import GuestbookForm from "@/components/react/GuestbookForm";
 import GuestbookList from "@/components/react/GuestbookList";
 import GuestbookMapIsland from "@/components/widgets/GuestbookMapIsland.astro";
 import { GithubIcon } from "@/components/react/BrandIcons";
-import { getSession } from "@/lib/auth";
+import { getSession, type SessionUser } from "@/lib/auth";
 import { getDb, schema } from "@/lib/db";
 import {
   encodeCursor,
@@ -16,7 +16,7 @@ import {
   type GuestbookStats,
 } from "@/lib/guestbook";
 import { containsProfanity } from "@/lib/profanity";
-import { nextAllowedAt, WINDOW_MS } from "@/lib/rate-limit";
+import { nextAllowedAt } from "@/lib/rate-limit";
 import { relativeTime } from "@/lib/utils";
 import { pageOgHref, pages } from "@/lib/site";
 
@@ -26,12 +26,12 @@ export const prerender = false;
 const page = pages.guestbook;
 const MAX_LENGTH = page.maxMessageLength;
 
-let session = null;
+let session: SessionUser | null = null;
 let entries: GuestbookEntry[] = [];
 let cursor: string | null = null;
 let stats: GuestbookStats = { total: 0, counts: {}, unplaced: 0 };
-let error: string | null = Astro.url.searchParams.get("error");
-let posted = false;
+const error: string | null = Astro.url.searchParams.get("error");
+const posted = Astro.url.searchParams.has("posted");
 
 /** Set when the signer is inside their 24h window; null when they may post. */
 let nextPostAt: Date | null = null;
@@ -60,49 +60,47 @@ try {
   dbReady = false;
 }
 
-if (dbReady && Astro.request.method === "POST") {
+/** Validates and stores a submission; returns an ERRORS key, or null on success. */
+async function sign(): Promise<string | null> {
   const formData = await Astro.request.formData();
   const message = String(formData.get("message") ?? "").trim();
 
   // A form post is always form-like, so `security.checkOrigin` covers this one
   // and no explicit check is needed — unlike the JSON routes; see lib/csrf.
-  if (!session) {
-    error = "auth";
-  } else if (!message) {
-    error = "empty";
-  } else if (message.length > MAX_LENGTH) {
-    error = "long";
-  } else if (containsProfanity(message)) {
-    error = "profanity";
-  } else {
-    try {
-      // The form could have been sitting open since before the last message.
-      nextPostAt = nextAllowedAt(await lastPostedAt(session.githubId));
+  if (!session) return "auth";
+  if (!message) return "empty";
+  if (message.length > MAX_LENGTH) return "long";
+  if (containsProfanity(message)) return "profanity";
 
-      if (nextPostAt) {
-        error = "rate";
-      } else {
-        await getDb().insert(schema.guestbook).values({
-          githubId: session.githubId,
-          username: session.username,
-          displayName: session.displayName,
-          avatarUrl: session.avatarUrl,
-          message,
-          country: signerCountry(),
-        });
+  try {
+    // The form could have been sitting open since before the last message.
+    if (nextAllowedAt(await lastPostedAt(session.githubId))) return "rate";
 
-        // The signer is about to be shown both; drop them before reading below.
-        await invalidate();
+    await getDb().insert(schema.guestbook).values({
+      githubId: session.githubId,
+      username: session.username,
+      displayName: session.displayName,
+      avatarUrl: session.avatarUrl,
+      message,
+      country: signerCountry(),
+    });
 
-        posted = true;
-        error = null;
-        nextPostAt = new Date(Date.now() + WINDOW_MS);
-      }
-    } catch (insertError) {
-      console.error("[guestbook] insert failed", insertError);
-      error = "db";
-    }
+    // The redirect reads both straight back; drop them first.
+    await invalidate();
+    return null;
+  } catch (insertError) {
+    console.error("[guestbook] insert failed", insertError);
+    return "db";
   }
+}
+
+// Post/redirect/get, so a reload or Back never re-submits the form.
+if (dbReady && Astro.request.method === "POST") {
+  const failed = await sign();
+  return Astro.redirect(
+    failed ? `/guestbook?error=${failed}#gb-status` : "/guestbook?posted#gb-status",
+    303,
+  );
 }
 
 if (dbReady) {
@@ -123,6 +121,7 @@ if (dbReady) {
 const ERRORS: Record<string, string> = {
   state: "That login attempt expired. Give it another go.",
   auth: "Sign in with GitHub first.",
+  signin: "GitHub sign-in didn't go through. Give it another go.",
   empty: "Write something before signing.",
   long: `Keep it under ${MAX_LENGTH} characters.`,
   profanity: "Let's keep it friendly.",
@@ -198,7 +197,11 @@ if (dbReady && session && Astro.request.method !== "POST") {
                   .
                 </p>
               ) : (
-                <GuestbookForm client:load maxLength={MAX_LENGTH} />
+                <GuestbookForm
+                  client:load
+                  maxLength={MAX_LENGTH}
+                  restoreDraft={Boolean(error)}
+                />
               )}
             </>
           ) : (
@@ -218,13 +221,15 @@ if (dbReady && session && Astro.request.method !== "POST") {
             </>
           )}
 
-          {error && ERRORS[error] && (
-            <p class="mt-3 text-sm text-red-400/90">{ERRORS[error]}</p>
-          )}
+          <div id="gb-status" role="status" class="scroll-mt-[calc(var(--header-h)+1.5rem)]">
+            {error && ERRORS[error] && (
+              <p class="mt-3 text-sm text-red-400/90">{ERRORS[error]}</p>
+            )}
 
-          {posted && (
-            <p class="mt-3 text-sm text-emerald-400/90">Signed — thanks.</p>
-          )}
+            {posted && !error && (
+              <p class="mt-3 text-sm text-emerald-400/90">Signed — thanks.</p>
+            )}
+          </div>
         </section>
 
         {stats.total > 0 && (

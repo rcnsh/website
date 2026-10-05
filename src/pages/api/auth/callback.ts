@@ -29,6 +29,6 @@ export const GET: APIRoute = async ({ cookies, url, redirect }) => {
     return redirect("/guestbook", 302);
   } catch (error) {
     console.error("[auth] GitHub callback failed", error);
-    return redirect("/guestbook?error=auth", 302);
+    return redirect("/guestbook?error=signin", 302);
   }
 };
