@@ -159,6 +159,14 @@ export async function createSession(
   const db = getDb();
   await db.insert(schema.sessions).values({ id, expiresAt, ...user });
 
+  setSessionCookie(cookies, token, expiresAt);
+}
+
+function setSessionCookie(
+  cookies: AstroCookies,
+  token: string,
+  expiresAt: Date,
+): void {
   cookies.set(SESSION_COOKIE, token, {
     path: "/",
     httpOnly: true,
@@ -191,10 +199,14 @@ export async function getSession(
   }
 
   if (row.expiresAt.getTime() - Date.now() < SESSION_REFRESH_MS) {
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
     await db
       .update(schema.sessions)
-      .set({ expiresAt: new Date(Date.now() + SESSION_TTL_MS) })
+      .set({ expiresAt })
       .where(eq(schema.sessions.id, id));
+
+    // Without this the browser still drops the cookie at its original expiry.
+    setSessionCookie(cookies, token, expiresAt);
   }
 
   // Nobody waits on the sweep, and nothing depends on it having run: an
