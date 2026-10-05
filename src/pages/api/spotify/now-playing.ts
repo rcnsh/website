@@ -103,8 +103,10 @@ export const GET: APIRoute = async ({ request }) => {
     return json({ state: "idle" });
   } catch (error) {
     console.error("[music] now-playing failed", error);
-    // Not cached: a transient upstream failure shouldn't outlive itself.
+    // Not cached: a transient upstream failure shouldn't outlive itself. A 5xx,
+    // so the client keeps its last good card instead of replacing it.
     return new Response(JSON.stringify({ state: "error" }), {
+      status: 503,
       headers: {
         "content-type": "application/json",
         "cache-control": "no-store",

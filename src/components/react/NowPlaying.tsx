@@ -20,6 +20,11 @@ const REQUEST_TIMEOUT_MS = 8_000;
 // A frozen bar under a "Now playing" label is a worse lie than saying nothing.
 const STALE_AFTER_FAILURES = 3;
 
+// Spotify keeps reporting a finished track for a few seconds, and the route
+// caches for ten, so one end-of-track refresh usually comes back unchanged.
+const END_RETRY_MS = 3_000;
+const END_RETRIES = 8;
+
 export default function NowPlaying() {
   const [data, setData] = useState<Payload | null>(null);
   // Interpolated between polls so the bar moves every second, not every 20.
@@ -29,7 +34,7 @@ export default function NowPlaying() {
   const refreshRef = useRef<(() => void) | null>(null);
   // Keyed, not a boolean: Spotify briefly keeps reporting the finished track,
   // and a boolean reset per payload would re-fire every second.
-  const endRequestedRef = useRef<string | null>(null);
+  const endRequestedRef = useRef<{ key: string; at: number; tries: number } | null>(null);
   // Consecutive failed polls. Reset by any success.
   const [failures, setFailures] = useState(0);
 
@@ -61,7 +66,11 @@ export default function NowPlaying() {
       ]);
 
       try {
-        const response = await fetch("/api/spotify/now-playing", { signal });
+        // no-store: the browser's copy would carry an un-advanced progressMs.
+        const response = await fetch("/api/spotify/now-playing", {
+          signal,
+          cache: "no-store",
+        });
         if (!response.ok) throw new Error(String(response.status));
         const json = (await response.json()) as Payload;
         if (!alive || controller.signal.aborted) return;
@@ -84,7 +93,7 @@ export default function NowPlaying() {
     // poll can never be scheduled while the previous one is still open.
     const cycle = async () => {
       await load();
-      if (alive && live) timer = setTimeout(cycle, POLL_MS);
+      if (alive && live && !document.hidden) timer = setTimeout(cycle, POLL_MS);
     };
 
     // One request either way; the switch buys everything after it.
@@ -107,10 +116,15 @@ export default function NowPlaying() {
 
     refreshRef.current = restart;
 
-    // Re-sync as soon as the tab is looked at again.
+    // Nothing polls while the tab is hidden; re-sync as soon as it is seen.
     const onVisible = () => {
-      if (document.visibilityState !== "visible") return;
-      restart();
+      if (document.visibilityState === "visible") {
+        restart();
+        return;
+      }
+      if (timer) clearTimeout(timer);
+      timer = undefined;
+      inFlight?.abort();
     };
     document.addEventListener("visibilitychange", onVisible);
 
@@ -132,19 +146,51 @@ export default function NowPlaying() {
     // repeated back to back is picked up by the ordinary poll instead.
     const trackKey = `${data.title}|${data.durationMs}`;
 
-    const tick = setInterval(() => {
-      progressRef.current = Math.min(progressRef.current + 1000, data.durationMs);
+    // Wall-clock, not +1000 a tick: a throttled timer would otherwise lag.
+    let last = performance.now();
+    let tick: ReturnType<typeof setInterval> | undefined;
+
+    const step = () => {
+      const now = performance.now();
+      progressRef.current = Math.min(progressRef.current + (now - last), data.durationMs);
+      last = now;
       setProgress(progressRef.current);
 
-      // The one case where the poll cadence would be visible, so ask now.
-      // Guarded: the tick keeps firing while progress sits at the duration.
-      if (progressRef.current >= data.durationMs && endRequestedRef.current !== trackKey) {
-        endRequestedRef.current = trackKey;
+      // The one case where the poll cadence would be visible, so ask now, and
+      // keep asking briefly while the finished track is still being reported.
+      if (progressRef.current < data.durationMs) return;
+      const asked = endRequestedRef.current;
+      const fresh = asked?.key !== trackKey;
+      if (fresh || (asked.tries < END_RETRIES && Date.now() - asked.at >= END_RETRY_MS)) {
+        endRequestedRef.current = {
+          key: trackKey,
+          at: Date.now(),
+          tries: fresh ? 1 : asked.tries + 1,
+        };
         refreshRef.current?.();
       }
-    }, 1000);
+    };
 
-    return () => clearInterval(tick);
+    const start = () => {
+      last = performance.now();
+      tick = setInterval(step, 1000);
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        step();
+        clearInterval(tick);
+      } else {
+        start();
+      }
+    };
+
+    if (!document.hidden) start();
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      clearInterval(tick);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [data, live, failures]);
 
   if (!data) {
@@ -196,14 +242,18 @@ export default function NowPlaying() {
           )}
         </p>
 
-        <a
-          href={data.url ?? "#"}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 block truncate text-[0.9375rem] text-ink transition-colors hover:text-brand"
-        >
-          {data.title}
-        </a>
+        {data.url ? (
+          <a
+            href={data.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 block truncate text-[0.9375rem] text-ink transition-colors hover:text-brand"
+          >
+            {data.title}
+          </a>
+        ) : (
+          <p className="mt-1 truncate text-[0.9375rem] text-ink">{data.title}</p>
+        )}
         <p className="truncate text-sm text-ink-dim">{data.artists}</p>
 
         {/*
@@ -214,7 +264,9 @@ export default function NowPlaying() {
           {playing ? (
             <>
               <div className="h-px flex-1 bg-line">
+                {/* Keyed so a new track remounts at its start rather than sweeping back. */}
                 <div
+                  key={`${data.title}|${data.durationMs}`}
                   className="h-px bg-brand transition-[width] duration-1000 ease-linear"
                   style={{ width: `${pct}%` }}
                 />
@@ -241,14 +293,22 @@ export default function NowPlaying() {
 function Artwork({ image, title }: { image: string | null; title: string }) {
   const id = image ?? title;
   // Either [current], or [outgoing, incoming] while a fade is in flight.
-  const [frames, setFrames] = useState([{ id, image }]);
+  const [frames, setFrames] = useState([{ id, image, ready: true }]);
 
   useEffect(() => {
     setFrames((prev) => {
       const current = prev[prev.length - 1]!;
-      return current.id === id ? prev : [current, { id, image }];
+      return current.id === id
+        ? prev
+        : [{ ...current, ready: true }, { id, image, ready: !image }];
     });
   }, [id, image]);
+
+  // The fade waits for the cover to load, or it would fade in nothing.
+  const ready = (frameId: string) =>
+    setFrames((prev) =>
+      prev.map((frame) => (frame.id === frameId ? { ...frame, ready: true } : frame)),
+    );
 
   // Drop the outgoing layer once the incoming one has finished arriving.
   const settle = () =>
@@ -260,7 +320,10 @@ function Artwork({ image, title }: { image: string | null; title: string }) {
         <div
           key={frame.id}
           onAnimationEnd={settle}
-          className={cn("absolute inset-0", index > 0 && "animate-art-in")}
+          className={cn(
+            "absolute inset-0",
+            index > 0 && (frame.ready ? "animate-art-in" : "opacity-0"),
+          )}
         >
           {frame.image ? (
             <img
@@ -268,8 +331,10 @@ function Artwork({ image, title }: { image: string | null; title: string }) {
               alt=""
               width={56}
               height={56}
-              loading="lazy"
-              className="h-14 w-14 rounded-xs object-cover"
+              decoding="async"
+              onLoad={() => ready(frame.id)}
+              onError={() => ready(frame.id)}
+              className="h-14 w-14 rounded-xs bg-raised object-cover"
             />
           ) : (
             <div className="grid h-14 w-14 place-items-center rounded-xs bg-raised">
