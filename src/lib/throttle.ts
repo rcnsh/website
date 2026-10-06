@@ -30,6 +30,8 @@ function limiter(bucket: Bucket): RateLimit | undefined {
  * of KV — that read dominates, so all of them belong on the same tight budget.
  */
 export function bucketFor(pathname: string): Bucket {
+  // Per-object routes that never read the tree.
+  if (pathname === "/api/files/meta" || pathname === "/api/files/thumbs") return "api";
   if (pathname.startsWith("/api/files/")) return "scan";
   if (pathname.startsWith("/_server-islands/FilesRoot")) return "scan";
   if (pathname.startsWith("/api/auth/")) return "auth";

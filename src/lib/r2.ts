@@ -1,5 +1,8 @@
 import { env } from "cloudflare:workers";
 import { cached } from "@/lib/cache";
+import { isHidden, isHiddenKey } from "@/lib/thumbs";
+
+export { isHiddenKey };
 
 /**
  * R2 listing through the native bucket binding. Files go over the wire as
@@ -37,19 +40,6 @@ const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" })
 
 function toEpochSeconds(date: Date): number {
   return Math.floor(date.getTime() / 1000);
-}
-
-/** Dot-prefixed entries stay hidden, the same way `ls` hides them. */
-function isHidden(name: string): boolean {
-  return name.startsWith(".");
-}
-
-/**
- * Hidden anywhere along the path, so `.thumbs/x.png` counts. /api/files/download
- * applies it too, so a hidden key cannot be requested by name.
- */
-export function isHiddenKey(key: string): boolean {
-  return key.split("/").some(isHidden);
 }
 
 /** Rejects `..`, absolute paths, and anything that isn't a clean prefix. */

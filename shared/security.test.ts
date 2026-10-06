@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { headersFile, securityHeaders, SCRIPT_SOURCES } from "./security.ts";
+import { BUCKET_ORIGIN, headersFile, securityHeaders, SCRIPT_SOURCES } from "./security.ts";
 
 // public/_headers and src/middleware.ts must not drift apart.
 describe("security headers", () => {
@@ -68,6 +68,21 @@ describe("security headers", () => {
     for (const source of SCRIPT_SOURCES) {
       assert.ok(policy.includes(source), `script-src is missing ${source}`);
     }
+  });
+
+  // Playback is media-src, Mediabunny's ranged reads are connect-src. Either
+  // one missing leaves the other half of a preview working, which hides it.
+  test("file previews can play and range-read the bucket", () => {
+    const policy = securityHeaders()["Content-Security-Policy"];
+    const directive = (name: string) =>
+      policy.split("; ").find((d) => d.startsWith(`${name} `)) ?? "";
+
+    assert.equal(BUCKET_ORIGIN, "https://upload.rcn.sh");
+    for (const name of ["connect-src", "media-src", "img-src"]) {
+      assert.ok(directive(name).split(" ").includes(BUCKET_ORIGIN), `${name} is missing the bucket`);
+    }
+    // Same-origin playback is the /api/files/download fallback.
+    assert.ok(directive("media-src").split(" ").includes("'self'"));
   });
 
   test("the file says it is generated", () => {

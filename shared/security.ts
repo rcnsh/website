@@ -27,9 +27,18 @@ export function securityHeaders({ dev = false }: HeaderContext = {}) {
 }
 
 /**
- * Everything the policy says that is not about scripts or styles. Shared
- * verbatim with Astro's `<meta>` CSP — a browser enforces both, and their
- * intersection is what binds. See CLAUDE.md § Maintenance.
+ * The R2 bucket's public origin (PUBLIC_BUCKET_URL). /files previews read it
+ * three ways: posters as images, playback as media, and Mediabunny's ranged
+ * reads as fetches.
+ */
+export const BUCKET_ORIGIN = "https://upload.rcn.sh";
+
+/**
+ * Everything the policy says that is not about scripts or styles. Astro's
+ * `<meta>` CSP carries only script-src and style-src, so these directives bind
+ * from this header alone. That stops being true the moment astro.config.ts
+ * passes Astro any `directives`; then a host must be in both. See CLAUDE.md
+ * § Maintenance.
  */
 function baseDirectives(dev = false): string[] {
   return [
@@ -40,9 +49,10 @@ function baseDirectives(dev = false): string[] {
     "font-src 'self'",
     // The cursor socket. Same origin, but `'self'` covering ws/wss is a CSP3
     // clarification some browsers were late to, so spell out the scheme.
-    `connect-src 'self' wss://rcn.sh${dev ? ` ${DEV_MULTIPLAYER}` : ""}`,
+    `connect-src 'self' wss://rcn.sh ${BUCKET_ORIGIN}${dev ? ` ${DEV_MULTIPLAYER}` : ""}`,
     // Spotify spreads art across several scdn.co subdomains, hence wildcards.
-    "img-src 'self' data: https://*.scdn.co https://*.spotifycdn.com https://avatars.githubusercontent.com https://upload.rcn.sh",
+    `img-src 'self' data: https://*.scdn.co https://*.spotifycdn.com https://avatars.githubusercontent.com ${BUCKET_ORIGIN}`,
+    `media-src 'self' ${BUCKET_ORIGIN}`,
     "upgrade-insecure-requests",
   ];
 }

@@ -227,6 +227,16 @@ export async function getSession(
   };
 }
 
+/**
+ * The site owner, matched on GitHub's numeric user id from the OWNER_GITHUB_ID
+ * var. Unset or malformed means nobody is the owner.
+ */
+export function isOwner(user: SessionUser | null): boolean {
+  const owner = Number(env.OWNER_GITHUB_ID);
+  if (!user || !Number.isSafeInteger(owner) || owner <= 0) return false;
+  return user.githubId === owner;
+}
+
 export async function destroySession(cookies: AstroCookies): Promise<void> {
   const token = cookies.get(SESSION_COOKIE)?.value;
   if (token) {
