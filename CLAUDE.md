@@ -66,6 +66,13 @@ hashes do not apply to *style attributes*, so without it every runtime
 `element.style.setProperty` is refused — including the nav underline placing
 itself.
 
+**Astro's meta carries `script-src` and `style-src` only.** Everything else
+(`connect-src`, `media-src`, `img-src`) binds from the header alone, which is
+why the bucket origin needs to be in `BUCKET_ORIGIN` (`shared/security.ts`) and
+nowhere else. Pass Astro any `directives` and that stops being true: those
+hosts must then be in both policies. `worker-src` is the trap: it falls back to
+`script-src`, which the meta *does* bind.
+
 **A new `is:inline` script must be registered in `shared/inline-scripts.ts`.**
 Astro never hashes an `is:inline` script; that is what `is:inline` means. One
 that is not registered still *works* on prerendered pages by accident — the
@@ -116,6 +123,34 @@ isolate's lifetime.
 migrations by *name*, so its body was rewritten in place to be replay-safe
 while staying skipped everywhere it has already run. Renumbering would re-run
 it and resurrect guestbook entries their authors deleted.
+
+### File previews
+
+**Mediabunny never decodes on the Worker.** Workers have no WebCodecs.
+`src/lib/media-meta.ts` demuxes only (no sinks, no `Conversion`), through a
+`CustomSource` of ranged R2 reads capped by `READ_BUDGET`. Decoding lives in
+`src/lib/media-preview.ts`, which `MediaPreview.tsx` loads with `import()` so
+Mediabunny stays out of the page bundle. Import from it, never from `mediabunny`
+directly in a component, or the chunk boundary goes.
+
+**No `blob:` grant, and adding one would not be enough.** The read paths spawn
+no Workers. Mediabunny does spawn `blob:` Workers for `CanvasSink`'s
+`alpha: true` and for anything that encodes (`Output`, `Conversion`). That
+needs `worker-src blob:` in *both* policies (see the CSP note above).
+In-memory previews are `data:` URLs for the same reason.
+
+**A thumb belongs to one upload of its source.** `/api/files/thumbs` stamps
+every `.thumbs/<key>.<kind>` with the source's upload time (`source-uploaded`
+custom metadata). Only thumbs whose stamp matches the object's current upload
+time count, so a re-upload under the same key falls back to in-browser
+generation instead of showing the old file's frames. Targets are derived
+server-side from the source key; the client never names a path.
+
+**Metadata is cached per key and upload time, and never expires in practice.**
+Over-budget files are cached as `{ supported: false }` because that is a
+property of the file. Every other failure must rethrow, per "loaders must
+throw". Thumbs presence is cached separately for an hour, and the upload route
+deletes that entry.
 
 ### Gotchas that cost time
 

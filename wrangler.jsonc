@@ -73,6 +73,9 @@
 
     // Paired with the MUSIC_WAREHOUSE_TOKEN secret.
     "MUSIC_WAREHOUSE_URL": "https://music-api.rcn.sh",
-    "GITHUB_USERNAME": "rcnsh"
+    "GITHUB_USERNAME": "rcnsh",
+    // The numeric id, not the login: a login can be renamed and then claimed by
+    // someone else. Gates owner-only routes such as /api/files/thumbs.
+    "OWNER_GITHUB_ID": "49075095"
   }
 }

@@ -24,6 +24,8 @@ import {
   X,
 } from "lucide-react";
 import type { R2File, R2Listing, R2Tree } from "@/lib/r2";
+import MediaPreview, { previewKind } from "@/components/react/MediaPreview";
+import { publicUrl } from "@/lib/thumbs";
 import { cn, fileKind, formatBytes, formatDate } from "@/lib/utils";
 
 const ICONS = {
@@ -40,16 +42,14 @@ const ICONS = {
 /** Constant for the page and wanted by every row, hence a context. */
 const BucketBase = createContext("");
 
-/**
- * The public URL for a key, built here rather than sent with every file.
- * Mirrors /api/files/download, for a bucket with no public domain.
- */
-function urlFor(base: string, key: string): string {
-  const encoded = key.split("/").map(encodeURIComponent).join("/");
-  return base
-    ? `${base}/${encoded}`
-    : `/api/files/download?key=${encodeURIComponent(key)}`;
-}
+/** The one file whose preview is open, by full key. */
+const Selection = createContext<{
+  selected: string | null;
+  toggle: (key: string) => void;
+}>({ selected: null, toggle: () => {} });
+
+/** Built here rather than sent with every file. */
+const urlFor = publicUrl;
 
 type Props = {
   /** Whole bucket, keyed by prefix. Null once the bucket is too big to inline. */
@@ -200,10 +200,20 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
     };
   }, [query, complete, allFiles]);
 
+  const [selected, setSelected] = useState<string | null>(null);
+  const selection = useMemo(
+    () => ({
+      selected,
+      toggle: (key: string) => setSelected((current) => (current === key ? null : key)),
+    }),
+    [selected],
+  );
+
   const root = listings[""];
 
   return (
     <BucketBase value={bucketUrl}>
+     <Selection value={selection}>
       <div>
         <div className="relative mb-1">
           <Search className="pointer-events-none absolute left-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint" />
@@ -284,6 +294,7 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
           </p>
         )}
       </div>
+     </Selection>
     </BucketBase>
   );
 }
@@ -469,31 +480,97 @@ function FileRow({
   const { Icon, colour } = ICONS[fileKind(name)];
 
   return (
-    <div
-      className="group flex items-center gap-2 py-2 sm:py-1"
-      style={{ paddingLeft: `${depth * 16}px` }}
-    >
-      <span className="w-3.5 shrink-0" />
-      <Icon className={cn("h-4 w-4 shrink-0", colour)} />
+    <>
+      <div
+        className="group flex items-center gap-2 py-2 sm:py-1"
+        style={{ paddingLeft: `${depth * 16}px` }}
+      >
+        <span className="w-3.5 shrink-0" />
+        <Icon className={cn("h-4 w-4 shrink-0", colour)} />
 
+        <FileName fileKey={key} className="text-ink-dim">
+          {name}
+        </FileName>
+
+        <CopyLink url={urlFor(base, key)} />
+
+        <span className="hidden shrink-0 font-mono text-[11px] text-ink-faint sm:block">
+          {formatDate(new Date(uploaded * 1000))}
+        </span>
+        <span className="w-14 shrink-0 text-right font-mono text-[11px] tabular-nums text-ink-faint">
+          {formatBytes(size)}
+        </span>
+      </div>
+      <Preview fileKey={key} size={size} indent={depth * 16 + 22} />
+    </>
+  );
+}
+
+/**
+ * A file's name: a toggle for its preview when it is media, otherwise a plain
+ * link to the file.
+ */
+function FileName({
+  fileKey,
+  className,
+  children,
+}: {
+  fileKey: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const base = useContext(BucketBase);
+  const { selected, toggle } = useContext(Selection);
+  const classes = cn(
+    "min-w-0 flex-1 truncate text-left font-mono text-[0.8125rem] transition-colors hover:text-brand",
+    className,
+  );
+
+  if (!previewKind(fileKey)) {
+    return (
       <a
-        href={urlFor(base, key)}
+        href={urlFor(base, fileKey)}
         target="_blank"
         rel="noopener noreferrer"
-        className="min-w-0 flex-1 truncate font-mono text-[0.8125rem] text-ink-dim transition-colors hover:text-brand"
-        title={key}
+        className={classes}
+        title={fileKey}
       >
-        {name}
+        {children}
       </a>
+    );
+  }
 
-      <CopyLink url={urlFor(base, key)} />
+  const open = selected === fileKey;
+  return (
+    <button
+      type="button"
+      onClick={() => toggle(fileKey)}
+      aria-expanded={open}
+      className={cn(classes, open && "text-brand")}
+      title={fileKey}
+    >
+      {children}
+    </button>
+  );
+}
 
-      <span className="hidden shrink-0 font-mono text-[11px] text-ink-faint sm:block">
-        {formatDate(new Date(uploaded * 1000))}
-      </span>
-      <span className="w-14 shrink-0 text-right font-mono text-[11px] tabular-nums text-ink-faint">
-        {formatBytes(size)}
-      </span>
+/** The open preview, under the row that opened it. */
+function Preview({ fileKey, size, indent }: { fileKey: string; size: number; indent: number }) {
+  const base = useContext(BucketBase);
+  const { selected, toggle } = useContext(Selection);
+  const kind = previewKind(fileKey);
+  if (selected !== fileKey || !kind) return null;
+
+  return (
+    <div style={{ paddingLeft: `${indent}px` }}>
+      <MediaPreview
+        key={fileKey}
+        fileKey={fileKey}
+        kind={kind}
+        size={size}
+        bucketBase={base}
+        onClose={() => toggle(fileKey)}
+      />
     </div>
   );
 }
@@ -552,22 +629,19 @@ function SearchResults({ results, query }: { results: R2File[]; query: string })
         const url = urlFor(base, key);
 
         return (
-          <div key={key} className="group flex items-center gap-2 py-2 sm:py-1">
-            <Icon className={cn("h-4 w-4 shrink-0", colour)} />
-            <a
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="min-w-0 flex-1 truncate font-mono text-[0.8125rem] transition-colors hover:text-brand"
-              title={key}
-            >
-              {folder && <span className="text-ink-faint">{folder}</span>}
-              <span className="text-ink-dim">{name}</span>
-            </a>
-            <CopyLink url={url} />
-            <span className="w-14 shrink-0 text-right font-mono text-[11px] tabular-nums text-ink-faint">
-              {formatBytes(size)}
-            </span>
+          <div key={key}>
+            <div className="group flex items-center gap-2 py-2 sm:py-1">
+              <Icon className={cn("h-4 w-4 shrink-0", colour)} />
+              <FileName fileKey={key}>
+                {folder && <span className="text-ink-faint">{folder}</span>}
+                <span className="text-ink-dim">{name}</span>
+              </FileName>
+              <CopyLink url={url} />
+              <span className="w-14 shrink-0 text-right font-mono text-[11px] tabular-nums text-ink-faint">
+                {formatBytes(size)}
+              </span>
+            </div>
+            <Preview fileKey={key} size={size} indent={24} />
           </div>
         );
       })}
