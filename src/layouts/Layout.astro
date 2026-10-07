@@ -42,9 +42,13 @@ const pageTitle = title ? `${site.name} • ${title}` : `${site.name} • Home`;
 
 // Unwrap `[label](url)`, so raw Markdown never lands in a meta tag.
 const metaDescription = description.replace(/\[([^\]]+)\]\([^)\s]+\)/g, "$1");
+// `build.format: "file"` prerenders each page under its file name
+// (`/index.html`, `/blog.html`), but the site serves it at the clean path and
+// redirects the `.html` one there. A canonical naming the file points Google
+// at a redirect, and it drops the page as a duplicate of it.
+const pathname = Astro.url.pathname.replace(/(?:\/index)?\.html$/, "");
 const canonical =
-  new URL(Astro.url.pathname, site.url).toString().replace(/\/+$/, "") ||
-  site.url;
+  new URL(pathname, site.url).toString().replace(/\/+$/, "") || site.url;
 
 // Absolute — a relative og:image is ignored by every scraper that reads it.
 const ogImage = new URL(image, site.url).toString();
