@@ -1,0 +1,123 @@
+---
+import type { CadenceMonth } from "@/lib/writing";
+
+interface Props {
+  months: CadenceMonth[];
+  class?: string;
+}
+
+const { months, class: className } = Astro.props;
+
+const MONTH = new Intl.DateTimeFormat("en-GB", { month: "short", timeZone: "UTC" });
+const MONTH_YEAR = new Intl.DateTimeFormat("en-GB", {
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const at = (m: CadenceMonth) => new Date(Date.UTC(m.year, m.month, 1));
+
+const peak = Math.max(1, ...months.map((m) => m.published + m.drafts));
+const total = months.reduce((sum, m) => sum + m.published, 0);
+
+const bars = months.map((m) => {
+  const count = m.published + m.drafts;
+  const posts = m.published
+    ? `${m.published} post${m.published > 1 ? "s" : ""}`
+    : m.drafts
+      ? `${m.drafts} draft${m.drafts > 1 ? "s" : ""}`
+      : "nothing";
+  return {
+    kind: m.published ? "on" : m.drafts ? "draft" : "off",
+    height: count ? 24 + (76 * count) / peak : 3,
+    label: `${MONTH_YEAR.format(at(m))} — ${posts}`,
+  };
+});
+
+// First month, last month, and each January far enough from both to fit.
+const last = months.length - 1;
+const ticks = months.flatMap((m, i) => {
+  if (i === 0) return [{ i, text: MONTH_YEAR.format(at(m)) }];
+  if (i === last) return [{ i, text: MONTH.format(at(m)) }];
+  if (m.month === 0 && i > 2 && i < last - 2) return [{ i, text: String(m.year) }];
+  return [];
+});
+
+const first = months[0];
+const summary = `Posts per month, ${MONTH_YEAR.format(at(first))} to ${MONTH_YEAR.format(at(months[last]))}: ${total} in all.`;
+---
+
+<section class:list={["tile flex flex-col", className]} aria-labelledby="cadence-heading">
+  <div class="mb-4 flex items-center gap-2.5">
+    <h2 class="label" id="cadence-heading">Cadence</h2>
+    <span class="ml-auto font-mono text-[0.6875rem] text-ink-dim" data-cadence-tip aria-hidden="true">
+      Posts per month
+    </span>
+  </div>
+
+  <div
+    class="mt-auto grid h-[120px] items-end gap-[3px] max-sm:h-[90px] max-sm:gap-0.5"
+    style={`grid-template-columns: repeat(${months.length}, minmax(0, 1fr))`}
+    role="img"
+    aria-label={summary}
+    data-cadence
+  >
+    {
+      bars.map((bar) => (
+        <i
+          class:list={[
+            "block min-h-[3px] rounded-[2px]",
+            bar.kind === "on" && "bg-brand-gradient",
+            bar.kind === "draft" && "cadence-draft border border-line-strong",
+            bar.kind === "off" && "bg-line-soft",
+          ]}
+          style={`height: ${bar.height}%`}
+          title={bar.label}
+          data-label={bar.label}
+        />
+      ))
+    }
+  </div>
+
+  <div
+    class="mt-2 grid font-mono text-[0.65625rem] text-ink-faint"
+    style={`grid-template-columns: repeat(${months.length}, minmax(0, 1fr))`}
+    aria-hidden="true"
+  >
+    {
+      ticks.map((tick) => (
+        <span
+          class:list={["whitespace-nowrap", tick.i === last && tick.i > 0 && "justify-self-end"]}
+          style={`grid-column: ${tick.i + 1}; grid-row: 1`}
+        >
+          {tick.text}
+        </span>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .cadence-draft {
+    background: repeating-linear-gradient(
+      135deg,
+      var(--color-line-strong) 0 3px,
+      transparent 3px 6px
+    );
+  }
+</style>
+
+<script>
+  const bars = document.querySelector<HTMLElement>("[data-cadence]");
+  const tip = document.querySelector<HTMLElement>("[data-cadence-tip]");
+
+  if (bars && tip) {
+    const idle = tip.textContent ?? "";
+    bars.addEventListener("pointerover", (event) => {
+      const label = (event.target as HTMLElement).dataset.label;
+      if (label) tip.textContent = label;
+    });
+    bars.addEventListener("pointerleave", () => {
+      tip.textContent = idle;
+    });
+  }
+</script>

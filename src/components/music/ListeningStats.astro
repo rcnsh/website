@@ -1,0 +1,55 @@
+---
+import { getRecentTracks } from "@/lib/spotify";
+import { RECENT_WINDOW, summarise, type ListeningSummary } from "@/lib/listening";
+import { relativeTime } from "@/lib/utils";
+
+let summary: ListeningSummary | null = null;
+try {
+  summary = summarise(await getRecentTracks(RECENT_WINDOW));
+} catch (error) {
+  console.error("[music] listening stats island failed", error);
+}
+
+const facts = summary
+  ? [
+      { value: String(summary.tracks), label: "Tracks" },
+      { value: String(summary.artists), label: "Artists" },
+      {
+        value: summary.top?.name ?? "—",
+        label: summary.top ? `Most played · ${summary.top.plays}×` : "Most played",
+      },
+    ]
+  : [];
+---
+
+<div class="mb-4 flex min-h-4 items-center gap-2.5">
+  <h2 class="label">
+    {summary && summary.plays > 0 ? `Last ${summary.plays} plays` : "Recent listening"}
+  </h2>
+  {
+    summary?.since && (
+      <span class="ml-auto whitespace-nowrap font-mono text-[11px] text-ink-faint">
+        since <time datetime={summary.since}>{relativeTime(summary.since)}</time>
+      </span>
+    )
+  }
+</div>
+
+{
+  !summary ? (
+    <p class="text-sm text-ink-faint">Couldn't reach the music warehouse.</p>
+  ) : summary.plays === 0 ? (
+    <p class="text-sm text-ink-faint">Nothing played yet.</p>
+  ) : (
+    <dl class="mt-auto flex gap-x-8 gap-y-4">
+      {facts.map((fact, i) => (
+        <div class:list={["flex flex-col-reverse gap-1.5", i === facts.length - 1 ? "min-w-0 flex-1" : "shrink-0"]}>
+          <dt class="font-mono text-[10.5px] text-ink-faint">{fact.label}</dt>
+          <dd class="truncate font-mono text-lg font-semibold tracking-[-0.02em] text-ink tabular-nums" title={fact.value}>
+            {fact.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  )
+}

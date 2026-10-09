@@ -1,6 +1,7 @@
 ---
 import { render } from "astro:content";
 import Layout from "@/layouts/Layout.astro";
+import PostToc from "@/components/writing/PostToc.astro";
 import {
   formatDate,
   getPosts,
@@ -10,6 +11,7 @@ import {
   readingTime,
   type Post,
 } from "@/lib/blog";
+import { wordCount } from "@/lib/writing";
 
 export async function getStaticPaths() {
   const posts = await getPosts();
@@ -32,8 +34,18 @@ interface Props {
 }
 
 const { post, newer, older } = Astro.props;
-const { Content } = await render(post);
+const { Content, headings } = await render(post);
 const minutes = readingTime(post.body);
+const words = wordCount(post.body);
+const hasContents = headings.some((h) => h.depth >= 2 && h.depth <= 4);
+
+const details = [
+  { term: "Published", value: formatDate(post.data.pubDate) },
+  ...(post.data.updatedDate ? [{ term: "Updated", value: formatDate(post.data.updatedDate) }] : []),
+  { term: "Reading", value: `${minutes} min` },
+  { term: "Words", value: words.toLocaleString("en-GB") },
+  { term: "Status", value: post.data.draft ? "Draft" : "Published" },
+];
 ---
 
 <Layout
@@ -42,20 +54,29 @@ const minutes = readingTime(post.body);
   ogType="article"
   image={postOgHref(post)}
 >
-  <article class="animate-rise pb-6">
-    <header class="pb-9">
+  <article class="bento" aria-labelledby="post-title">
+    <header
+      class="tile page-hero col-span-12 px-10 pb-[30px] pt-7 max-sm:px-5 max-sm:pb-6 max-sm:pt-[22px] min-[1021px]:col-span-8"
+    >
       <a
         href="/blog"
-        class="label inline-flex items-center gap-1.5 transition-colors hover:text-ink-dim"
+        class="label inline-flex items-center gap-1.5 self-start text-[0.65625rem] tracking-[0.12em] transition-colors hover:text-ink-dim"
       >
         <span aria-hidden="true">&larr;</span> Writing
       </a>
 
-      <h1 class="display-face mt-6 text-[2.25rem] leading-[1.1] text-ink">
+      <h1
+        id="post-title"
+        class="display-face mt-[30px] max-w-[20ch] text-[clamp(2rem,3.6vw,2.75rem)] leading-[1.05] text-ink max-sm:mt-[22px] max-sm:text-[2rem]"
+      >
         {post.data.title}
       </h1>
 
-      <div class="label mt-5 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <p class="mt-3.5 max-w-[54ch] text-[1.03125rem] leading-relaxed text-ink-dim">
+        {post.data.description}
+      </p>
+
+      <div class="label mt-[26px] flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.65625rem] tracking-[0.12em]">
         <time datetime={isoDate(post.data.pubDate)}>
           {formatDate(post.data.pubDate)}
         </time>
@@ -78,30 +99,76 @@ const minutes = readingTime(post.body);
       </div>
     </header>
 
-    <div class="prose border-t border-line pt-9">
-      <Content />
+    <aside class="tile col-span-12 min-[1021px]:col-span-4" aria-labelledby="details-heading">
+      <h2 class="label mb-4" id="details-heading">Details</h2>
+      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 font-mono text-xs">
+        {
+          details.map((d) => (
+            <>
+              <dt class="text-ink-faint">{d.term}</dt>
+              <dd
+                class:list={[
+                  "text-right tabular-nums",
+                  d.value === "Draft" ? "text-brand-alt" : "text-ink",
+                ]}
+              >
+                {d.value}
+              </dd>
+            </>
+          ))
+        }
+      </dl>
+      {
+        post.data.draft && (
+          <p class="mt-[18px] border-t border-line-soft pt-3.5 text-[0.78125rem] leading-normal text-ink-faint">
+            <b class="font-medium text-brand-alt">Draft.</b> Renders under{" "}
+            <code class="font-mono">astro dev</code> only; left out of the production
+            build and both feeds.
+          </p>
+        )
+      }
+    </aside>
+
+    <div
+      class:list={[
+        "col-span-12 min-[1021px]:col-span-4 min-[1021px]:col-start-9 min-[1021px]:row-start-2",
+        !hasContents && "max-[1020px]:hidden",
+      ]}
+    >
+      <div class="min-[1021px]:sticky min-[1021px]:top-[calc(var(--header-h)+16px)]">
+        <PostToc headings={headings} />
+      </div>
+    </div>
+
+    <div
+      class="tile post-body col-span-12 px-14 pb-[52px] pt-11 max-[1020px]:px-10 max-[1020px]:pb-12 max-[1020px]:pt-10 max-sm:px-5 max-sm:pb-8 max-sm:pt-[26px] min-[1021px]:col-span-8 min-[1021px]:col-start-1 min-[1021px]:row-start-2"
+    >
+      <div class="prose mx-auto max-w-[68ch] max-sm:text-[1.03125rem]" data-post-body>
+        <Content />
+      </div>
     </div>
   </article>
 
   {
     (newer || older) && (
-      <nav class="mt-14 grid gap-px border-t border-line pt-8 sm:grid-cols-2 sm:gap-8">
+      <nav class="bento mt-3 pb-6" aria-label="More posts">
         {/* Older sits on the left so the pair reads oldest → newest. */}
-        {older ? (
-          <a href={postHref(older)} class="group block">
+        {older && (
+          <a href={postHref(older)} class="tile tile-link group col-span-12 flex flex-col gap-2 sm:col-span-6">
             <span class="label">&larr; Older</span>
-            <span class="mt-1.5 block text-ink transition-colors group-hover:text-brand-alt">
+            <span class="text-[16px] font-medium leading-snug text-ink transition-colors group-hover:text-brand-alt">
               {older.data.title}
             </span>
           </a>
-        ) : (
-          <span />
         )}
 
         {newer && (
-          <a href={postHref(newer)} class="group block sm:text-right">
+          <a
+            href={postHref(newer)}
+            class="tile tile-link group col-span-12 flex flex-col gap-2 sm:col-span-6 sm:col-start-7 sm:items-end sm:text-right"
+          >
             <span class="label">Newer &rarr;</span>
-            <span class="mt-1.5 block text-ink transition-colors group-hover:text-brand-alt">
+            <span class="text-[16px] font-medium leading-snug text-ink transition-colors group-hover:text-brand-alt">
               {newer.data.title}
             </span>
           </a>
@@ -110,3 +177,38 @@ const minutes = readingTime(post.body);
     )
   }
 </Layout>
+
+<style>
+  /* Code frames sit a step darker than the tile they're in, as they would on
+     the page. Expressive Code declares these on :root, so redeclaring them
+     here wins for everything inside. */
+  .post-body {
+    --ec-codeBg: var(--color-base);
+    --ec-frm-edBg: var(--color-base);
+    --ec-frm-trmBg: var(--color-base);
+    --ec-frm-edTabBarBg: color-mix(in oklab, var(--color-base) 60%, black);
+    --ec-frm-trmTtbBg: color-mix(in oklab, var(--color-base) 60%, black);
+    --ec-tm-markBg: color-mix(in oklab, var(--color-brand) 12%, transparent);
+    --ec-tm-markBrdCol: var(--color-brand);
+  }
+
+  .post-body :global(* + .expressive-code) {
+    margin-top: 1.5em;
+  }
+
+  /* GFM footnotes: collected under a rule at the end of the body. */
+  .post-body :global(section.footnotes) {
+    margin-top: 3em;
+    padding-top: 1.5em;
+    border-top: 1px solid var(--color-line);
+    font-size: 0.90625rem;
+  }
+  .post-body :global(section.footnotes ol) {
+    margin-top: 0.75em;
+  }
+  .post-body :global(.data-footnote-backref) {
+    text-decoration: none;
+    color: var(--color-brand);
+    font-family: var(--font-mono);
+  }
+</style>

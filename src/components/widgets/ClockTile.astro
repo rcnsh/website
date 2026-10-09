@@ -6,42 +6,105 @@ import { clock } from "@/lib/site";
  * load, before a deferred island's HTML exists. Shows my time, not the
  * visitor's — see `clock.timeZone`.
  */
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+
+// "Asia/Singapore" → "Singapore". The zone database names places this way.
+const city = clock.timeZone.split("/").at(-1)!.replaceAll("_", " ");
 ---
 
-<div>
-  <dt class="label">{clock.label}</dt>
+<section
+  class:list={["tile flex flex-col justify-between", className]}
+  aria-labelledby="clock-heading"
+>
+  <h2 class="label" id="clock-heading">{clock.label}</h2>
   {
     /* Config comes in via data attributes — importing site.ts would ship Zod. */
   }
-  <dd
-    class="mt-1.5 font-mono text-base tabular-nums text-ink"
+  <div
     data-clock
     data-tz={clock.timeZone}
     data-hour12={String(clock.hour12)}
   >
-    --:--:--
-  </dd>
-</div>
+    <div class="flex items-baseline gap-1 font-mono tabular-nums">
+      <span
+        data-clock-hm
+        class="text-[2.375rem] font-semibold leading-none tracking-[-0.04em] text-ink"
+      >--:--</span>
+      <span data-clock-s class="w-[2.2ch] text-[0.9375rem] text-ink-faint">--</span>
+    </div>
+    <div class="mt-2.5 flex items-center justify-between gap-3 font-mono text-[11px] text-ink-faint">
+      <span>{city} · <span data-clock-offset>UTC</span></span>
+      <span data-clock-day></span>
+    </div>
+    {/* Progress through the minute, so the tile visibly ticks. */}
+    <div class="mt-3 h-0.5 overflow-hidden rounded-full bg-line-soft" aria-hidden="true">
+      <div
+        data-clock-bar
+        class="bg-brand-gradient h-full origin-left scale-x-0 transition-transform duration-700 ease-linear"
+      >
+      </div>
+    </div>
+  </div>
+</section>
 
 <script>
   import { liveUpdates, onPrefChange } from "@/lib/prefs";
 
   const start = () => {
     const node = document.querySelector<HTMLElement>("[data-clock]");
-    if (!node) return;
+    const hm = node?.querySelector<HTMLElement>("[data-clock-hm]");
+    const sec = node?.querySelector<HTMLElement>("[data-clock-s]");
+    const day = node?.querySelector<HTMLElement>("[data-clock-day]");
+    const offset = node?.querySelector<HTMLElement>("[data-clock-offset]");
+    const bar = node?.querySelector<HTMLElement>("[data-clock-bar]");
+    if (!node || !hm || !sec || !day || !offset || !bar) return;
+
+    const timeZone = node.dataset.tz || "UTC";
 
     // Built once — constructing a formatter is the slow part.
-    const format = new Intl.DateTimeFormat("en-GB", {
+    const time = new Intl.DateTimeFormat("en-GB", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
       hour12: node.dataset.hour12 === "true",
-      timeZone: node.dataset.tz || "UTC",
+      timeZone,
     });
+    const date = new Intl.DateTimeFormat("en-GB", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone,
+    });
+    const zone = new Intl.DateTimeFormat("en-GB", { timeZoneName: "shortOffset", timeZone });
 
     const render = () => {
-      node.textContent = format.format(new Date());
+      const now = new Date();
+      const parts = time.formatToParts(now);
+      const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+      const period = part("dayPeriod");
+
+      hm.textContent = `${part("hour")}:${part("minute")}${period ? ` ${period}` : ""}`;
+      sec.textContent = part("second");
+      day.textContent = date.format(now);
+      // "GMT+8" reads as British time to most people; this is a UTC offset.
+      offset.textContent = (zone.formatToParts(now).find((p) => p.type === "timeZoneName")?.value ?? "UTC")
+        .replace("GMT", "UTC");
+      const fraction = now.getSeconds() / 59;
+      // Wrapping to the next minute snaps back rather than sweeping leftwards.
+      const wrapped = fraction < lastFraction;
+      lastFraction = fraction;
+      if (wrapped) bar.style.transition = "none";
+      bar.style.setProperty("--tw-scale-x", String(fraction));
+      if (wrapped) {
+        void bar.offsetWidth;
+        bar.style.transition = "";
+      }
     };
+    let lastFraction = 0;
 
     const bindings = new AbortController();
     let id = 0;

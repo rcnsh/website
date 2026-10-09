@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, ExternalLink, Play, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { Input } from "mediabunny";
+import { formatDay } from "@/lib/files-nav";
 import type { MediaMeta } from "@/lib/media-meta";
 import { dequantizePeaks, frameAt, spriteLayout, type SpriteLayout } from "@/lib/preview-math";
 import type { R2Listing } from "@/lib/r2";
@@ -8,14 +8,20 @@ import {
   parsePeaksSidecar,
   parseStripSidecar,
   publicUrl,
-  thumbKey,
   type ThumbKind,
   type ThumbSet,
 } from "@/lib/thumbs";
-import { cn, fileKind, formatBytes } from "@/lib/utils";
-
-/** Mediabunny and the generators, fetched the first time a preview opens. */
-const loadPreview = () => import("@/lib/media-preview");
+import { fileKind, formatBytes } from "@/lib/utils";
+import {
+  fetchJson,
+  fetchMeta,
+  formatClock,
+  loadPreview,
+  thumbUrl,
+  type Meta,
+} from "@/components/files/client";
+import { KIND_COLOUR } from "@/components/files/kinds";
+import { DownloadIcon, FileIcon, PauseIcon, PlayIcon } from "@/components/files/icons";
 
 /**
  * A visitor's browser downloads the whole file to draw a waveform, so past
@@ -23,8 +29,7 @@ const loadPreview = () => import("@/lib/media-preview");
  */
 const VISITOR_WAVEFORM_MAX_BYTES = 64 * 1024 * 1024;
 
-type Meta = MediaMeta & { size?: number; uploaded?: number; thumbs?: ThumbSet };
-type Supported = Extract<MediaMeta, { supported: true }> & { thumbs?: ThumbSet };
+type Supported = Extract<MediaMeta, { supported: true }> & { thumbs?: ThumbSet; uploaded?: number };
 
 export type PreviewKind = "video" | "audio";
 
@@ -33,49 +38,23 @@ export function previewKind(name: string): PreviewKind | null {
   return kind === "video" || kind === "audio" ? kind : null;
 }
 
-async function fetchMeta(key: string, reload = false): Promise<Meta> {
-  const response = await fetch(`/api/files/meta?key=${encodeURIComponent(key)}`, {
-    cache: reload ? "reload" : "default",
-  });
-  if (!response.ok) throw new Error(`meta ${response.status}`);
-  return (await response.json()) as Meta;
-}
-
-async function fetchJson(url: string): Promise<unknown> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${url} ${response.status}`);
-  return response.json();
-}
-
-function thumbUrl(base: string, key: string, kind: ThumbKind): string | null {
-  // Without a public domain thumbs are unreachable: the download route
-  // refuses hidden keys. The browser draws its own instead.
-  const target = base ? thumbKey(key, kind) : null;
-  return target ? publicUrl(base, target) : null;
-}
-
-function formatClock(seconds: number): string {
-  const s = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`;
-}
-
 /** The first rejection that is not us tearing the panel down. */
 function isTeardown(error: unknown): boolean {
   return error instanceof Error && error.name === "InputDisposedError";
 }
+
+/** Set by the open preview so the browser's space key can play and pause it. */
+export type PlaybackControl = RefObject<(() => void) | null>;
 
 type Props = {
   fileKey: string;
   kind: PreviewKind;
   size: number;
   bucketBase: string;
-  onClose: () => void;
+  control?: PlaybackControl;
 };
 
-export default function MediaPreview({ fileKey, kind, size, bucketBase, onClose }: Props) {
+export default function MediaPreview({ fileKey, kind, size, bucketBase, control }: Props) {
   const url = publicUrl(bucketBase, fileKey);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [metaFailed, setMetaFailed] = useState(false);
@@ -94,45 +73,31 @@ export default function MediaPreview({ fileKey, kind, size, bucketBase, onClose 
   }, [fileKey, revision]);
 
   const folder = fileKey.slice(0, fileKey.lastIndexOf("/") + 1);
+  const name = fileKey.slice(folder.length);
 
   return (
-    <div className="my-2 rounded-xs border border-line bg-surface p-3 sm:p-4">
-      <div className="mb-3 flex items-center gap-3">
-        <p className="min-w-0 flex-1 truncate font-mono text-[0.8125rem] text-ink" title={fileKey}>
-          {fileKey.split("/").pop()}
-        </p>
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Open in a new tab"
-          className="-m-1 p-1 text-ink-faint transition-colors hover:text-ink"
-        >
-          <ExternalLink className="h-3.5 w-3.5" />
-        </a>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close preview"
-          className="-m-1 p-1 text-ink-faint transition-colors hover:text-ink"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      </div>
-
+    <div>
       {metaFailed ? (
-        <Fallback url={url} message="Couldn't read this file's details just now." />
+        <Fallback url={url} name={name} size={size} message="Couldn't read this file's details just now." />
       ) : !meta ? (
-        <div className="placeholder-block aspect-video w-full rounded-xs" />
+        <div className="placeholder-block aspect-video w-full rounded-[5px]" />
       ) : !meta.supported ? (
-        <Fallback url={url} message="No preview for this format." />
+        <Fallback url={url} name={name} size={size} message="No preview for this format." />
       ) : kind === "video" && meta.video ? (
-        <VideoPreview fileKey={fileKey} url={url} base={bucketBase} meta={meta} />
+        <VideoPreview fileKey={fileKey} url={url} base={bucketBase} meta={meta} size={size} control={control} />
       ) : (
-        <AudioPreview fileKey={fileKey} url={url} base={bucketBase} meta={meta} size={size} />
+        <AudioPreview
+          fileKey={fileKey}
+          url={url}
+          base={bucketBase}
+          meta={meta}
+          size={size}
+          control={control}
+        />
       )}
 
       {meta?.supported && <Details meta={meta} size={size} />}
+      {meta?.supported && <ThumbsNote kind={kind} thumbs={meta.thumbs} base={bucketBase} />}
 
       {bucketBase && (
         <Backfill folder={folder} base={bucketBase} onDone={() => setRevision((r) => r + 1)} />
@@ -143,23 +108,36 @@ export default function MediaPreview({ fileKey, kind, size, bucketBase, onClose 
 
 /* -------------------------------------------------------------------------- */
 
-function Fallback({ url, message, meta }: { url: string; message: string; meta?: Supported }) {
+export function Fallback({
+  url,
+  name,
+  size,
+  uploaded,
+  message,
+  meta,
+}: {
+  url: string;
+  name: string;
+  size: number;
+  uploaded?: number;
+  message: string;
+  meta?: Supported;
+}) {
   const codecs = [meta?.video?.codec, meta?.audio?.codec].filter(Boolean).join(" and ");
+  const dot = name.lastIndexOf(".");
+  const ext = dot > 0 ? name.slice(dot + 1).toUpperCase() : "";
+  const facts = [ext, formatBytes(size), uploaded ? formatDay(uploaded) : ""]
+    .filter(Boolean)
+    .join(" · ");
   return (
-    <div className="rounded-xs border border-dashed border-line px-4 py-6 text-center">
-      <p className="text-sm text-ink-dim">{message}</p>
-      {codecs && (
-        <p className="mt-1 font-mono text-[11px] text-ink-faint">
-          Encoded as {codecs}.
-        </p>
-      )}
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-3 inline-flex items-center gap-1.5 font-mono text-[0.8125rem] text-brand underline decoration-line-strong underline-offset-[4px] transition-colors hover:decoration-brand"
-      >
-        <Download className="h-3.5 w-3.5" />
+    <div className="fb-fallback">
+      <span className="ic" style={{ color: KIND_COLOUR[fileKind(name)] }}>
+        <FileIcon kind={fileKind(name)} size={30} />
+      </span>
+      <p>{message}</p>
+      <small>{codecs ? `Encoded as ${codecs}.` : facts}</small>
+      <a href={url} target="_blank" rel="noopener noreferrer" download className="fb-btn">
+        <DownloadIcon size={14} />
         Download
       </a>
     </div>
@@ -191,18 +169,39 @@ function Details({ meta, size }: { meta: Supported; size: number }) {
   }
   rows.push(["Container", meta.container]);
   rows.push(["Size", formatBytes(size)]);
+  if (meta.uploaded) rows.push(["Uploaded", formatDay(meta.uploaded)]);
 
+  return <DetailList rows={rows} />;
+}
+
+export function DetailList({ rows }: { rows: [string, string][] }) {
   return (
-    <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 font-mono text-[11px]">
+    <dl className="fb-dl">
       {rows.map(([label, value]) => (
         <div key={label} className="contents">
-          <dt className="text-ink-faint">{label}</dt>
-          <dd className="min-w-0 truncate text-ink-dim" title={value}>
-            {value}
-          </dd>
+          <dt>{label}</dt>
+          <dd title={value}>{value}</dd>
         </div>
       ))}
     </dl>
+  );
+}
+
+/** Whether what is on screen came from stored thumbs or this browser's decoder. */
+function ThumbsNote({ kind, thumbs, base }: { kind: PreviewKind; thumbs?: ThumbSet; base: string }) {
+  if (!base) return null;
+  const stored = kind === "video" ? thumbs?.poster && thumbs.strip : thumbs?.peaks;
+  return (
+    <p className={stored ? "fb-thumbs" : "fb-thumbs live"}>
+      <i aria-hidden="true" />
+      {stored
+        ? kind === "video"
+          ? "Poster and filmstrip stored in .thumbs/ for this upload"
+          : "Waveform stored in .thumbs/ for this upload"
+        : kind === "video"
+          ? "No stored thumbs — frames decoded in this browser"
+          : "No stored waveform — drawn in this browser"}
+    </p>
   );
 }
 
@@ -211,26 +210,46 @@ function Details({ meta, size }: { meta: Supported; size: number }) {
 type StripView = { src: string; layout: SpriteLayout; timestamps: number[] };
 
 /** Tallest the video stage gets, in CSS pixels. */
-const STAGE_MAX_HEIGHT = 480;
+const STAGE_MAX_HEIGHT = 320;
+
+/** Cells in the filmstrip under the stage, sampled from however many the sheet has. */
+const STRIP_CELLS = 8;
 
 type VideoState = "loading" | "ready" | "undecodable" | "unplayable";
+
+function spriteStyle(strip: StripView, frame: number): React.CSSProperties {
+  const { columns, rows } = strip.layout;
+  return {
+    backgroundImage: `url("${strip.src}")`,
+    backgroundSize: `${columns * 100}% ${rows * 100}%`,
+    backgroundPosition: `${columns > 1 ? ((frame % columns) / (columns - 1)) * 100 : 0}% ${
+      rows > 1 ? (Math.floor(frame / columns) / (rows - 1)) * 100 : 0
+    }%`,
+  };
+}
 
 function VideoPreview({
   fileKey,
   url,
   base,
   meta,
+  size,
+  control,
 }: {
   fileKey: string;
   url: string;
   base: string;
   meta: Supported;
+  size: number;
+  control?: PlaybackControl;
 }) {
   const [state, setState] = useState<VideoState>("loading");
   const [poster, setPoster] = useState<string | null>(null);
   const [strip, setStrip] = useState<StripView | null>(null);
   const [scrub, setScrub] = useState<number | null>(null);
-  const [playing, setPlaying] = useState(false);
+  /** Null until played; then where playback starts, in seconds. */
+  const [startAt, setStartAt] = useState<number | null>(null);
+  const element = useRef<HTMLVideoElement>(null);
 
   const video = meta.video;
   const aspect = video && video.width > 0 && video.height > 0 ? video.width / video.height : 16 / 9;
@@ -317,10 +336,27 @@ function VideoPreview({
     };
   }, [fileKey, url, base, meta]);
 
+  const playing = startAt !== null;
+
+  useEffect(() => {
+    if (!control) return;
+    control.current = () => {
+      const el = element.current;
+      if (!playing || !el) setStartAt((at) => at ?? 0);
+      else if (el.paused) void el.play().catch(() => {});
+      else el.pause();
+    };
+    return () => {
+      control.current = null;
+    };
+  }, [control, playing]);
+
   if (state === "undecodable" || state === "unplayable") {
     return (
       <Fallback
         url={url}
+        name={fileKey.split("/").pop() ?? fileKey}
+        size={size}
         meta={meta}
         message={
           state === "undecodable"
@@ -331,22 +367,11 @@ function VideoPreview({
     );
   }
 
-  if (playing) {
-    return (
-      // biome-ignore lint/a11y/useMediaCaption: arbitrary uploads have no captions to offer
-      <video
-        src={url}
-        poster={poster ?? undefined}
-        controls
-        autoPlay
-        playsInline
-        preload="metadata"
-        onError={() => setState("unplayable")}
-        className="mx-auto block rounded-xs bg-black"
-        style={stageStyle}
-      />
-    );
-  }
+  const duration = meta.duration ?? 0;
+  const cellCount = strip ? Math.min(STRIP_CELLS, strip.layout.frames) : STRIP_CELLS;
+  const cells: number[] = Array.from({ length: cellCount }, (_, i) =>
+    strip && cellCount > 1 ? Math.round((i * (strip.layout.frames - 1)) / (cellCount - 1)) : i,
+  );
 
   const onPointerMove = (event: React.PointerEvent<HTMLElement>) => {
     if (!strip) return;
@@ -354,58 +379,84 @@ function VideoPreview({
     setScrub(frameAt((event.clientX - rect.left) / rect.width, strip.layout.frames));
   };
 
-  const columns = strip?.layout.columns ?? 1;
-  const rows = strip?.layout.rows ?? 1;
-  const cellStyle =
-    strip && scrub !== null
-      ? {
-          backgroundImage: `url("${strip.src}")`,
-          backgroundSize: `${columns * 100}% ${rows * 100}%`,
-          backgroundPosition: `${columns > 1 ? ((scrub % columns) / (columns - 1)) * 100 : 0}% ${
-            rows > 1 ? (Math.floor(scrub / columns) / (rows - 1)) * 100 : 0
-          }%`,
-        }
-      : undefined;
+  const scrubTime = strip && scrub !== null ? (strip.timestamps[scrub] ?? 0) : null;
 
   return (
-    <button
-      type="button"
-      onClick={() => setPlaying(true)}
-      onPointerMove={onPointerMove}
-      onPointerLeave={() => setScrub(null)}
-      aria-label="Play video"
-      className="group relative mx-auto block overflow-hidden rounded-xs bg-black"
-      style={stageStyle}
-    >
-      {state === "loading" && !poster && <span className="placeholder-block absolute inset-0" />}
-      {poster && (
-        <img src={poster} alt="" className="absolute inset-0 h-full w-full object-contain" />
-      )}
-      {cellStyle && <span className="absolute inset-0 bg-no-repeat" style={cellStyle} />}
-
-      <span className="absolute inset-0 flex items-center justify-center">
-        <span className="rounded-full bg-base/70 p-3 text-ink transition-transform group-hover:scale-105">
-          <Play className="h-5 w-5" />
-        </span>
-      </span>
-
-      {strip && scrub !== null && (
-        <>
-          <span className="absolute bottom-2 left-2 rounded-xs bg-base/80 px-1.5 py-0.5 font-mono text-[11px] text-ink">
-            {formatClock(strip.timestamps[scrub] ?? 0)}
+    <>
+      {playing ? (
+        // biome-ignore lint/a11y/useMediaCaption: arbitrary uploads have no captions to offer
+        <video
+          ref={element}
+          src={url}
+          poster={poster ?? undefined}
+          controls
+          autoPlay
+          playsInline
+          preload="metadata"
+          onLoadedMetadata={(e) => {
+            if (startAt) e.currentTarget.currentTime = startAt;
+          }}
+          onError={() => setState("unplayable")}
+          className="fb-stage"
+          style={stageStyle}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setStartAt(scrubTime ?? 0)}
+          onPointerMove={onPointerMove}
+          onPointerLeave={() => setScrub(null)}
+          aria-label="Play video"
+          className="fb-stage"
+          style={stageStyle}
+        >
+          {state === "loading" && !poster && <span className="ph placeholder-block" />}
+          {poster && <img src={poster} alt="" />}
+          {strip && scrub !== null && <span className="frame" style={spriteStyle(strip, scrub)} />}
+          <span className="bigplay" aria-hidden="true">
+            <PlayIcon size={18} />
           </span>
-          <span
-            className="absolute bottom-0 left-0 h-0.5 bg-brand"
-            style={{ width: `${((scrub + 1) / strip.layout.frames) * 100}%` }}
-          />
-        </>
+          {duration > 0 && (
+            <span className="tc">
+              {formatClock(scrubTime ?? 0)} / {formatClock(duration)}
+            </span>
+          )}
+          {strip && scrub !== null && (
+            <span className="scrub" style={{ width: `${((scrub + 1) / strip.layout.frames) * 100}%` }} />
+          )}
+          {state === "ready" && !strip && <span className="hint">building filmstrip…</span>}
+        </button>
       )}
-      {state === "ready" && !strip && (
-        <span className="absolute right-2 bottom-2 font-mono text-[10px] text-ink-faint">
-          building filmstrip…
-        </span>
-      )}
-    </button>
+
+      <fieldset className={strip ? "fb-strip" : "fb-strip pending"}>
+        <legend className="sr-only">Frame strip</legend>
+        {cells.map((frame) => {
+          const at = strip?.timestamps[frame] ?? 0;
+          return (
+            <button
+              key={frame}
+              type="button"
+              disabled={!strip}
+              tabIndex={strip ? 0 : -1}
+              aria-label={strip ? `Play from ${formatClock(at)}` : "Frame not drawn yet"}
+              title={strip ? formatClock(at) : undefined}
+              className={scrub === frame ? "on" : undefined}
+              style={strip ? spriteStyle(strip, frame) : undefined}
+              onClick={() => {
+                if (!strip) return;
+                const el = element.current;
+                if (playing && el) {
+                  el.currentTime = at;
+                  void el.play().catch(() => {});
+                } else {
+                  setStartAt(at);
+                }
+              }}
+            />
+          );
+        })}
+      </fieldset>
+    </>
   );
 }
 
@@ -419,18 +470,21 @@ function AudioPreview({
   base,
   meta,
   size,
+  control,
 }: {
   fileKey: string;
   url: string;
   base: string;
   meta: Supported;
   size: number;
+  control?: PlaybackControl;
 }) {
   const [state, setState] = useState<AudioState>("loading");
   const [cover, setCover] = useState<ImageBitmap | null>(null);
   const [peaks, setPeaks] = useState<{ values: Float32Array; done: number } | null>(null);
   const [skipped, setSkipped] = useState(false);
   const [position, setPosition] = useState(0);
+  const [paused, setPaused] = useState(true);
   const audio = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
@@ -505,6 +559,21 @@ function AudioPreview({
   // ImageBitmaps hold decoded pixels until closed.
   useEffect(() => () => cover?.close(), [cover]);
 
+  const toggle = useCallback(() => {
+    const element = audio.current;
+    if (!element) return;
+    if (element.paused) void element.play().catch(() => {});
+    else element.pause();
+  }, []);
+
+  useEffect(() => {
+    if (!control) return;
+    control.current = toggle;
+    return () => {
+      control.current = null;
+    };
+  }, [control, toggle]);
+
   const duration = meta.duration ?? 0;
   const seek = useCallback(
     (fraction: number) => {
@@ -520,6 +589,8 @@ function AudioPreview({
     return (
       <Fallback
         url={url}
+        name={fileKey.split("/").pop() ?? fileKey}
+        size={size}
         meta={meta}
         message={
           state === "undecodable"
@@ -531,13 +602,13 @@ function AudioPreview({
   }
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+    <div className={meta.tags.coverArt ? "fb-aud" : "fb-aud nocover"}>
       {meta.tags.coverArt && (
-        <div className="aspect-square w-32 shrink-0 overflow-hidden rounded-xs bg-raised sm:w-36">
+        <div className="cover">
           {cover ? <Cover bitmap={cover} /> : <span className="placeholder-block block h-full w-full" />}
         </div>
       )}
-      <div className="flex min-w-0 flex-1 flex-col justify-end gap-2">
+      <div className="min-w-0">
         {peaks ? (
           <Waveform
             peaks={peaks.values}
@@ -546,21 +617,45 @@ function AudioPreview({
             onSeek={seek}
           />
         ) : skipped ? (
-          <p className="font-mono text-[11px] text-ink-faint">
-            Too large to draw a waveform in the browser.
+          <p className="fb-toobig">
+            Too large to draw a waveform in the browser ({formatBytes(size)}). Playback still streams.
           </p>
         ) : (
-          <div className="placeholder-block h-16 w-full rounded-xs" />
+          <div className="placeholder-block h-16 w-full rounded-[5px]" />
         )}
+        <div className="fb-ctl">
+          <button type="button" onClick={toggle} aria-label={paused ? "Play" : "Pause"}>
+            {paused ? (
+              <PlayIcon size={14} />
+            ) : (
+              <PauseIcon size={14} />
+            )}
+          </button>
+          {!peaks && duration > 0 ? (
+            <input
+              type="range"
+              min={0}
+              max={duration}
+              step="any"
+              value={position}
+              aria-label="Seek"
+              onChange={(e) => seek(Number(e.currentTarget.value) / duration)}
+            />
+          ) : null}
+          <span>
+            {formatClock(position)} / {formatClock(duration)}
+          </span>
+        </div>
         {/* biome-ignore lint/a11y/useMediaCaption: arbitrary uploads have no captions to offer */}
         <audio
           ref={audio}
           src={url}
-          controls
           preload="metadata"
           onTimeUpdate={(e) => setPosition(e.currentTarget.currentTime)}
+          onPlay={() => setPaused(false)}
+          onPause={() => setPaused(true)}
           onError={() => setState("unplayable")}
-          className="h-9 w-full"
+          className="hidden"
         />
       </div>
     </div>
@@ -576,24 +671,27 @@ function Cover({ bitmap }: { bitmap: ImageBitmap }) {
     element.height = bitmap.height;
     element.getContext("2d")?.drawImage(bitmap, 0, 0);
   }, [bitmap]);
-  return <canvas ref={canvas} role="img" aria-label="Cover art" className="h-full w-full object-cover" />;
+  return <canvas ref={canvas} role="img" aria-label="Cover art" />;
 }
 
 /** Bar width plus gap, in CSS pixels. */
 const BAR_PITCH = 3;
 
-function Waveform({
+export function Waveform({
   peaks,
   done,
   progress,
   onSeek,
+  height = 64,
 }: {
   peaks: Float32Array;
   /** How much of the file has been decoded so far, 0..1. */
   done: number;
   /** Playback position, 0..1. */
   progress: number;
-  onSeek: (fraction: number) => void;
+  /** Absent for a decorative waveform, which is then not a slider. */
+  onSeek?: (fraction: number) => void;
+  height?: number;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(0);
@@ -611,7 +709,6 @@ function Waveform({
     const context = element?.getContext("2d");
     if (!element || !context || width === 0) return;
 
-    const height = 64;
     const ratio = window.devicePixelRatio || 1;
     element.width = Math.round(width * ratio);
     element.height = Math.round(height * ratio);
@@ -619,8 +716,8 @@ function Waveform({
     context.clearRect(0, 0, width, height);
 
     const styles = getComputedStyle(element);
-    const played = styles.getPropertyValue("--color-brand").trim() || "#7f8ad0";
-    const rest = styles.getPropertyValue("--color-line-strong").trim() || "#58544f";
+    const played = styles.getPropertyValue("--color-brand-alt").trim() || "#9aa2dd";
+    const rest = styles.getPropertyValue("--color-line").trim() || "#3f3d3a";
 
     // Scaled to the loudest peak, so a quiet recording still shows its shape.
     // The floor keeps near-silence from being blown up into noise.
@@ -641,7 +738,11 @@ function Waveform({
       context.fillStyle = position <= progress ? played : rest;
       context.fillRect(bar * BAR_PITCH, (height - h) / 2, BAR_PITCH - 1, h);
     }
-  }, [peaks, done, progress, width]);
+  }, [peaks, done, progress, width, height]);
+
+  if (!onSeek) {
+    return <canvas ref={canvas} className="block w-full" style={{ height }} />;
+  }
 
   return (
     <canvas
@@ -658,9 +759,14 @@ function Waveform({
       }}
       onKeyDown={(e) => {
         if (e.key === "ArrowRight") onSeek(Math.min(1, progress + 0.05));
-        if (e.key === "ArrowLeft") onSeek(Math.max(0, progress - 0.05));
+        else if (e.key === "ArrowLeft") onSeek(Math.max(0, progress - 0.05));
+        else return;
+        // The browser around this would otherwise read the arrow as navigation.
+        e.preventDefault();
+        e.stopPropagation();
       }}
-      className="h-16 w-full cursor-pointer"
+      className="block w-full cursor-pointer"
+      style={{ height }}
     />
   );
 }
@@ -703,7 +809,8 @@ function complete(entry: FolderThumbs[string] | undefined, uploaded: number, kin
 
 type Progress = { done: number; total: number; current: string | null; stored: number; skipped: number; failed: number };
 
-function Backfill({ folder, base, onDone }: { folder: string; base: string; onDone: () => void }) {
+/** Owner only: stores previews for every media file directly in `folder`. */
+export function Backfill({ folder, base, onDone }: { folder: string; base: string; onDone?: () => void }) {
   const [owner, setOwner] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -778,7 +885,7 @@ function Backfill({ folder, base, onDone }: { folder: string; base: string; onDo
       }
 
       setProgress({ ...tally, current: null });
-      onDone();
+      onDone?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Backfill failed");
       setProgress(null);
@@ -788,10 +895,10 @@ function Backfill({ folder, base, onDone }: { folder: string; base: string; onDo
   const running = progress !== null && progress.current !== null;
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line pt-3 font-mono text-[11px] text-ink-faint">
+    <div className="fb-backfill">
       {running ? (
         <>
-          <span className="min-w-0 truncate">
+          <span className="max-w-full truncate">
             {progress.done + 1} of {progress.total}: {progress.current}
           </span>
           <button
@@ -799,20 +906,14 @@ function Backfill({ folder, base, onDone }: { folder: string; base: string; onDo
             onClick={() => {
               cancelled.current = true;
             }}
-            className="text-ink-dim underline decoration-line-strong underline-offset-[4px] hover:text-ink"
+            className="fb-textbtn"
           >
             Stop after this file
           </button>
         </>
       ) : (
         <>
-          <button
-            type="button"
-            onClick={run}
-            className={cn(
-              "text-ink-dim underline decoration-line-strong underline-offset-[4px] transition-colors hover:text-ink hover:decoration-brand",
-            )}
-          >
+          <button type="button" onClick={run} className="fb-btn">
             Generate previews for this folder
           </button>
           {progress && (
@@ -822,7 +923,7 @@ function Backfill({ folder, base, onDone }: { folder: string; base: string; onDo
                 : `Stored ${progress.stored}, skipped ${progress.skipped}, failed ${progress.failed}.`}
             </span>
           )}
-          {error && <span className="text-red-400">{error}</span>}
+          {error && <span className="err">{error}</span>}
         </>
       )}
     </div>

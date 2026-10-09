@@ -1,9 +1,28 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import UsesArt from "@/components/uses/UsesArt.astro";
+import UsesInspector from "@/components/uses/UsesInspector.astro";
+import { BRAND_MARKS } from "@/lib/brand-marks";
 import { pageOgHref, pages, uses } from "@/lib/site";
+import {
+  artKind,
+  countLabel,
+  dailyDriver,
+  driverFact,
+  linkHost,
+  position,
+  thingCount,
+} from "@/lib/uses";
 
 const page = pages.uses;
+const { groups } = uses;
+const driver = driverFact(dailyDriver(groups));
+
+// Groups pair up across a row, wide then narrow, like the mockup's 7 + 5.
+const span = (index: number) =>
+  index % 2 === 0 ? "col-span-7" : "col-span-5";
+
+const delay = ["", "[animation-delay:30ms]", "[animation-delay:60ms]", "[animation-delay:90ms]", "[animation-delay:120ms]"];
 ---
 
 <Layout
@@ -11,73 +30,103 @@ const page = pages.uses;
   description={page.description}
   image={pageOgHref("uses")}
 >
-  <header class="animate-rise pb-10">
-    <h1 class="display-face text-[2.25rem] text-ink">{page.title}</h1>
-  </header>
+  <div class="bento pb-6">
+    <section
+      class="tile page-hero animate-rise col-span-8 min-h-[250px] max-[1020px]:col-span-7 max-[640px]:col-span-12 max-[640px]:min-h-0 max-[640px]:px-5 max-[640px]:pt-6 max-[640px]:pb-5.5"
+      aria-labelledby="uses-h"
+    >
+      <nav class="flex items-center gap-1.5 font-mono text-[0.71875rem] text-ink-faint" aria-label="Breadcrumb">
+        <a href="/" class="transition-colors hover:text-ink">rcn.sh</a>
+        <span class="text-line-strong" aria-hidden="true">/</span>
+        <span aria-current="page">uses</span>
+      </nav>
+      <h1 id="uses-h" class="display-face mt-6.5 text-[clamp(2.25rem,4vw,3rem)] text-ink max-[640px]:mt-5">
+        {page.title}
+      </h1>
+      <p class="mt-3 max-w-[52ch] text-[0.96875rem] leading-relaxed text-ink-dim">
+        {page.description}
+      </p>
+      <dl class="mt-auto flex flex-wrap gap-x-8 gap-y-2.5 pt-6.5 max-[640px]:pt-5">
+        <div class="flex flex-col-reverse gap-1.5">
+          <dt class="font-mono text-[0.65625rem] text-ink-faint">Things</dt>
+          <dd class="font-mono text-lg font-semibold tabular-nums tracking-tight text-ink">{thingCount(groups)}</dd>
+        </div>
+        {
+          driver && (
+            <div class="flex flex-col-reverse gap-1.5">
+              <dt class="font-mono text-[0.65625rem] text-ink-faint">Daily driver</dt>
+              <dd class="font-mono text-lg font-semibold tracking-tight text-ink">{driver}</dd>
+            </div>
+          )
+        }
+      </dl>
+    </section>
 
-  {/* Each group is a plate on the diagram; its name breaks the top rule. */}
-  <div class="flex flex-col gap-14 pb-6">
+    <UsesInspector
+      groups={groups}
+      class={`animate-rise ${delay[1]} col-span-4 max-[1020px]:col-span-5 max-[640px]:col-span-12`}
+    />
+
     {
-      uses.groups.map((group) => (
-        <section class="relative rounded-xs border border-line px-5 pb-8 pt-10 sm:px-7">
-          {/*
-            The inset subtracts the label's own px-2.5, so the *text* lands on
-            the section's content edge rather than 10px right of it. It also
-            has to track the section's padding, which steps 1.25rem -> 1.75rem
-            at `sm`; the old `left-5 sm:left-6` tracked neither, so the label
-            sat 10px off below `sm` and 4px off above it — a misalignment that
-            changed at the breakpoint.
-          */}
-          <h2
-            class="label absolute -top-[0.5em] left-[calc(1.25rem-0.625rem)] select-none bg-base px-2.5 sm:left-[calc(1.75rem-0.625rem)]"
-          >
-            {group.title}
-          </h2>
+      groups.map((group, gi) => (
+        <section
+          class:list={[
+            "tile plate animate-rise max-[1020px]:col-span-12",
+            span(gi),
+            delay[Math.min(gi + 2, delay.length - 1)],
+            { two: group.items.length <= 4 },
+          ]}
+          aria-labelledby={`uses-g${gi}`}
+        >
+          <div class="mb-4 flex min-h-4 items-center gap-2.5">
+            <h2 class="label" id={`uses-g${gi}`}>{group.title}</h2>
+            <span class="ml-auto font-mono text-[0.6875rem] tabular-nums text-ink-faint">
+              {countLabel(group.items.length)}
+            </span>
+          </div>
 
-          {/*
-            Flex-wrap with a fixed basis, not a grid: the group sizes do not
-            divide into full rows at any breakpoint, and centring splits the
-            leftover space evenly rather than dumping it on the right. The
-            basis values reproduce the grid's column widths.
-          */}
-          <ul class="flex flex-wrap justify-center gap-x-4 gap-y-9">
-            {group.items.map((item) => {
-              const Tag = item.url ? "a" : "div";
+          <ul class="items">
+            {group.items.map((item, ii) => {
+              const kind = artKind(gi, item.art, BRAND_MARKS);
+              const data = {
+                "data-uses-item": "",
+                "data-art": item.art,
+                "data-name": item.name,
+                "data-detail": item.detail,
+                "data-group": group.title,
+                "data-pos": position(ii, group.items.length),
+                "data-kind": kind,
+                "data-href": item.url,
+                "data-host": item.url && linkHost(item.url),
+              };
+
+              const inner = (
+                <>
+                  <UsesArt name={item.art} class="art" />
+                  {/* Two lines reserved so a name that wraps keeps its row's details aligned. */}
+                  <span class="nm">{item.name}</span>
+                  <span class="dt">{item.detail}</span>
+                </>
+              );
 
               return (
-                <li class="basis-[calc(50%-0.5rem)] sm:basis-[calc(33.333%-0.75rem)] md:basis-[calc(16.666%-0.875rem)]">
-                  <Tag
-                    {...(item.url
-                      ? {
-                          href: item.url,
-                          target: "_blank",
-                          rel: "noopener noreferrer",
-                        }
-                      : {})}
-                    class="group/item flex flex-col items-center gap-3 text-center"
-                  >
-                    <UsesArt
-                      name={item.art}
-                      class="h-[4.5rem] w-[4.5rem] text-ink-dim transition-colors duration-200 group-hover/item:text-ink"
-                    />
-
-                    <span class="flex flex-col gap-1">
-                      {/*
-                        Two lines reserved, because a name that wraps used to
-                        push its detail line 15px out of the row's baseline at
-                        >=768 — the captions in one row stopped agreeing on
-                        where they start.
-                      */}
-                      <span class="min-h-[2lh] font-mono text-[0.75rem] leading-tight text-ink">
-                        {item.name}
-                      </span>
-                      {item.detail && (
-                        <span class="font-mono text-[0.6875rem] leading-tight text-ink-faint">
-                          {item.detail}
-                        </span>
-                      )}
-                    </span>
-                  </Tag>
+                <li>
+                  {item.url ? (
+                    <a
+                      {...data}
+                      class="item"
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <span class="out" aria-hidden="true">↗</span>
+                      {inner}
+                    </a>
+                  ) : (
+                    <div {...data} class="item" tabindex="0">
+                      {inner}
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -87,3 +136,164 @@ const page = pages.uses;
     }
   </div>
 </Layout>
+
+<style>
+  /* A plate on the diagram: a faint dot grid fading down the tile. */
+  .plate {
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem 1.25rem 1.375rem;
+  }
+
+  .plate::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background-image: radial-gradient(var(--color-line-soft) 1px, transparent 1.2px);
+    background-size: 16px 16px;
+    background-position: 7px 7px;
+    mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.9), rgb(0 0 0 / 0.35));
+  }
+
+  .plate > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .items {
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    align-content: stretch;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .items > li {
+    display: flex;
+    flex: 0 0 calc((100% - 20px) / 3);
+  }
+
+  .two .items > li {
+    flex-basis: calc((100% - 10px) / 2);
+  }
+
+  .item {
+    position: relative;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 20px 10px 16px;
+    text-align: center;
+    border: 1px solid var(--color-line-soft);
+    border-radius: var(--radius-card);
+    background: color-mix(in oklab, var(--color-base) 55%, var(--color-surface));
+    transition:
+      border-color 0.2s,
+      background-color 0.2s;
+  }
+
+  a.item:hover,
+  .item.on {
+    border-color: var(--color-line-strong);
+    background: var(--color-raised);
+  }
+
+  .item :global(.art) {
+    width: 72px;
+    height: 72px;
+    color: var(--color-ink-dim);
+    transition: color 0.2s;
+    user-select: none;
+  }
+
+  .item:hover :global(.art),
+  .item.on :global(.art),
+  .item:focus-visible :global(.art) {
+    color: var(--color-ink);
+  }
+
+  .nm {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    min-height: 2lh;
+    font: 0.75rem/1.25 var(--font-mono);
+    color: var(--color-ink);
+  }
+
+  .dt {
+    min-height: 1lh;
+    margin-top: -10px;
+    font: 0.6875rem/1.25 var(--font-mono);
+    color: var(--color-ink-faint);
+  }
+
+  .out {
+    position: absolute;
+    top: 8px;
+    right: 9px;
+    font: 0.6875rem var(--font-mono);
+    color: var(--color-ink-faint);
+    opacity: 0;
+    transition:
+      opacity 0.2s,
+      color 0.2s,
+      transform 0.25s var(--ease-out-quint);
+  }
+
+  a.item:hover .out,
+  a.item:focus-visible .out {
+    opacity: 1;
+    color: var(--color-brand-alt);
+    transform: translate(1px, -1px);
+  }
+
+  @media (max-width: 1020px) {
+    .two .items > li {
+      flex-basis: calc((100% - 30px) / 4);
+    }
+  }
+
+  @media (max-width: 640px) {
+    .plate {
+      padding: 1rem 0.875rem;
+    }
+
+    .items {
+      gap: 8px;
+    }
+
+    .items > li {
+      flex-basis: calc((100% - 16px) / 3);
+    }
+
+    .two .items > li {
+      flex-basis: calc((100% - 8px) / 2);
+    }
+
+    .item {
+      gap: 10px;
+      padding: 14px 4px 12px;
+    }
+
+    .item :global(.art) {
+      width: 52px;
+      height: 52px;
+    }
+
+    .nm {
+      font-size: 0.6875rem;
+    }
+
+    .dt {
+      margin-top: -8px;
+      font-size: 0.625rem;
+    }
+  }
+</style>

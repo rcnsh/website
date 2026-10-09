@@ -46,6 +46,7 @@ export default function GuestbookForm({ maxLength, restoreDraft }: Props) {
   return (
     <form
       method="POST"
+      className="mt-4 flex flex-1 flex-col"
       onSubmit={() => {
         try {
           storage()?.setItem(DRAFT_KEY, message);
@@ -63,24 +64,31 @@ export default function GuestbookForm({ maxLength, restoreDraft }: Props) {
         maxLength={maxLength}
         placeholder="Leave a message…"
         aria-label="Your guestbook message"
-        className="w-full resize-none border-b border-line bg-transparent py-2 text-[0.9375rem] text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-brand"
+        aria-describedby="gb-remaining"
+        className="min-h-[92px] w-full flex-1 resize-none rounded-[6px] border border-line-soft bg-base px-3.5 py-3 text-[0.9375rem] leading-[1.55] text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-brand"
       />
 
-      <div className="mt-2.5 flex items-center gap-4">
+      <div className="mt-3 flex items-center gap-3.5">
         <button
           type="submit"
           disabled={pending || empty}
-          className="font-mono text-xs text-ink underline decoration-line-strong underline-offset-[4px] transition-colors hover:decoration-brand disabled:cursor-not-allowed disabled:text-ink-faint disabled:no-underline"
+          className="inline-flex h-[34px] shrink-0 items-center rounded-[6px] border border-ink bg-ink px-3.5 text-[0.84375rem] font-medium text-(color:--color-base) transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-ink"
         >
-          {pending ? "signing…" : "sign"}
+          {pending ? "Signing…" : "Sign"}
         </button>
 
+        <span className="hidden min-w-0 truncate font-mono text-[11px] text-ink-faint sm:inline">
+          Shown with your avatar and country
+        </span>
+
         <span
+          id="gb-remaining"
           className={cn(
             "ml-auto font-mono text-[11px] tabular-nums",
-            remaining <= 20 ? "text-amber-400/80" : "text-ink-faint",
+            remaining <= 20 ? "text-warn" : "text-ink-faint",
           )}
         >
+          <span className="sr-only">Characters left: </span>
           {remaining}
         </span>
       </div>

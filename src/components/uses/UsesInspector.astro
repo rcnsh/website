@@ -1,0 +1,296 @@
+---
+import { BRAND_MARKS } from "@/lib/brand-marks";
+import {
+  KIND_NOTE,
+  artKind,
+  dailyDriver,
+  pluggedIn,
+  position,
+  type UsesGroup,
+} from "@/lib/uses";
+import UsesArt from "./UsesArt.astro";
+
+/**
+ * Shows the daily driver until a reader points at or focuses a thing on the
+ * page, then that thing. The server renders the default so it reads without
+ * script; the script swaps in a clone of the hovered cell's own drawing rather
+ * than shipping the art twice.
+ */
+
+interface Props {
+  groups: UsesGroup[];
+  class?: string;
+}
+
+const { groups, class: className } = Astro.props;
+
+const driver = dailyDriver(groups);
+const desk = pluggedIn(groups);
+const irl = groups[0];
+---
+
+{
+  driver && irl && (
+    <section
+      class:list={["tile insp", className]}
+      aria-labelledby="uses-in-h"
+      data-uses-inspector
+      data-default-art={driver.art}
+    >
+      <div class="mb-4 flex min-h-4 items-center gap-2.5">
+        <h2 class="label" id="uses-in-h" data-in-heading>
+          Daily driver
+        </h2>
+        <span class="ml-auto font-mono text-[0.6875rem] tabular-nums text-ink-faint" data-in-pos>
+          {position(0, irl.items.length)}
+        </span>
+      </div>
+
+      <div class="in-body" data-in-body>
+        <div class="in-art" data-in-art>
+          <UsesArt name={driver.art} />
+        </div>
+        <div class="flex min-w-0 flex-col gap-1.5">
+          <span class="label" data-in-group>{irl.title}</span>
+          <b class="font-mono text-[1.1875rem] font-semibold leading-tight tracking-tight text-ink max-[640px]:text-[1.0625rem]" data-in-name>
+            {driver.name}
+          </b>
+          <span class="min-h-[1lh] font-mono text-xs text-ink-dim" data-in-detail>
+            {driver.detail}
+          </span>
+          <span class="mt-1 text-[0.78125rem] leading-snug text-ink-faint" data-in-note>
+            {KIND_NOTE[artKind(0, driver.art, BRAND_MARKS)]}
+          </span>
+        </div>
+      </div>
+
+      <div class="in-foot font-mono text-[0.6875rem] text-ink-faint">
+        <div class="flex w-full items-center gap-2" data-in-plugged hidden={desk.length === 0}>
+          <span class="mr-auto">Plugged in</span>
+          <ul class="flex gap-2" aria-label="Plugged in">
+            {desk.map((item) => (
+              <li class="mini" data-mini={item.art} title={item.name}>
+                <UsesArt name={item.art} />
+                <span class="sr-only">{item.name}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div class="flex w-full min-w-0 items-center gap-2" data-in-link hidden>
+          <span>Opens</span>
+          <a
+            class="go ml-auto truncate text-brand-alt underline decoration-line-strong underline-offset-[3px] hover:decoration-brand"
+            href="#"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-in-href
+          />
+        </div>
+        <div class="flex w-full items-center gap-2" data-in-none hidden>
+          <span class="mr-auto">Not linked</span>
+          <span data-in-why />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+<script>
+  import { KIND_NOTE, type ArtKind } from "@/lib/uses";
+
+  const root = document.querySelector<HTMLElement>("[data-uses-inspector]");
+  const items = document.querySelectorAll<HTMLElement>("[data-uses-item]");
+
+  if (root && items.length) {
+    const $ = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+    const heading = $("[data-in-heading]");
+    const pos = $("[data-in-pos]");
+    const body = $("[data-in-body]");
+    const art = $("[data-in-art]");
+    const group = $("[data-in-group]");
+    const name = $("[data-in-name]");
+    const detail = $("[data-in-detail]");
+    const note = $("[data-in-note]");
+    const plugged = $("[data-in-plugged]");
+    const linkRow = $("[data-in-link]");
+    const href = $<HTMLAnchorElement>("[data-in-href]");
+    const none = $("[data-in-none]");
+    const why = $("[data-in-why]");
+    const minis = root.querySelectorAll<HTMLElement>("[data-mini]");
+
+    const byArt = new Map([...items].map((el) => [el.dataset.art!, el]));
+    const fallback = byArt.get(root.dataset.defaultArt!)!;
+    const deskArt = new Set([...minis].map((el) => el.dataset.mini!));
+
+    let showing: HTMLElement | null = fallback;
+    let revert: ReturnType<typeof setTimeout> | undefined;
+
+    const show = (el: HTMLElement) => {
+      clearTimeout(revert);
+      if (el === showing) return;
+      showing = el;
+
+      const d = el.dataset;
+      const isDefault = el === fallback;
+      heading.textContent = isDefault ? "Daily driver" : "Inspecting";
+      pos.textContent = d.pos ?? "";
+      group.textContent = d.group ?? "";
+      name.textContent = d.name ?? "";
+      detail.textContent = d.detail ?? "";
+      note.textContent = KIND_NOTE[d.kind as ArtKind] ?? "";
+
+      const svg = el.querySelector("svg");
+      if (svg) art.replaceChildren(svg.cloneNode(true));
+
+      body.classList.remove("swap");
+      void body.offsetWidth;
+      body.classList.add("swap");
+
+      const onDesk = isDefault || deskArt.has(d.art!);
+      plugged.hidden = !onDesk;
+      linkRow.hidden = onDesk || !d.href;
+      none.hidden = onDesk || !!d.href;
+      if (!onDesk && d.href) {
+        href.href = d.href;
+        href.textContent = `${d.host} ↗`;
+      } else if (!onDesk) {
+        why.textContent = d.kind === "hardware" ? "a thing on my desk" : "nothing to open";
+      }
+      for (const mini of minis) mini.classList.toggle("on", mini.dataset.mini === d.art);
+
+      for (const item of items) item.classList.toggle("on", item === el && !isDefault);
+    };
+
+    const later = () => {
+      clearTimeout(revert);
+      revert = setTimeout(() => show(fallback), 1000);
+    };
+
+    const target = (e: Event) => {
+      const hit = (e.target as Element | null)?.closest<HTMLElement>("[data-uses-item], [data-mini]");
+      if (!hit) return null;
+      return hit.dataset.mini ? (byArt.get(hit.dataset.mini) ?? null) : hit;
+    };
+
+    const page = root.parentElement!;
+
+    page.addEventListener("pointerover", (e) => {
+      const el = target(e);
+      if (el) show(el);
+    });
+    page.addEventListener("pointerout", (e) => {
+      const from = (e.target as Element).closest("[data-uses-item], [data-mini]");
+      if (from && !from.contains(e.relatedTarget as Node | null)) later();
+    });
+    page.addEventListener("focusin", (e) => {
+      const el = target(e);
+      if (el) show(el);
+      else if (root.contains(e.target as Node)) clearTimeout(revert);
+    });
+    page.addEventListener("focusout", (e) => {
+      const next = e.relatedTarget as Element | null;
+      if (!next?.closest("[data-uses-item], [data-in-href]")) later();
+    });
+    // Reaching for the link in the foot must not let the tile revert under the pointer.
+    root.addEventListener("pointerover", () => clearTimeout(revert));
+    root.addEventListener("pointerleave", () => {
+      if (showing !== fallback) later();
+    });
+  }
+</script>
+
+<style>
+  .insp {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .in-body {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 1.125rem;
+    min-height: 0;
+  }
+
+  .in-body.swap {
+    animation: in-swap 0.28s var(--ease-out-quint);
+  }
+
+  @keyframes in-swap {
+    from {
+      opacity: 0.2;
+      transform: translateY(3px);
+    }
+  }
+
+  .in-art {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 7rem;
+    height: 7rem;
+    overflow: hidden;
+    border: 1px solid var(--color-line-soft);
+    border-radius: 6px;
+    background:
+      radial-gradient(var(--color-line-soft) 1px, transparent 1.2px) 7px 7px / 12px 12px,
+      color-mix(in oklab, var(--color-base) 55%, var(--color-surface));
+  }
+
+  .in-art :global(svg) {
+    width: 5.75rem;
+    height: 5.75rem;
+    color: var(--color-ink);
+  }
+
+  .in-foot {
+    display: flex;
+    align-items: center;
+    min-height: 49px;
+    margin-top: 1rem;
+    padding-top: 0.875rem;
+    border-top: 1px solid var(--color-line-soft);
+  }
+
+  .in-foot > [hidden] {
+    display: none;
+  }
+
+  .mini {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--color-line-soft);
+    border-radius: 5px;
+    background: var(--color-base);
+    color: var(--color-ink-dim);
+    transition:
+      border-color 0.2s,
+      color 0.2s;
+  }
+
+  .mini:hover,
+  .mini.on {
+    border-color: var(--color-line-strong);
+    color: var(--color-ink);
+  }
+
+  .mini :global(svg) {
+    width: 28px;
+    height: 28px;
+  }
+
+  @media (max-width: 640px) {
+    .in-art {
+      width: 6rem;
+      height: 6rem;
+    }
+
+    .in-art :global(svg) {
+      width: 4.875rem;
+      height: 4.875rem;
+    }
+  }
+</style>

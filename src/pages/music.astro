@@ -3,6 +3,7 @@ import Layout from "@/layouts/Layout.astro";
 import NowPlaying from "@/components/react/NowPlaying";
 import TopMusic from "@/components/widgets/TopMusic.astro";
 import RecentTracks from "@/components/widgets/RecentTracks.astro";
+import ListeningStats from "@/components/music/ListeningStats.astro";
 import { SpotifyIcon } from "@/components/react/BrandIcons";
 import { pageOgHref, pages, site } from "@/lib/site";
 
@@ -15,33 +16,81 @@ const profileUrl = `https://open.spotify.com/user/${site.spotifyUser}`;
   description={page.description}
   image={pageOgHref("music")}
 >
-  <header class="animate-rise flex items-center gap-7 pb-10">
-    <h1 class="display-face text-[2.25rem] text-ink">{page.title}</h1>
-    <a
-      href={profileUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label="My Spotify profile"
-      class="text-ink-faint transition-colors hover:text-brand"
+  <!-- Hero first in source, so the h1 leads on phones and in reading order;
+       the grid moves now playing ahead of it from sm up. -->
+  <div class="bento max-sm:gap-2.5">
+    <section
+      class="tile page-hero col-span-12 animate-rise max-sm:px-5 max-sm:pt-6 max-sm:pb-[22px] sm:max-[1020px]:col-span-6 min-[1021px]:col-span-5 min-[1021px]:col-start-8 min-[1021px]:row-start-1 min-[1021px]:min-h-[230px]"
+      aria-labelledby="music-title"
     >
-      <SpotifyIcon className="h-6 w-6" />
-    </a>
-  </header>
-
-  <!-- flex+gap, not space-y — islands render as display:contents wrappers. -->
-  <div class="flex flex-col gap-14 pb-6">
-    <section>
-      <h2 class="rule-heading label mb-5">Right now</h2>
-      <NowPlaying client:idle />
+      <nav
+        aria-label="Breadcrumb"
+        class="flex items-center gap-1.5 font-mono text-[11.5px] text-ink-faint"
+      >
+        <a href="/" class="transition-colors hover:text-ink">{site.name}</a>
+        <span class="text-line-strong" aria-hidden="true">/</span>
+        <span aria-current="page">music</span>
+      </nav>
+      <h1
+        id="music-title"
+        class="display-face mt-5 text-[2.4rem] text-ink sm:mt-[26px] sm:text-[clamp(2.25rem,4vw,3rem)]"
+      >
+        {page.title}
+      </h1>
+      <p class="mt-3 max-w-[52ch] text-[0.9375rem] leading-[1.65] text-ink-dim sm:text-[0.96875rem]">
+        {page.description}
+      </p>
+      <a
+        href={profileUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="mt-auto inline-flex items-center gap-2 self-start pt-5 font-mono text-xs text-ink-dim transition-colors hover:text-brand-alt sm:pt-[22px]"
+      >
+        <SpotifyIcon className="h-4 w-4" />
+        Spotify profile ↗
+      </a>
     </section>
 
-    <section>
-      <h2 class="rule-heading label mb-5">Top</h2>
-      <TopMusic server:defer>
-        <!-- Mirrors MusicExplorer's controls and twelve rows, so the
-             sections below don't jump when it lands. -->
+    <section
+      class="tile col-span-12 flex animate-rise flex-col p-[18px] [animation-delay:30ms] sm:p-[22px] sm:max-[1020px]:-order-1 min-[1021px]:col-span-7 min-[1021px]:col-start-1 min-[1021px]:row-span-2 min-[1021px]:row-start-1"
+    >
+      <NowPlaying client:idle layout="page" />
+    </section>
+
+    <section
+      class="tile col-span-12 flex animate-rise flex-col [animation-delay:60ms] max-sm:p-[18px] sm:max-[1020px]:col-span-6 min-[1021px]:col-span-5 min-[1021px]:col-start-8 min-[1021px]:row-start-2"
+    >
+      <ListeningStats server:defer>
+        <!-- Head row and one row of three facts, as ListeningStats renders. -->
         <div slot="fallback" aria-hidden="true">
-          <div class="mb-5 flex flex-wrap items-baseline gap-x-6 gap-y-3 font-mono text-xs text-ink-faint">
+          <div class="mb-4 flex min-h-4 items-center">
+            <div class="placeholder-block h-2.5 w-24 rounded-xs"></div>
+          </div>
+          <div class="flex gap-x-8">
+            {
+              [0, 1, 2].map(() => (
+                <div class="flex flex-col gap-1.5">
+                  <div class="placeholder-block h-7 w-12 rounded-xs" />
+                  <div class="placeholder-block h-2.5 w-16 rounded-xs" />
+                </div>
+              ))
+            }
+          </div>
+        </div>
+      </ListeningStats>
+    </section>
+
+    <section
+      class="tile col-span-12 animate-rise [animation-delay:90ms] max-sm:p-[18px] min-[1021px]:col-span-8"
+    >
+      <TopMusic server:defer>
+        <!-- Mirrors MusicExplorer's head, controls and twelve rows, so the
+             tile doesn't jump when it lands. -->
+        <div slot="fallback" aria-hidden="true">
+          <div class="mb-4 flex min-h-4 items-center">
+            <span class="label">Top</span>
+          </div>
+          <div class="mb-[18px] flex flex-wrap items-baseline gap-x-6 gap-y-3 font-mono text-xs text-ink-faint">
             <div class="flex gap-4">
               {["tracks", "artists"].map((label) => (
                 <span class="border-b border-transparent pb-0.5">{label}</span>
@@ -54,17 +103,17 @@ const profileUrl = `https://open.spotify.com/user/${site.spotifyUser}`;
               ))}
             </div>
           </div>
-          <ol class="divide-y divide-line border-y border-line">
+          <ol class="divide-y divide-line-soft border-t border-line-soft">
             {
               Array.from({ length: 12 }).map(() => (
-                <li class="flex items-center gap-4 py-2.5">
+                <li class="flex items-center gap-3.5 py-2.5">
                   <span class="w-5 shrink-0" />
                   <div class="placeholder-block h-9 w-9 shrink-0 rounded-xs" />
                   <span class="min-w-0 flex-1">
                     <span class="block text-[0.9375rem]">
                       <span class="placeholder-block inline-block h-3 w-40 rounded-xs align-middle" />
                     </span>
-                    <span class="block text-xs">
+                    <span class="mt-px block text-[12.5px]">
                       <span class="placeholder-block inline-block h-2.5 w-24 rounded-xs align-middle" />
                     </span>
                   </span>
@@ -76,21 +125,26 @@ const profileUrl = `https://open.spotify.com/user/${site.spotifyUser}`;
       </TopMusic>
     </section>
 
-    <section>
-      <h2 class="rule-heading label mb-5">Recently played</h2>
+    <section
+      class="tile col-span-12 animate-rise [animation-delay:120ms] max-sm:p-[18px] min-[1021px]:col-span-4"
+      aria-labelledby="recent-title"
+    >
+      <div class="mb-4 flex min-h-4 items-center">
+        <h2 id="recent-title" class="label">Recently played</h2>
+      </div>
       <RecentTracks server:defer>
         <!-- Row for row with RecentTracks.astro's fifteen. -->
-        <ol slot="fallback" aria-hidden="true" class="divide-y divide-line border-y border-line">
+        <ol slot="fallback" aria-hidden="true" class="divide-y divide-line-soft border-t border-line-soft">
           {
             Array.from({ length: 15 }).map(() => (
-              <li class="flex items-center gap-4 py-2.5">
+              <li class="flex items-center gap-3.5 py-[9px]">
                 <div class="placeholder-block h-8 w-8 shrink-0 rounded-xs" />
                 <span class="min-w-0 flex-1">
-                  <span class="block text-[0.9375rem]">
-                    <span class="placeholder-block inline-block h-3 w-40 rounded-xs align-middle" />
+                  <span class="block text-[14.5px]">
+                    <span class="placeholder-block inline-block h-3 w-32 rounded-xs align-middle" />
                   </span>
-                  <span class="block text-xs">
-                    <span class="placeholder-block inline-block h-2.5 w-24 rounded-xs align-middle" />
+                  <span class="mt-px block text-[12.5px]">
+                    <span class="placeholder-block inline-block h-2.5 w-20 rounded-xs align-middle" />
                   </span>
                 </span>
               </li>

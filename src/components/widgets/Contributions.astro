@@ -1,5 +1,6 @@
 ---
 import { getContributions } from "@/lib/github";
+import { summarise } from "@/lib/contrib-summary";
 
 // A server island, so a slow GitHub response never blocks the page. The loader
 // throws, so `data === null` means one thing — no GITHUB_TOKEN — and `failed`
@@ -14,11 +15,6 @@ try {
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-// A column is a 10px cell plus the 3px gap that follows it.
-const COLUMN = 13;
-// Roughly the width of a three-character label at font-mono/10px.
-const LABEL_WIDTH = 20;
 
 // Month labels sit above the first week that starts a new month.
 const monthStarts: { index: number; label: string }[] = [];
@@ -36,43 +32,70 @@ if (data) {
 }
 
 // The year starts mid-month, so the leading month may own one column and its
-// label would run into the next. A whole month spans at least four.
+// label would run into the next. Three columns clear a three-letter label at
+// the narrowest a column gets.
 const monthLabels = monthStarts.filter((start, position) => {
   const next = monthStarts[position + 1];
-  if (!next) return true;
-  return (next.index - start.index) * COLUMN >= LABEL_WIDTH;
+  return !next || next.index - start.index >= 3;
 });
+
+const summary = data ? summarise(data.weeks) : null;
+const DAY = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+const weekCount = data?.weeks.length ?? 53;
 ---
 
-{
-  data ? (
-    <div>
-      {/* prettier-ignore */}
-      <div
-        data-contrib-scroller
-        class="overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [--fade-l:0px] [--fade-r:0px] [mask-image:linear-gradient(to_right,transparent_0,#000_var(--fade-l),#000_calc(100%-var(--fade-r)),transparent_100%)]"
-      >
-        <div class="inline-block min-w-full">
-          <div class="relative mb-1 ml-[26px] h-3">
+<section class="tile flex flex-col [grid-area:hm]" aria-labelledby="contrib-heading">
+  <div class="mb-4 flex items-center gap-2.5">
+    <h2 class="label" id="contrib-heading">Contributions</h2>
+    {
+      data && (
+        <span class="ml-auto font-mono text-[11px] text-ink-dim">
+          <b class="font-semibold text-ink">{data.total.toLocaleString("en-GB")}</b> in the last year
+        </span>
+      )
+    }
+  </div>
+
+  {
+    data && summary ? (
+      <>
+        <dl class="mb-[18px] flex gap-8">
+          {[
+            { label: "Longest streak", value: `${summary.longestStreak} day${summary.longestStreak === 1 ? "" : "s"}` },
+            { label: "This week", value: String(summary.thisWeek) },
+            { label: "Busiest day", value: summary.busiest ? DAY.format(new Date(summary.busiest.date)) : "—" },
+          ].map((fact) => (
+            <div class="flex flex-col-reverse gap-[5px]">
+              <dt class="font-mono text-[10.5px] text-ink-faint">{fact.label}</dt>
+              <dd class="font-mono text-lg font-semibold tracking-[-0.02em] tabular-nums text-ink">{fact.value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        {/* prettier-ignore */}
+        <div
+          data-contrib-scroller
+          class="mt-auto overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [--fade-l:0px] [--fade-r:0px] [mask-image:linear-gradient(to_right,transparent_0,#000_var(--fade-l),#000_calc(100%-var(--fade-r)),transparent_100%)]"
+        >
+          {/* Columns stretch to the tile and stop shrinking at 8px, where the scroller takes over. */}
+          <div
+            class="grid min-w-full gap-[3px]"
+            style={`grid-template-columns: 22px repeat(${weekCount}, minmax(8px, 1fr))`}
+          >
+            <span />
             {monthLabels.map(({ index, label }) => (
               <span
-                class="absolute font-mono text-[10px] text-ink-faint"
-                style={`left: ${index * COLUMN}px`}
+                class="col-span-3 font-mono text-[10px] leading-3 text-ink-faint"
+                style={`grid-column-start: ${index + 2}`}
               >
                 {label}
               </span>
             ))}
-          </div>
 
-          <div class="flex gap-[3px]">
-            <div class="mr-1 flex w-[22px] shrink-0 flex-col gap-[3px] font-mono text-[9px] text-ink-faint">
-              <span class="h-2.5" />
-              <span class="h-2.5 leading-[10px]">Mon</span>
-              <span class="h-2.5" />
-              <span class="h-2.5 leading-[10px]">Wed</span>
-              <span class="h-2.5" />
-              <span class="h-2.5 leading-[10px]">Fri</span>
-              <span class="h-2.5" />
+            <div class="row-start-2 mr-1 grid grid-rows-7 gap-[3px] font-mono text-[9px] text-ink-faint">
+              {["", "Mon", "", "Wed", "", "Fri", ""].map((day) => (
+                <span class="flex items-center leading-none">{day}</span>
+              ))}
             </div>
 
             {data.weeks.map((week) => {
@@ -82,14 +105,15 @@ const monthLabels = monthStarts.filter((start, position) => {
                 week.map((day) => [new Date(day.date).getUTCDay(), day]),
               );
               return (
-                <div class="flex flex-col gap-[3px]">
+                <div class="row-start-2 grid grid-rows-7 gap-[3px]">
                   {Array.from({ length: 7 }, (_, day) => {
                     const cell = byWeekday.get(day);
-                    if (!cell) return <span class="h-2.5 w-2.5" />;
+                    if (!cell) return <span class="aspect-square" />;
                     return (
                       <span
-                        class="h-2.5 w-2.5 rounded-[1px]"
+                        class="aspect-square rounded-[2px]"
                         data-level={cell.level}
+                        data-contrib-day={`${cell.count} contribution${cell.count === 1 ? "" : "s"} on ${DAY.format(new Date(cell.date))}`}
                         title={`${cell.count} contribution${cell.count === 1 ? "" : "s"} on ${cell.date}`}
                       />
                     );
@@ -99,26 +123,26 @@ const monthLabels = monthStarts.filter((start, position) => {
             })}
           </div>
         </div>
-      </div>
 
-      <div class="mt-3.5 flex items-center gap-1.5 font-mono text-[10px] text-ink-faint">
-        <span>{data.total.toLocaleString("en-GB")} in the last year</span>
-        <span class="ml-auto">Less</span>
-        {[0, 1, 2, 3, 4].map((level) => (
-          <span class="h-2.5 w-2.5 rounded-[1px]" data-level={level} />
-        ))}
-        <span>More</span>
-      </div>
-    </div>
-  ) : failed ? (
-    <p class="py-4 text-sm text-ink-faint">Couldn't reach GitHub.</p>
-  ) : (
-    <p class="py-4 text-sm text-ink-faint">
-      Set <code class="font-mono text-ink-dim">GITHUB_TOKEN</code> to show the
-      contribution graph.
-    </p>
-  )
-}
+        <div class="mt-3 flex items-center gap-1.5 font-mono text-[10.5px] text-ink-faint">
+          <span data-contrib-tip class="min-h-[1em] text-ink-dim" aria-hidden="true">Hover a day</span>
+          <span class="ml-auto">Less</span>
+          {[0, 1, 2, 3, 4].map((level) => (
+            <span class="h-2.5 w-2.5 rounded-[2px]" data-level={level} />
+          ))}
+          <span>More</span>
+        </div>
+      </>
+    ) : failed ? (
+      <p class="py-4 text-sm text-ink-faint">Couldn't reach GitHub.</p>
+    ) : (
+      <p class="py-4 text-sm text-ink-faint">
+        Set <code class="font-mono text-ink-dim">GITHUB_TOKEN</code> to show the
+        contribution graph.
+      </p>
+    )
+  }
+</section>
 
 <style>
   [data-level="0"] {
@@ -136,12 +160,17 @@ const monthLabels = monthStarts.filter((start, position) => {
   [data-level="4"] {
     background: var(--color-brand);
   }
+
+  [data-contrib-day]:hover {
+    outline: 1px solid var(--color-ink);
+    outline-offset: -1px;
+  }
 </style>
 
 <script>
   import { edgeFade } from "@/lib/edge-fade";
 
-  // The graph is wider than the scroller below ~768 with the scrollbar
+  // The graph is wider than the scroller on phones with the scrollbar
   // suppressed, so fade whichever edge is cutting content off and start
   // scrolled to the recent end. `edgeFade` holds that decision so it can be
   // unit-tested — see CLAUDE.md § Maintenance › Gotchas.
@@ -168,6 +197,20 @@ const monthLabels = monthStarts.filter((start, position) => {
     sync();
     scroller.addEventListener("scroll", sync, { passive: true });
     window.addEventListener("resize", sync, { passive: true });
+
+    // The footer echoes the hovered day; the title attribute covers touch and
+    // assistive tech, so this is pointer-only.
+    const tip = scroller.parentElement?.querySelector<HTMLElement>("[data-contrib-tip]");
+    if (tip) {
+      const resting = tip.textContent;
+      scroller.addEventListener("pointerover", (event) => {
+        const day = (event.target as HTMLElement).dataset.contribDay;
+        if (day) tip.textContent = day;
+      });
+      scroller.addEventListener("pointerleave", () => {
+        tip.textContent = resting;
+      });
+    }
   }
 
   function setupContributions(): boolean {

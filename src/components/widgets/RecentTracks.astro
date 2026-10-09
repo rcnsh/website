@@ -1,11 +1,15 @@
 ---
 import { getRecentTracks } from "@/lib/spotify";
+import { RECENT_WINDOW } from "@/lib/listening";
 import { relativeTime } from "@/lib/utils";
+
+const RECENT_SHOWN = 15;
 
 let tracks: Awaited<ReturnType<typeof getRecentTracks>> = [];
 let failed = false;
 try {
-  tracks = await getRecentTracks(15);
+  // The stats tile's window, so both read one cache entry.
+  tracks = (await getRecentTracks(RECENT_WINDOW)).slice(0, RECENT_SHOWN);
 } catch (error) {
   failed = true;
   console.error("[music] recent tracks island failed", error);
@@ -18,14 +22,14 @@ try {
   ) : tracks.length === 0 ? (
     <p class="py-6 text-sm text-ink-faint">Nothing to show yet.</p>
   ) : (
-    <ol class="divide-y divide-line border-y border-line">
+    <ol class="divide-y divide-line-soft border-t border-line-soft">
       {tracks.map((track) => (
         <li>
           <a
             href={track.url ?? "#"}
             target="_blank"
             rel="noopener noreferrer"
-            class="group flex items-center gap-4 py-2.5"
+            class="group flex items-center gap-3.5 py-[9px]"
           >
             {track.image ? (
               <img
@@ -34,17 +38,17 @@ try {
                 width={32}
                 height={32}
                 loading="lazy"
-                class="h-8 w-8 shrink-0 rounded-xs object-cover"
+                class="h-8 w-8 shrink-0 rounded-xs bg-raised object-cover"
               />
             ) : (
               <div class="h-8 w-8 shrink-0 rounded-xs bg-raised" />
             )}
 
             <span class="min-w-0 flex-1">
-              <span class="block truncate text-[0.9375rem] text-ink transition-colors group-hover:text-brand">
+              <span class="block truncate text-[14.5px] text-ink transition-colors group-hover:text-brand-alt">
                 {track.title}
               </span>
-              <span class="block truncate text-xs text-ink-dim">
+              <span class="mt-px block truncate text-[12.5px] text-ink-dim">
                 {track.artists}
               </span>
             </span>

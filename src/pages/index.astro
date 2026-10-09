@@ -1,121 +1,248 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import Logo from "@/components/Logo.astro";
+import RichText from "@/components/RichText.astro";
+import FilesTile from "@/components/home/FilesTile.astro";
+import GuestbookTile from "@/components/home/GuestbookTile.astro";
+import LinkTile from "@/components/home/LinkTile.astro";
+import NowPlaying from "@/components/react/NowPlaying";
+import ClockTile from "@/components/widgets/ClockTile.astro";
 import Contributions from "@/components/widgets/Contributions.astro";
 import Repos from "@/components/widgets/Repos.astro";
 import Stack from "@/components/widgets/Stack.astro";
 import Stats from "@/components/widgets/Stats.astro";
-import ClockTile from "@/components/widgets/ClockTile.astro";
-import NowPlaying from "@/components/react/NowPlaying";
-import PostList from "@/components/PostList.astro";
-import RichText from "@/components/RichText.astro";
-import { getPosts } from "@/lib/blog";
-import { home, site } from "@/lib/site";
+import { formatDate, getPosts, isoDate, postHref, readingTime } from "@/lib/blog";
+import { externalLinks, home, site } from "@/lib/site";
 
 const recentPosts = (await getPosts()).slice(0, 3);
+const [firstName, ...rest] = site.author.split(" ");
+const github = externalLinks.find((link) => link.icon === "github");
+const pgp = externalLinks.find((link) => link.icon === "key");
 ---
 
 <Layout>
-  <!-- Masthead -->
-  <section class="animate-rise pb-10 pt-2 sm:pt-6">
-    <Logo class="h-10 w-auto sm:h-12" />
-
-    <h1
-      class="display-face mt-7 text-[2.75rem] text-ink sm:text-[4rem]"
+  {/*
+    Every tile names its grid area, and the areas are restated per breakpoint
+    below, so a tile that is slow to arrive (a server island) holds its place
+    rather than letting the others reflow into it. Islands emit no wrapper, so
+    their tiles are direct children of the grid too.
+  */}
+  <div class="home-grid bento pb-2">
+    <section
+      class="tile identity flex flex-col overflow-hidden px-9 py-8 [grid-area:id] max-sm:px-[22px] max-sm:py-[26px]"
+      aria-labelledby="who"
     >
-      {site.author}
-    </h1>
-    <p class="mt-3.5 font-mono text-[0.8125rem] text-ink-faint">
-      {site.tagline}
-    </p>
+      <Logo class="h-10 w-auto self-start" />
 
-    <RichText
-      text={home.bio}
-      class="mt-9 max-w-[56ch] text-[1.0625rem] leading-[1.75] text-ink-dim"
-    />
-  </section>
+      <h1
+        id="who"
+        class="display-face mt-[34px] text-[clamp(2.5rem,4.6vw,3.75rem)] text-ink max-sm:mt-[26px] max-sm:text-[2.6rem]"
+      >
+        {firstName}<br />{rest.join(" ")}
+      </h1>
+      <p class="mt-3.5 font-mono text-[13px] text-ink-faint">{site.tagline}</p>
 
-  <!--
-    flex+gap, not space-y — islands render as display:contents, so `> * + *`
-    margins would land on zero-height elements.
-  -->
-  <div class="flex flex-col gap-14 pb-6">
-    <!-- Facts strip. display:contents on the island makes these siblings. -->
-    <dl
-      class="flex flex-wrap gap-x-12 gap-y-5 border-y border-line py-5"
-    >
-      <ClockTile />
-      <Stats server:defer>
-        <Fragment slot="fallback">
-          {
-            Array.from({ length: 3 }).map(() => (
+      <RichText
+        text={home.bio}
+        class="mt-auto max-w-[54ch] pt-8 text-[16.5px] leading-[1.72] text-ink-dim max-sm:pt-[22px] max-sm:text-[15.5px]"
+      />
+    </section>
+
+    <section class="tile flex flex-col p-5 [grid-area:np]" aria-label="Listening">
+      <NowPlaying client:visible layout="home" />
+    </section>
+
+    <ClockTile class="[grid-area:ck]" />
+
+    <Stats server:defer>
+      <Fragment slot="fallback">
+        {
+          ["s1", "s2", "s3"].map((area) => (
+            <div class="tile flex flex-col justify-between gap-[18px]" style={`grid-area: ${area}`}>
+              <div class="placeholder-block h-2.5 w-16 rounded-xs" />
               <div>
-                <div class="placeholder-block h-2.5 w-16 rounded-xs" />
-                <div class="placeholder-block mt-2.5 h-4 w-10 rounded-xs" />
+                <div class="placeholder-block h-[30px] w-14 rounded-xs" />
+                <div class="placeholder-block mt-2 h-2.5 w-12 rounded-xs" />
               </div>
-            ))
-          }
-        </Fragment>
-      </Stats>
-    </dl>
+            </div>
+          ))
+        }
+      </Fragment>
+    </Stats>
+
+    <section class="tile flex flex-col [grid-area:wr]" aria-labelledby="writing-heading">
+      <div class="mb-4 flex items-center gap-2.5">
+        <h2 class="label" id="writing-heading">Writing</h2>
+        <a href="/blog" class="ml-auto font-mono text-[11px] text-ink-faint transition-colors hover:text-ink">
+          All posts &rarr;
+        </a>
+      </div>
+
+      {
+        recentPosts.length > 0 ? (
+          <ul class="flex flex-1 flex-col divide-y divide-line-soft">
+            {recentPosts.map((post) => (
+              <li>
+                <a href={postHref(post)} class="group block py-[15px] [li:first-child_&]:pt-0.5">
+                  <time class="font-mono text-[11px] text-ink-faint" datetime={isoDate(post.data.pubDate)}>
+                    {formatDate(post.data.pubDate)} · {readingTime(post.body)} min
+                  </time>
+                  <h3 class="mt-1.5 text-[16px] font-medium leading-snug text-ink transition-colors group-hover:text-brand-alt">
+                    {post.data.title}
+                    {post.data.draft && <span class="label ml-2 align-middle text-brand">draft</span>}
+                    <span
+                      aria-hidden="true"
+                      class="inline-block -translate-x-1 text-brand opacity-0 transition duration-200 group-hover:translate-x-0 group-hover:opacity-100"
+                    >
+                      &rarr;
+                    </span>
+                  </h3>
+                  <p class="mt-1.5 text-[13.5px] leading-[1.55] text-ink-dim">{post.data.description}</p>
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p class="text-sm text-ink-faint">Nothing published yet.</p>
+        )
+      }
+    </section>
+
+    <Contributions server:defer>
+      <section slot="fallback" class="tile flex flex-col [grid-area:hm]" aria-hidden="true">
+        <div class="mb-4 flex items-center">
+          <div class="placeholder-block h-2.5 w-24 rounded-xs" />
+          <div class="placeholder-block ml-auto h-2.5 w-28 rounded-xs" />
+        </div>
+        <div class="mb-[18px] flex gap-8">
+          {Array.from({ length: 3 }).map(() => (
+            <div>
+              <div class="placeholder-block h-[18px] w-14 rounded-xs" />
+              <div class="placeholder-block mt-2 h-2.5 w-16 rounded-xs" />
+            </div>
+          ))}
+        </div>
+        <div class="placeholder-block mt-auto h-[118px] rounded-xs" />
+      </section>
+    </Contributions>
+
+    <FilesTile server:defer>
+      <LinkTile slot="fallback" class="[grid-area:fl]" href="/files" title="Files" detail="Public files on R2" icon="file" />
+    </FilesTile>
+
+    <Repos server:defer>
+      <section slot="fallback" class="tile flex flex-col [grid-area:rp]" aria-hidden="true">
+        <div class="mb-4 flex items-center">
+          <div class="placeholder-block h-2.5 w-24 rounded-xs" />
+          <div class="placeholder-block ml-auto h-2.5 w-16 rounded-xs" />
+        </div>
+        <div class="grid flex-1 gap-2.5 sm:grid-cols-2">
+          {Array.from({ length: 4 }).map(() => (
+            <div class="flex min-h-[132px] flex-col rounded-card border border-line-soft px-4 pb-3.5 pt-4">
+              <div class="placeholder-block h-3 w-32 rounded-xs" />
+              <div class="placeholder-block mt-3 h-2.5 w-full rounded-xs" />
+              <div class="placeholder-block mt-2 h-2.5 w-2/3 rounded-xs" />
+              <div class="placeholder-block mt-auto h-2.5 w-28 rounded-xs" />
+            </div>
+          ))}
+        </div>
+      </section>
+    </Repos>
+
+    <Stack />
+
+    <LinkTile
+      class="[grid-area:gh]"
+      href={github?.href ?? `https://github.com/${site.githubUser}`}
+      title="GitHub"
+      detail={`@${site.githubUser}`}
+      icon="github"
+      external
+    />
 
     {
-      recentPosts.length > 0 && (
-        <section>
-          <h2 class="rule-heading label mb-2">Writing</h2>
-          <PostList posts={recentPosts} />
-          <a
-            href="/blog"
-            class="label mt-5 inline-block transition-colors hover:text-ink-dim"
-          >
-            All posts &rarr;
-          </a>
-        </section>
+      pgp && (
+        <LinkTile
+          class="[grid-area:pg]"
+          href={pgp.href}
+          title={pgp.label}
+          detail={pgp.href.split("/").pop()!.replace(/\.txt$/, "")}
+          icon="key"
+        />
       )
     }
 
-    <section>
-      <h2 class="rule-heading label mb-5">Listening</h2>
-      <NowPlaying client:visible />
-    </section>
-
-    <section>
-      <h2 class="rule-heading label mb-5">Contributions</h2>
-      <Contributions server:defer>
-        <div slot="fallback" class="placeholder-block h-[137px] rounded-xs">
-        </div>
-      </Contributions>
-    </section>
-
-    <section>
-      <h2 class="rule-heading label mb-5">Uses</h2>
-      <Stack />
-    </section>
-
-    <Repos server:defer>
-      <!-- Row for row with Repos.astro (four repos), so nothing below jumps. -->
-      <div slot="fallback" aria-hidden="true">
-        <div class="rule-heading label mb-5">Selected work</div>
-        <ul class="divide-y divide-line border-y border-line">
-          {
-            Array.from({ length: 4 }).map(() => (
-              <li class="flex flex-col gap-1 py-4 sm:flex-row sm:items-baseline sm:gap-6">
-                <span class="w-full shrink-0 font-mono text-sm sm:w-[15rem]">
-                  <span class="placeholder-block inline-block h-3 w-32 rounded-xs align-middle" />
-                </span>
-                <span class="flex-1 text-[0.9375rem] leading-relaxed">
-                  <span class="placeholder-block inline-block h-3 w-full max-w-72 rounded-xs align-middle" />
-                  {/* Descriptions usually wrap to a second line. */}
-                  <span class="placeholder-block inline-block h-3 w-40 rounded-xs align-middle" />
-                </span>
-                <span class="shrink-0 font-mono text-[11px]">
-                  <span class="placeholder-block inline-block h-2.5 w-20 rounded-xs align-middle" />
-                </span>
-              </li>
-            ))
-          }
-        </ul>
-      </div>
-    </Repos>
+    <GuestbookTile server:defer>
+      <LinkTile slot="fallback" class="[grid-area:gb]" href="/guestbook" title="Guestbook" detail="Sign with GitHub" icon="book" />
+    </GuestbookTile>
   </div>
 </Layout>
+
+<style>
+  .home-grid {
+    grid-auto-rows: minmax(104px, auto);
+    grid-template-areas:
+      "id id id id id id id np np np np np"
+      "id id id id id id id np np np np np"
+      "id id id id id id id ck ck ck s1 s1"
+      "wr wr wr wr wr hm hm hm hm hm hm hm"
+      "wr wr wr wr wr hm hm hm hm hm hm hm"
+      "wr wr wr wr wr s2 s2 s3 s3 fl fl fl"
+      "rp rp rp rp rp rp rp st st st st st"
+      "rp rp rp rp rp rp rp gh gh gh pg pg"
+      "rp rp rp rp rp rp rp gb gb gb gb gb";
+  }
+
+  @media (max-width: 1020px) {
+    .home-grid {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      grid-template-areas:
+        "id id id id id id"
+        "id id id id id id"
+        "np np np np ck ck"
+        "np np np np s1 s1"
+        "wr wr wr s2 s2 s2"
+        "wr wr wr s3 s3 s3"
+        "hm hm hm hm hm hm"
+        "rp rp rp rp rp rp"
+        "rp rp rp rp rp rp"
+        "st st st st st st"
+        "gh gh gh pg pg pg"
+        "gb gb gb fl fl fl";
+    }
+  }
+
+  @media (max-width: 640px) {
+    .home-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-rows: auto;
+      grid-template-areas:
+        "id id" "np np" "ck ck" "s1 s2" "s3 s3" "wr wr" "hm hm" "rp rp" "st st"
+        "gh pg" "gb fl";
+    }
+  }
+
+  /* The corner glow every page-hero tile echoes, larger here. */
+  .identity::before {
+    content: "";
+    position: absolute;
+    inset: auto -20% -55% auto;
+    width: 75%;
+    aspect-ratio: 1;
+    background: radial-gradient(
+      closest-side,
+      color-mix(in oklab, var(--color-brand) 16%, transparent),
+      transparent
+    );
+    pointer-events: none;
+  }
+
+  /* Tiles rise in reading order; islands land later and rise on arrival. */
+  .home-grid > :global(*) {
+    animation: var(--animate-rise);
+  }
+  .home-grid > :global(:nth-child(2)) { animation-delay: 0.03s; }
+  .home-grid > :global(:nth-child(3)) { animation-delay: 0.06s; }
+  .home-grid > :global(:nth-child(4)) { animation-delay: 0.09s; }
+  .home-grid > :global(:nth-child(n + 5)) { animation-delay: 0.12s; }
+</style>

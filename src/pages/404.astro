@@ -1,28 +1,156 @@
 ---
 import Layout from "@/layouts/Layout.astro";
-import { pages } from "@/lib/site";
+import Icon from "@/components/Icon.astro";
+import { getPosts } from "@/lib/blog";
+import { nav, pages, site, uses } from "@/lib/site";
 
 const page = pages.notFound;
+
+const posts = (await getPosts()).length;
+const things = uses.groups.reduce((sum, group) => sum + group.items.length, 0);
+
+// The second line of each page tile: a real figure where one is free at
+// build time, otherwise where it lives.
+const subtitles: Record<string, string> = {
+  "/": site.name,
+  "/blog": `${posts} post${posts === 1 ? "" : "s"}`,
+  "/uses": `${things} things`,
+};
 ---
 
 <Layout title="404" description={page.description}>
-  {/*
-    `main` is `flex-1` inside a `min-h-dvh` column, so on a tall window the 404
-    left ~780px of empty space below it and the whole block sat jammed against
-    the header. Centring uses the height the layout already reserves rather
-    than adding any. Guarded at `sm` so the short-viewport case, where there is
-    nothing spare to centre in, is untouched.
-  */}
-  <section class="animate-rise pb-20 sm:flex sm:min-h-[55vh] sm:flex-col sm:justify-center sm:pb-0">
-    <p class="font-mono text-sm text-ink-faint">404</p>
-    <h1 class="display-face mt-3 text-[2.25rem] text-ink">{page.title}</h1>
-    <p class="mt-2.5 max-w-[46ch] text-ink-dim">
-      Press <kbd class="font-mono text-sm text-ink">⌘K</kbd> to jump somewhere else, or{" "}
-      <a
-        href="/"
-        class="text-ink underline decoration-line-strong underline-offset-[3px] transition-colors hover:decoration-brand"
-        >go home</a
-      >.
-    </p>
-  </section>
+  <div class="bento pb-6 min-[1021px]:min-h-[55vh] min-[1021px]:content-center">
+    <section
+      class="tile page-hero col-span-12 min-h-[380px] px-9 py-8 max-sm:min-h-0 max-sm:px-[22px] max-sm:py-[26px] min-[1021px]:col-span-6 min-[1021px]:row-span-3"
+      aria-labelledby="nf-title"
+    >
+      <p
+        class="nf-code font-mono text-[clamp(5rem,11vw,8.5rem)] font-bold leading-[0.85] tracking-[-0.07em]"
+        aria-hidden="true"
+      >
+        404
+      </p>
+      <h1
+        id="nf-title"
+        class="display-face mt-[26px] text-[clamp(1.75rem,3vw,2.25rem)] leading-[1.1] text-ink"
+      >
+        {page.title}
+      </h1>
+      <p class="mt-3 max-w-[46ch] leading-[1.65] text-ink-dim">
+        {page.description} Press{" "}
+        <kbd class="rounded border border-line bg-raised px-1.5 py-px font-mono text-[0.8125rem] text-ink">⌘K</kbd>
+        {" "}to jump somewhere else, or{" "}
+        <a
+          href="/"
+          class="text-ink underline decoration-line-strong underline-offset-[3px] transition-colors hover:text-brand-alt hover:decoration-brand"
+          >go home</a
+        >.
+      </p>
+      <p class="mt-auto flex min-w-0 items-center gap-2 pt-7 font-mono text-xs text-ink-faint" hidden data-nf-path>
+        <span>requested</span>
+        <code class="nf-path truncate text-bad"></code>
+      </p>
+    </section>
+
+    <button
+      type="button"
+      data-palette-trigger
+      class="tile tile-link group col-span-12 flex cursor-pointer flex-col justify-between gap-[18px] text-left min-[1021px]:col-span-6"
+    >
+      <span class="flex items-start justify-between">
+        <span class="nf-ic">
+          <Icon name="search" class="h-4 w-4" />
+        </span>
+        <span class="flex gap-1" aria-hidden="true">
+          <kbd class="rounded border border-line bg-base px-1.5 py-0.5 font-mono text-[0.6875rem] text-ink-dim">⌘</kbd>
+          <kbd class="rounded border border-line bg-base px-1.5 py-0.5 font-mono text-[0.6875rem] text-ink-dim">K</kbd>
+        </span>
+      </span>
+      <span>
+        <span class="block text-[0.9375rem] font-[550] text-ink">Search everything</span>
+        <span class="mt-[3px] block font-mono text-[0.6875rem] text-ink-faint">pages, links, and a small shell</span>
+      </span>
+    </button>
+
+    {
+      nav.map((item) => (
+        <a
+          href={item.href}
+          class="tile tile-link group col-span-6 flex flex-col justify-between gap-[18px] min-[641px]:col-span-4 min-[1021px]:col-span-2"
+        >
+          <span class="flex items-start justify-between">
+            <span class="nf-ic">
+              <Icon name={item.icon} class="h-4 w-4" />
+            </span>
+            <span
+              class="text-ink-faint transition duration-200 group-hover:translate-x-0.5 group-hover:text-brand-alt"
+              aria-hidden="true"
+            >
+              &rarr;
+            </span>
+          </span>
+          <span>
+            <span class="block text-[0.9375rem] font-[550] text-ink">{item.label}</span>
+            <span class="mt-[3px] block font-mono text-[0.6875rem] text-ink-faint">
+              {subtitles[item.href] ?? item.href}
+            </span>
+          </span>
+        </a>
+      ))
+    }
+  </div>
 </Layout>
+
+<style>
+  .nf-code {
+    background: linear-gradient(
+      180deg,
+      var(--color-ink) 30%,
+      color-mix(in oklab, var(--color-ink) 25%, transparent)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .nf-path {
+    text-decoration: line-through;
+    text-decoration-color: color-mix(in oklab, var(--color-bad) 50%, transparent);
+  }
+
+  .nf-ic {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    flex: none;
+    border-radius: 6px;
+    border: 1px solid var(--color-line-soft);
+    background: var(--color-raised);
+    color: var(--color-ink-dim);
+    transition:
+      color 0.2s,
+      border-color 0.2s;
+  }
+
+  .group:hover .nf-ic {
+    color: var(--color-brand-alt);
+    border-color: var(--color-line);
+  }
+</style>
+
+<script>
+  // Prerendered, so only the browser knows what was asked for.
+  const line = document.querySelector<HTMLElement>("[data-nf-path]");
+  const path = line?.querySelector("code");
+  if (line && path && !/^\/404(\.html)?$/.test(location.pathname)) {
+    let shown = location.pathname;
+    try {
+      shown = decodeURIComponent(shown);
+    } catch {
+      // Malformed escapes: show the path as requested.
+    }
+    path.textContent = shown;
+    line.hidden = false;
+  }
+</script>

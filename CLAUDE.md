@@ -128,7 +128,7 @@ it and resurrect guestbook entries their authors deleted.
 **Mediabunny never decodes on the Worker.** Workers have no WebCodecs.
 `src/lib/media-meta.ts` demuxes only (no sinks, no `Conversion`), through a
 `CustomSource` of ranged R2 reads capped by `READ_BUDGET`. Decoding lives in
-`src/lib/media-preview.ts`, which `MediaPreview.tsx` loads with `import()` so
+`src/lib/media-preview.ts`, which `src/components/files/client.ts` loads with `import()` so
 Mediabunny stays out of the page bundle. Import from it, never from `mediabunny`
 directly in a component, or the chunk boundary goes.
 
@@ -157,6 +157,11 @@ deletes that entry.
 prerender time for the home page, not `/`. `TopBar` normalises this; anything
 else comparing pathnames must too. It differs from `astro dev`, so it is
 invisible in development.
+
+**`text-base` is a colour here, not a size.** The theme's `--color-base`
+token wins the name, so `text-base` paints text the page background — near
+invisible, and only noticed when no other `text-*` colour happens to override
+it. Write the size explicitly (`text-[16px]`).
 
 **The repo is lint-clean but not format-clean.** `npm run lint` runs
 `biome lint` only. Do not run `biome format --write` across the repo — it
