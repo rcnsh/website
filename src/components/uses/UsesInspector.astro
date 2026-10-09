@@ -1,8 +1,5 @@
 ---
-import { BRAND_MARKS } from "@/lib/brand-marks";
 import {
-  KIND_NOTE,
-  artKind,
   dailyDriver,
   pluggedIn,
   position,
@@ -58,9 +55,6 @@ const irl = groups[0];
           <span class="min-h-[1lh] font-mono text-xs text-ink-dim" data-in-detail>
             {driver.detail}
           </span>
-          <span class="mt-1 text-[0.78125rem] leading-snug text-ink-faint" data-in-note>
-            {KIND_NOTE[artKind(0, driver.art, BRAND_MARKS)]}
-          </span>
         </div>
       </div>
 
@@ -96,8 +90,6 @@ const irl = groups[0];
 }
 
 <script>
-  import { KIND_NOTE, type ArtKind } from "@/lib/uses";
-
   const root = document.querySelector<HTMLElement>("[data-uses-inspector]");
   const items = document.querySelectorAll<HTMLElement>("[data-uses-item]");
 
@@ -110,7 +102,6 @@ const irl = groups[0];
     const group = $("[data-in-group]");
     const name = $("[data-in-name]");
     const detail = $("[data-in-detail]");
-    const note = $("[data-in-note]");
     const plugged = $("[data-in-plugged]");
     const linkRow = $("[data-in-link]");
     const href = $<HTMLAnchorElement>("[data-in-href]");
@@ -137,7 +128,6 @@ const irl = groups[0];
       group.textContent = d.group ?? "";
       name.textContent = d.name ?? "";
       detail.textContent = d.detail ?? "";
-      note.textContent = KIND_NOTE[d.kind as ArtKind] ?? "";
 
       const svg = el.querySelector("svg");
       if (svg) art.replaceChildren(svg.cloneNode(true));
