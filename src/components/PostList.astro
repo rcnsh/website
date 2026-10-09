@@ -1,5 +1,5 @@
 ---
-import { formatDate, isoDate, postHref, type Post } from "@/lib/blog";
+import { formatDate, isoDate, postHref, readingTime, type Post } from "@/lib/blog";
 
 interface Props {
   posts: Post[];
@@ -9,29 +9,39 @@ interface Props {
 const { posts, class: className } = Astro.props;
 ---
 
-<ul class:list={["divide-y divide-line", className]}>
+<ul class:list={["divide-y divide-line-soft", className]}>
   {
     posts.map((post) => (
       <li>
         <a
           href={postHref(post)}
-          class="group grid gap-x-6 gap-y-1.5 py-5 sm:grid-cols-[6.5rem_1fr]"
+          class="group grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-6 gap-y-1.5 py-4 sm:grid-cols-[7rem_minmax(0,1fr)_auto] sm:py-5"
         >
-          <time class="label pt-1" datetime={isoDate(post.data.pubDate)}>
+          <time class="label text-[0.65625rem]" datetime={isoDate(post.data.pubDate)}>
             {formatDate(post.data.pubDate)}
           </time>
 
-          <div>
-            <h3 class="text-[1.0625rem] text-ink transition-colors group-hover:text-brand-alt">
+          <div class="col-span-full row-start-2 sm:col-span-1 sm:col-start-2 sm:row-start-1">
+            <h3 class="text-[1.0625rem] font-medium leading-snug text-ink transition-colors group-hover:text-brand-alt">
               {post.data.title}
               {post.data.draft && (
-                <span class="label ml-2 align-middle text-brand">draft</span>
+                <span class="label ml-2 align-[2px] text-[0.65625rem] text-brand">draft</span>
               )}
+              <span
+                aria-hidden="true"
+                class="hidden -translate-x-1 text-brand opacity-0 transition duration-200 group-hover:translate-x-0 group-hover:opacity-100 sm:inline-block"
+              >
+                &rarr;
+              </span>
             </h3>
             <p class="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-dim">
               {post.data.description}
             </p>
           </div>
+
+          <span class="whitespace-nowrap font-mono text-[0.6875rem] text-ink-faint">
+            {readingTime(post.body)} min
+          </span>
         </a>
       </li>
     ))

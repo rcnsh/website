@@ -1,5 +1,6 @@
 ---
 import { getFeaturedRepos } from "@/lib/github";
+import { languageColour } from "@/lib/languages";
 import { pinnedRepos } from "@/lib/site";
 import { relativeTime } from "@/lib/utils";
 
@@ -15,17 +16,16 @@ try {
 }
 ---
 
-<section>
-  <div class="mb-5 flex items-baseline gap-3.5">
-    <h2 class="label shrink-0">Selected work</h2>
-    <span class="h-px flex-1 bg-line"></span>
+<section class="tile flex flex-col [grid-area:rp]" aria-labelledby="repos-heading">
+  <div class="mb-4 flex items-center gap-2.5">
+    <h2 class="label" id="repos-heading">Selected work</h2>
     <a
       href="https://go.rcn.sh/github"
       target="_blank"
       rel="noopener noreferrer"
-      class="shrink-0 font-mono text-[11px] text-ink-faint transition-colors hover:text-ink-dim"
+      class="ml-auto font-mono text-[11px] text-ink-faint transition-colors hover:text-ink"
     >
-      all repos &rarr;
+      All repos &rarr;
     </a>
   </div>
 
@@ -43,27 +43,33 @@ try {
     ) : repos.length === 0 ? (
       <p class="py-6 text-sm text-ink-faint">Nothing to show yet.</p>
     ) : (
-      <ul class="divide-y divide-line border-y border-line">
+      <ul class="grid flex-1 gap-2.5 sm:grid-cols-2">
         {repos.map((repo) => (
-          <li>
+          <li class="flex">
             <a
               href={repo.url}
               target="_blank"
               rel="noopener noreferrer"
-              class="group flex flex-col gap-1 py-4 sm:flex-row sm:items-baseline sm:gap-6"
+              class="group flex flex-1 flex-col rounded-card border border-line-soft bg-[color-mix(in_oklab,var(--color-base)_50%,var(--color-surface))] px-4 pb-3.5 pt-4 transition-colors hover:border-line-strong hover:bg-raised"
             >
-              <span class="w-full shrink-0 font-mono text-sm text-ink transition-colors group-hover:text-brand sm:w-[15rem]">
+              <span class="font-mono text-sm font-medium text-ink transition-colors group-hover:text-brand-alt">
                 {repo.name}
               </span>
-
-              <span class="flex-1 text-[0.9375rem] leading-relaxed text-ink-dim">
-                {repo.description ?? "—"}
-              </span>
-
-              <span class="shrink-0 font-mono text-[11px] text-ink-faint">
-                {repo.language ?? "—"}
-                {repo.stars > 0 && ` · ★ ${repo.stars}`}
-                <span class="hidden sm:inline"> · {relativeTime(repo.updatedAt)}</span>
+              <p class="mb-3.5 mt-2 text-[13.5px] leading-[1.55] text-ink-dim">
+                {repo.description ?? "No description."}
+              </p>
+              <span class="mt-auto flex flex-wrap gap-x-3.5 gap-y-1 font-mono text-[11px] text-ink-faint">
+                {repo.language && (
+                  <span class="inline-flex items-center gap-1.5">
+                    <i
+                      class="h-2 w-2 rounded-full"
+                      style={`background: ${languageColour(repo.language)}`}
+                    />
+                    {repo.language}
+                  </span>
+                )}
+                {repo.stars > 0 && <span>★ {repo.stars}</span>}
+                <span>{relativeTime(repo.updatedAt)}</span>
               </span>
             </a>
           </li>

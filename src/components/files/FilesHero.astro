@@ -1,0 +1,76 @@
+---
+import type { BucketTotals } from "@/lib/bucket-totals";
+import { formatBytes, relativeTime } from "@/lib/utils";
+
+/**
+ * The title tile. Drawn by the page as the island's fallback and again by the
+ * island with figures, so the swap changes nothing but the facts row.
+ * `totals` undefined is "still loading"; null is "not available".
+ */
+interface Props {
+  title: string;
+  description: string;
+  totals?: BucketTotals | null;
+  /** Full width when there is no usage tile beside it. */
+  wide?: boolean;
+}
+
+const { title, description, totals, wide = false } = Astro.props;
+
+const facts = totals
+  ? [
+      { value: totals.objects.toLocaleString("en-GB"), label: "Objects" },
+      { value: formatBytes(totals.bytes), label: "On R2" },
+      {
+        value: totals.lastUploaded
+          ? relativeTime(new Date(totals.lastUploaded * 1000))
+          : "—",
+        label: "Last upload",
+      },
+    ]
+  : null;
+---
+
+<section
+  class:list={[
+    "tile page-hero animate-rise col-span-12 min-[641px]:min-h-[230px]",
+    !wide && "min-[641px]:col-span-5",
+  ]}
+  aria-labelledby="files-title"
+>
+  <nav class="flex items-center gap-1.5 font-mono text-[11.5px] text-ink-faint" aria-label="Breadcrumb">
+    <a href="/" class="transition-colors hover:text-ink">rcn.sh</a>
+    <span class="text-line-strong" aria-hidden="true">/</span>
+    <span aria-current="page">files</span>
+  </nav>
+  <h1 id="files-title" class="display-face mt-5 text-[2.4rem] text-ink sm:mt-6 sm:text-[clamp(2.25rem,4vw,3rem)]">
+    {title}
+  </h1>
+  <p class="mt-3 max-w-[52ch] text-[15px] leading-relaxed text-ink-dim sm:text-[15.5px]">{description}</p>
+
+  {
+    totals === undefined ? (
+      <div class="mt-auto flex gap-8 pt-5 sm:pt-6.5" aria-hidden="true">
+        {[0, 1, 2].map(() => (
+          <div class="flex flex-col gap-1.5">
+            <span class="placeholder-block h-[22px] w-16 rounded-xs" />
+            <span class="placeholder-block h-3 w-12 rounded-xs" />
+          </div>
+        ))}
+      </div>
+    ) : (
+      facts && (
+        <dl class="mt-auto flex flex-wrap gap-x-8 gap-y-3.5 pt-5 sm:pt-6.5">
+          {facts.map((fact) => (
+            <div class="flex flex-col-reverse gap-1.5">
+              <dt class="font-mono text-[10.5px] text-ink-faint">{fact.label}</dt>
+              <dd class="font-mono text-lg font-semibold tracking-[-0.02em] text-ink tabular-nums">
+                {fact.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )
+    )
+  }
+</section>

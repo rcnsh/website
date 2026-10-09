@@ -1,0 +1,21 @@
+---
+/** One figure with its label. `class` places it in the page grid. */
+interface Props {
+  label: string;
+  value: string;
+  detail?: string;
+  class?: string;
+}
+
+const { label, value, detail, class: className } = Astro.props;
+---
+
+<div class:list={["tile flex flex-col justify-between gap-[18px]", className]}>
+  <span class="label">{label}</span>
+  <div>
+    <div class="font-mono text-[1.875rem] font-semibold leading-none tracking-[-0.04em] tabular-nums text-ink">
+      {value}
+    </div>
+    {detail && <div class="mt-1.5 font-mono text-[11px] text-ink-faint">{detail}</div>}
+  </div>
+</div>

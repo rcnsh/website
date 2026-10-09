@@ -94,54 +94,36 @@ export default function MusicExplorer({
   const stale = !bucket;
 
   return (
-    <section>
-      {/* Text switches with an underline, rather than filled segmented pills. */}
-      {/* Between-group gap has to clearly beat the gap-4 inside each group,
-          or the six buttons read as one undifferentiated run. */}
-      <div className="mb-5 flex flex-wrap items-baseline gap-x-6 gap-y-3 font-mono text-xs">
+    <>
+      <div className="mb-4 flex min-h-4 items-center gap-2.5">
+        <h2 className="label">Top</h2>
+        {items.length > 0 && (
+          <span className="ml-auto whitespace-nowrap font-mono text-[11px] text-ink-faint">
+            {items.length} {view} · {RANGES.find((option) => option.id === range)?.label}
+          </span>
+        )}
+      </div>
+
+      {/* Between-group gap has to clearly beat the gap inside each group,
+          or the five buttons read as one undifferentiated run. */}
+      <div className="mb-[18px] flex flex-wrap items-baseline gap-x-6 gap-y-3 font-mono text-xs">
         <div className="flex gap-4">
           {(["tracks", "artists"] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setView(option)}
-              className={cn(
-                // `pb-0.5` sets the gap to the underline, so padding cannot
-                // grow the hit area without moving the border; the
-                // pseudo-element extends the clickable box instead.
-                "relative pb-0.5 transition-colors after:absolute after:inset-x-0 after:-inset-y-[0.625rem] after:content-['']",
-                view === option
-                  ? "border-b border-brand text-ink"
-                  : "border-b border-transparent text-ink-faint hover:text-ink-dim",
-              )}
-            >
+            <Switch key={option} pressed={view === option} onClick={() => setView(option)}>
               {option}
-            </button>
+            </Switch>
           ))}
         </div>
 
         {/* The row wraps below sm, and a separator stranded at the end of the
             first line reads as a stray character. */}
-        <span className="hidden text-line-strong sm:inline">/</span>
+        <span aria-hidden="true" className="hidden text-line-strong sm:inline">/</span>
 
         <div className="flex gap-4">
           {RANGES.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => setRange(option.id)}
-              className={cn(
-                // `pb-0.5` sets the gap to the underline, so padding cannot
-                // grow the hit area without moving the border; the
-                // pseudo-element extends the clickable box instead.
-                "relative pb-0.5 transition-colors after:absolute after:inset-x-0 after:-inset-y-[0.625rem] after:content-['']",
-                range === option.id
-                  ? "border-b border-brand text-ink"
-                  : "border-b border-transparent text-ink-faint hover:text-ink-dim",
-              )}
-            >
+            <Switch key={option.id} pressed={range === option.id} onClick={() => setRange(option.id)}>
               {option.label}
-            </button>
+            </Switch>
           ))}
         </div>
 
@@ -163,7 +145,7 @@ export default function MusicExplorer({
               : `Nothing listened to in this period.`}
           </p>
         ) : view === "tracks" ? (
-          <ol className="divide-y divide-line border-y border-line">
+          <ol className="divide-y divide-line-soft border-t border-line-soft">
             {/* biome-ignore-start lint/suspicious/noArrayIndexKey: the index
               disambiguates repeated titles. Switching range replaces the whole
               list, so rows never reorder in place. */}
@@ -173,7 +155,7 @@ export default function MusicExplorer({
                   href={track.url ?? "#"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center gap-4 py-2.5"
+                  className="group flex items-center gap-3.5 py-2.5"
                 >
                   <span className="w-5 shrink-0 font-mono text-[11px] tabular-nums text-ink-faint">
                     {String(i + 1).padStart(2, "0")}
@@ -185,16 +167,16 @@ export default function MusicExplorer({
                       width={36}
                       height={36}
                       loading="lazy"
-                      className="h-9 w-9 shrink-0 rounded-xs object-cover"
+                      className="h-9 w-9 shrink-0 rounded-xs bg-raised object-cover"
                     />
                   ) : (
                     <div className="h-9 w-9 shrink-0 rounded-xs bg-raised" />
                   )}
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[0.9375rem] text-ink transition-colors group-hover:text-brand">
+                    <span className="block truncate text-[0.9375rem] text-ink transition-colors group-hover:text-brand-alt">
                       {track.title}
                     </span>
-                    <span className="block truncate text-xs text-ink-dim">
+                    <span className="mt-px block truncate text-[12.5px] text-ink-dim">
                       {track.artists}
                     </span>
                   </span>
@@ -209,7 +191,7 @@ export default function MusicExplorer({
             {/* biome-ignore-end lint/suspicious/noArrayIndexKey: see above */}
           </ol>
         ) : (
-          <ul className="grid grid-cols-2 gap-x-5 gap-y-6 sm:grid-cols-4">
+          <ul className="grid grid-cols-2 gap-x-4 gap-y-[22px] sm:grid-cols-4">
             {/* biome-ignore-start lint/suspicious/noArrayIndexKey: as above —
               repeated names, and the list is replaced wholesale. */}
             {(items as Artist[]).map((artist, i) => (
@@ -220,7 +202,7 @@ export default function MusicExplorer({
                   rel="noopener noreferrer"
                   className="group block"
                 >
-                  <div className="aspect-square overflow-hidden rounded-xs bg-raised">
+                  <div className="aspect-square overflow-hidden rounded-card bg-raised">
                     {artist.image && (
                       <img
                         src={artist.image}
@@ -230,10 +212,10 @@ export default function MusicExplorer({
                       />
                     )}
                   </div>
-                  <p className="mt-2 truncate text-sm text-ink transition-colors group-hover:text-brand">
+                  <p className="mt-2 truncate text-sm text-ink transition-colors group-hover:text-brand-alt">
                     {artist.name}
                   </p>
-                  <p className="font-mono text-[10px] text-ink-faint">
+                  <p className="font-mono text-[10.5px] tabular-nums text-ink-faint">
                     {String(i + 1).padStart(2, "0")}
                   </p>
                 </a>
@@ -243,6 +225,36 @@ export default function MusicExplorer({
           </ul>
         )}
       </div>
-    </section>
+    </>
+  );
+}
+
+/** An underlined text switch, rather than a filled segmented pill. */
+function Switch({
+  pressed,
+  onClick,
+  children,
+}: {
+  pressed: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onClick}
+      className={cn(
+        // `pb-0.5` sets the gap to the underline, so padding cannot grow the
+        // hit area without moving the border; the pseudo-element extends the
+        // clickable box instead.
+        "relative border-b pb-0.5 transition-colors after:absolute after:inset-x-0 after:-inset-y-[0.625rem] after:content-['']",
+        pressed
+          ? "border-brand text-ink"
+          : "border-transparent text-ink-faint hover:text-ink-dim",
+      )}
+    >
+      {children}
+    </button>
   );
 }

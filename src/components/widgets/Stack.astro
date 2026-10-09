@@ -1,47 +1,42 @@
 ---
 import { stack } from "@/lib/site";
 
-// Split so the primary tools read as the sentence and the rest trail off.
-const primary = stack.filter((item) => item.primary);
-const rest = stack.filter((item) => !item.primary);
+// Primary tools come first and carry the dot, so they read as the day-to-day
+// set and the rest as the supporting cast.
+const ordered = [...stack.filter((item) => item.primary), ...stack.filter((item) => !item.primary)];
 ---
 
-<div class="max-w-[56ch] text-[1.0625rem] leading-[1.9] text-ink-dim">
-  <p>
+<section class="tile [grid-area:st]" aria-labelledby="stack-heading">
+  <div class="mb-4 flex items-center gap-2.5">
+    <h2 class="label" id="stack-heading">Uses</h2>
+    <a
+      href="/uses"
+      class="ml-auto font-mono text-[11px] text-ink-faint transition-colors hover:text-ink"
+    >
+      Full setup &rarr;
+    </a>
+  </div>
+
+  <ul class="flex flex-wrap gap-1.5">
     {
-      primary.map((item, i) => (
-        <>
-          {i > 0 && <span class="text-ink-faint">, </span>}
+      ordered.map((item) => (
+        <li>
           <a
             href={item.url}
             target="_blank"
             rel="noopener noreferrer"
-            class="text-ink underline decoration-line-strong underline-offset-[3px] transition-colors hover:decoration-brand"
+            class:list={[
+              "inline-flex items-center gap-[7px] rounded border px-2.5 py-1.5 font-mono text-xs transition-colors",
+              item.primary
+                ? "border-line bg-raised text-ink hover:border-line-strong"
+                : "border-line-soft text-ink-dim hover:border-line-strong hover:text-ink",
+            ]}
           >
+            {item.primary && <i class="bg-brand-gradient h-[5px] w-[5px] rounded-full" aria-hidden="true" />}
             {item.name}
           </a>
-        </>
+        </li>
       ))
     }
-    <span class="text-ink-faint"> &mdash; day to day.</span>
-  </p>
-
-  <p class="mt-2.5 text-[0.9375rem] text-ink-faint">
-    Also{" "}
-    {
-      rest.map((item, i) => (
-        <>
-          {i > 0 && <span>, </span>}
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="transition-colors hover:text-ink-dim"
-          >
-            {item.name}
-          </a>
-        </>
-      ))
-    }.
-  </p>
-</div>
+  </ul>
+</section>

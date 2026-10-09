@@ -1,14 +1,42 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import PostList from "@/components/PostList.astro";
-import { getPosts } from "@/lib/blog";
+import RichText from "@/components/RichText.astro";
+import Cadence from "@/components/writing/Cadence.astro";
+import { formatDate, getPosts, isoDate, postHref, readingTime } from "@/lib/blog";
 import { pageOgHref, pages } from "@/lib/site";
+import { cadence } from "@/lib/writing";
 
 const page = pages.blog;
 const posts = await getPosts();
+const latest = posts[0];
 
 // Newest first already, so the years come out in order too.
 const years = [...new Set(posts.map((post) => post.data.pubDate.getFullYear()))];
+
+// The copy names the feed; the link is added here so the meta description,
+// which reads the same string, stays plain text.
+const description = page.description.replace("RSS feed", "[RSS feed](/rss.xml)");
+
+const minutes = posts.reduce((sum, post) => sum + readingTime(post.body), 0);
+const since = posts.at(-1)?.data.pubDate.getFullYear();
+const DAY_MONTH = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
+
+const facts = latest
+  ? [
+      { value: String(posts.length), label: posts.length === 1 ? "Post" : "Posts" },
+      { value: `${minutes} min`, label: "Of reading" },
+      { value: DAY_MONTH.format(latest.data.pubDate), label: "Last published" },
+      { value: String(since), label: "Writing since" },
+    ]
+  : [];
+
+// A chart of one or two bars reads as a mistake, so it waits for a few posts.
+const months = posts.length >= 3
+  ? cadence(posts.map((p) => ({ date: p.data.pubDate, draft: p.data.draft })), new Date())
+  : [];
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 ---
 
 <Layout
@@ -16,23 +44,112 @@ const years = [...new Set(posts.map((post) => post.data.pubDate.getFullYear()))]
   description={page.description}
   image={pageOgHref("blog")}
 >
-  <header class="animate-rise pb-10">
-    <h1 class="display-face text-[2.25rem] text-ink">{page.title}</h1>
-  </header>
+  <div class="bento pb-6">
+    <section class="tile page-hero col-span-12 px-8 pb-[26px] pt-7 max-sm:px-5 max-sm:pb-[22px] max-sm:pt-6" aria-labelledby="writing-title">
+      <nav class="flex items-center gap-1.5 font-mono text-[0.71875rem] text-ink-faint" aria-label="Breadcrumb">
+        <a href="/" class="transition-colors hover:text-ink">rcn.sh</a>
+        <span class="text-line-strong" aria-hidden="true">/</span>
+        <span aria-current="page">writing</span>
+      </nav>
+      <h1
+        id="writing-title"
+        class="display-face mt-[26px] text-[clamp(2.25rem,4vw,3rem)] leading-none text-ink max-sm:mt-5 max-sm:text-[2.4rem]"
+      >
+        {page.title}
+      </h1>
+      <RichText
+        text={description}
+        class="mt-3 block max-w-[52ch] text-[0.96875rem] leading-[1.65] text-ink-dim max-sm:text-[0.9375rem]"
+      />
+      {
+        facts.length > 0 && (
+          <dl class="mt-auto flex flex-wrap gap-x-8 gap-y-2.5 pt-[26px] max-sm:gap-x-6 max-sm:gap-y-3.5 max-sm:pt-5">
+            {facts.map((fact) => (
+              <div class="flex flex-col-reverse gap-[5px]">
+                <dt class="font-mono text-[0.65625rem] text-ink-faint">{fact.label}</dt>
+                <dd class="font-mono text-lg font-semibold tracking-[-0.02em] text-ink tabular-nums">
+                  {fact.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )
+      }
+    </section>
 
-  <div class="flex flex-col gap-14 pb-6">
     {
-      years.map((year) => (
-        <section>
-          <h2 class="rule-heading label mb-2">{year}</h2>
-          <PostList posts={posts.filter((p) => p.data.pubDate.getFullYear() === year)} />
-        </section>
-      ))
+      latest && (
+        <a
+          href={postHref(latest)}
+          class:list={[
+            "tile tile-link group col-span-12 flex flex-col px-7 py-[26px] max-sm:px-5 max-sm:py-[22px]",
+            months.length > 0 && "min-[1021px]:col-span-7",
+          ]}
+        >
+          <div class="flex items-center gap-2.5">
+            <span class="rounded-full border border-brand/45 bg-brand/10 px-[9px] py-[3px] font-mono text-[0.65625rem] uppercase tracking-[0.08em] text-brand-alt">
+              Latest
+            </span>
+            <time class="label" datetime={isoDate(latest.data.pubDate)}>
+              {formatDate(latest.data.pubDate)}
+            </time>
+            {latest.data.draft && <span class="label text-brand">draft</span>}
+          </div>
+          <h2 class="mt-[22px] max-w-[24ch] text-[clamp(1.4rem,2.3vw,1.85rem)] font-semibold leading-tight tracking-[-0.025em] text-ink transition-colors group-hover:text-brand-alt">
+            {latest.data.title}
+          </h2>
+          <p class="mt-3 max-w-[52ch] text-[0.96875rem] leading-[1.65] text-ink-dim">
+            {latest.data.description}
+          </p>
+          <div class="mt-auto flex items-center justify-between pt-[26px] font-mono text-[0.6875rem] text-ink-faint">
+            <span>{readingTime(latest.body)} min read</span>
+            <span
+              class="text-ink-dim transition duration-200 group-hover:translate-x-[3px] group-hover:text-brand-alt"
+              aria-hidden="true"
+            >
+              Read &rarr;
+            </span>
+          </div>
+        </a>
+      )
+    }
+
+    {months.length > 0 && <Cadence months={months} class="col-span-12 min-[1021px]:col-span-5" />}
+
+    {
+      years.map((year) => {
+        const these = posts.filter((p) => p.data.pubDate.getFullYear() === year);
+        const drafts = these.filter((p) => p.data.draft).length;
+        const published = these.length - drafts;
+        const count = [published > 0 && plural(published, "post"), drafts > 0 && plural(drafts, "draft")]
+          .filter(Boolean)
+          .join(" · ");
+
+        return (
+          <section
+            class="tile col-span-12 grid p-0 sm:grid-cols-[180px_minmax(0,1fr)]"
+            aria-labelledby={`year-${year}`}
+          >
+            <div class="border-b border-line-soft px-[18px] py-4 sm:border-b-0 sm:border-r sm:p-[22px]">
+              <div class="flex items-baseline gap-3 sm:sticky sm:top-[calc(var(--header-h)+20px)] sm:block">
+                <h2
+                  id={`year-${year}`}
+                  class="font-mono text-2xl font-bold leading-none tracking-[-0.05em] text-ink sm:text-[2.125rem]"
+                >
+                  {year}
+                </h2>
+                <p class="font-mono text-[0.6875rem] text-ink-faint sm:mt-2.5">{count}</p>
+              </div>
+            </div>
+            <PostList posts={these} class="px-[18px] sm:px-[26px]" />
+          </section>
+        );
+      })
     }
 
     {
       posts.length === 0 && (
-        <p class="text-ink-faint">Nothing published yet.</p>
+        <p class="tile col-span-12 text-ink-faint">Nothing published yet.</p>
       )
     }
   </div>

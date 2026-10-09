@@ -4,7 +4,8 @@ import { TINY_AREA, WORLD_SHAPES, WORLD_VIEWBOX } from "@/lib/world";
 /**
  * Where the guestbook has been signed from. Outlines are precomputed by
  * scripts/generate-world.ts, so this only picks a fill per country. No client
- * JavaScript: hover is CSS and the tooltips are <title>.
+ * JavaScript of its own: hover is CSS and the tooltips are <title>. `data-c`
+ * is the hook the page's ranking tile uses to light a country from its row.
  */
 
 interface Props {
@@ -24,13 +25,6 @@ const countries = Object.keys(counts).length;
 // lit: the difference that reads is "someone" versus "no one".
 const opacityFor = (count: number) => 0.4 + 0.6 * (count / busiest);
 
-const named = new Map(
-  WORLD_SHAPES.filter((shape) => shape.code).map((shape) => [
-    shape.code as string,
-    shape.name,
-  ]),
-);
-
 /** Signed countries too small to read as a filled shape at this size. */
 const dotted = WORLD_SHAPES.filter(
   (shape) =>
@@ -47,7 +41,7 @@ const summary = countries
   : "No signatures placed yet";
 ---
 
-<figure class="m-0">
+<figure class="m-0 flex flex-1 flex-col justify-between gap-1">
   <svg
     viewBox={WORLD_VIEWBOX}
     class="w-full"
@@ -63,6 +57,7 @@ const summary = countries
           <path
             d={shape.d}
             class="signed"
+            data-c={shape.code}
             style={`opacity:${opacityFor(count).toFixed(3)}`}
           >
             <title>{label(shape.name, count)}</title>
@@ -79,7 +74,13 @@ const summary = countries
     }
     {
       dotted.map((shape) => (
-        <circle cx={shape.cx} cy={shape.cy} r="3.5" class="dot">
+        <circle
+          cx={shape.cx}
+          cy={shape.cy}
+          r="3.5"
+          class="dot"
+          data-c={shape.code}
+        >
           <title>{label(shape.name, counts[shape.code as string] ?? 0)}</title>
         </circle>
       ))
@@ -87,7 +88,7 @@ const summary = countries
   </svg>
 
   <figcaption
-    class="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 font-mono text-[11px] text-ink-faint"
+    class="mt-3.5 flex flex-wrap items-baseline gap-x-2 gap-y-1 font-mono text-[11px] text-ink-faint"
   >
     <span>{summary}</span>
     {
@@ -99,26 +100,15 @@ const summary = countries
         </>
       )
     }
+    {
+      /* The page's script writes the hovered country here. Touch has no hover,
+         and the ranking tile carries the same figures. */
+    }
+    <span data-map-tip class="ml-auto hidden text-ink-dim sm:inline" aria-hidden="true">
+      Hover a country
+    </span>
   </figcaption>
 </figure>
-
-{
-  /* Sorted by count, and present at all because touch has no tooltip. */
-}
-{
-  countries > 0 && (
-    <ul class="mt-4 flex flex-wrap gap-x-5 gap-y-1.5 font-mono text-[11px] text-ink-dim">
-      {Object.entries(counts)
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .map(([code, count]) => (
-          <li>
-            <span class="text-ink">{named.get(code) ?? code}</span>{" "}
-            <span class="text-ink-faint tabular-nums">{count}</span>
-          </li>
-        ))}
-    </ul>
-  )
-}
 
 <style>
   /* Hairlines, like every other divider here — the fill carries the meaning. */
@@ -147,7 +137,13 @@ const summary = countries
   }
 
   /* Full strength on hover, so pointing at a country confirms the tooltip. */
-  .signed:hover {
+  .signed:hover,
+  .hl {
     opacity: 1 !important;
+  }
+
+  /* Lighter as well as opaque: the busiest country is already near full. */
+  .hl {
+    fill: var(--color-brand-alt);
   }
 </style>

@@ -1,0 +1,22 @@
+---
+import LinkTile from "./LinkTile.astro";
+import { bucketTotals } from "@/lib/bucket-totals";
+import { cachedTree } from "@/lib/r2";
+import { formatBytes } from "@/lib/utils";
+
+// Server island: the totals change on every upload, the page around it does
+// not. Public data only — see CLAUDE.md § Maintenance › Caching.
+let detail = "Public files on R2";
+try {
+  const tree = await cachedTree();
+  // No tree means the bucket outgrew inlining; the generic line stands.
+  if (tree) {
+    const { objects, bytes } = bucketTotals(tree);
+    detail = `${objects.toLocaleString("en-GB")} objects · ${formatBytes(bytes)} on R2`;
+  }
+} catch (error) {
+  console.error("[files] home tile failed", error);
+}
+---
+
+<LinkTile class="[grid-area:fl]" href="/files" title="Files" detail={detail} icon="file" />

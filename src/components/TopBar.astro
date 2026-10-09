@@ -15,8 +15,8 @@ const tabs = nav.slice(1);
 const homeActive = isActive("/");
 ---
 
-<header class="sticky top-0 z-50 border-b border-line bg-base/85 backdrop-blur-md">
-  <div class="mx-auto flex h-14 max-w-3xl items-center px-5 sm:px-6">
+<header class="sticky top-0 z-50 border-b border-line-soft bg-base/85 backdrop-blur-md">
+  <div class="mx-auto flex h-14 max-w-page items-center px-4 sm:px-5">
     {
       /* One rail, so a single underline can travel the whole row. -ml-3
          cancels the first tab's padding. */
@@ -58,18 +58,16 @@ const homeActive = isActive("/");
 
     {/* The dialog itself is rendered by the layout — see CommandPalette.astro. */}
     <div class="ml-auto flex items-center gap-4">
-      {
-        /* `-m-2 p-2` grows the hit area without moving anything: below `sm`
-           the ⌘K label is hidden and this is otherwise a bare 14px target. */
-      }
+      {/* Below `sm` the label goes and this is a 30px square, still a fair target. */}
       <button
         type="button"
         data-palette-trigger
         aria-label="Open command palette"
-        class="-m-2 flex items-center gap-2 p-2 font-mono text-xs text-ink-faint transition-colors hover:text-ink-dim"
+        class="flex h-[30px] min-w-[30px] items-center justify-center gap-2 rounded-md border border-line-soft bg-surface px-2 font-mono text-xs text-ink-faint transition-colors hover:border-line hover:text-ink-dim sm:justify-start sm:pr-2.5"
       >
         <Icon name="search" class="h-3.5 w-3.5" />
-        <span class="hidden sm:inline">⌘K</span>
+        <span class="hidden sm:inline">Search</span>
+        <kbd class="hidden font-mono text-ink-dim sm:inline">⌘K</kbd>
       </button>
 
       <SettingsMenu />
@@ -88,7 +86,7 @@ const homeActive = isActive("/");
             class:list={[
               "relative px-3 py-2",
               active
-                ? "text-ink after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-brand"
+                ? "text-ink after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-brand-gradient"
                 : "text-ink-faint",
             ]}
           >
@@ -141,7 +139,7 @@ const homeActive = isActive("/");
     width: var(--nav-w, 0);
     transform: translate3d(var(--nav-x, 0), 0, 0);
     opacity: var(--nav-o, 0);
-    background: var(--color-brand);
+    background: linear-gradient(100deg, var(--color-brand-blue), var(--color-brand));
     pointer-events: none;
     transition:
       transform 0.42s var(--ease-out-quint),
@@ -161,7 +159,7 @@ const homeActive = isActive("/");
     inset-inline: 0;
     bottom: -1px;
     height: 2px;
-    background: var(--color-brand);
+    background: linear-gradient(100deg, var(--color-brand-blue), var(--color-brand));
   }
 </style>
 

@@ -1,7 +1,11 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import FilesRoot from "@/components/widgets/FilesRoot.astro";
+import FilesHero from "@/components/files/FilesHero.astro";
+import FilesUsage from "@/components/files/FilesUsage.astro";
 import { pageOgHref, pages } from "@/lib/site";
+// Imported here rather than by the island, so the stylesheet is the page's own.
+import "@/components/files/browser.css";
 
 const page = pages.files;
 ---
@@ -11,15 +15,20 @@ const page = pages.files;
   description={page.description}
   image={pageOgHref("files")}
 >
-  <header class="animate-rise pb-10">
-    <h1 class="display-face text-[2.25rem] text-ink">{page.title}</h1>
-  </header>
-
   <div class="pb-6">
-    <FilesRoot server:defer>
-      <div slot="fallback">
-        <div class="placeholder-block h-9 rounded-xs"></div>
-        <div class="placeholder-block mt-3 h-[320px] rounded-xs"></div>
+    <FilesRoot server:defer title={page.title} description={page.description}>
+      {/* Sized to the island: same title tile, same tile heights. */}
+      <div slot="fallback" class="bento">
+        <FilesHero title={page.title} description={page.description} />
+        <FilesUsage />
+        <section class="fb tile col-span-12" aria-label="File browser" aria-busy="true">
+          <div class="fb-tb">
+            <div class="fb-crumbs"><span class="placeholder-block h-4 w-40 rounded-xs"></span></div>
+            <div class="placeholder-block h-[34px] rounded-[6px]"></div>
+          </div>
+          <div class="fb-cols"></div>
+          <div class="fb-foot"></div>
+        </section>
       </div>
     </FilesRoot>
   </div>

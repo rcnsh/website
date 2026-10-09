@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { SpotifyIcon } from "./BrandIcons";
 import { liveUpdates, onPrefChange } from "@/lib/prefs";
 import { cn, formatDuration, relativeTime } from "@/lib/utils";
+import "@/components/music/now-playing.css";
 
 type Payload =
   | { state: "playing"; title: string; artists: string; album: string | null; image: string | null; url: string | null; progressMs: number; durationMs: number }
@@ -25,7 +26,13 @@ const STALE_AFTER_FAILURES = 3;
 const END_RETRY_MS = 3_000;
 const END_RETRIES = 8;
 
-export default function NowPlaying() {
+export default function NowPlaying({
+  layout = "home",
+}: {
+  // "home" is the home page tile's body; "page" the music page's larger one.
+  // Either way this renders the whole inside of a tile, head row included.
+  layout?: "home" | "page";
+}) {
   const [data, setData] = useState<Payload | null>(null);
   // Interpolated between polls so the bar moves every second, not every 20.
   const [progress, setProgress] = useState(0);
@@ -196,28 +203,37 @@ export default function NowPlaying() {
   if (!data) {
     // Mirrors the loaded layout row for row, so real data doesn't move anything.
     return (
-      <Shell>
-        <div className="placeholder-block h-14 w-14 shrink-0 rounded-xs" />
-        <div className="min-w-0 flex-1">
-          <div className="placeholder-block h-2.5 w-20 rounded-xs" />
-          <div className="placeholder-block mt-2 h-3.5 w-48 rounded-xs" />
-          <div className="placeholder-block mt-1.5 h-3 w-32 rounded-xs" />
-          <div className="placeholder-block mt-3 h-2 w-full rounded-xs" />
-        </div>
-      </Shell>
+      <Frame layout={layout} label={layout === "page" ? "Right now" : "Now playing"}>
+        <Body layout={layout}>
+          <div className={cn("placeholder-block rounded-card", SIZES[layout].art)} />
+          <div className="min-w-0">
+            {layout === "page" && <div className="placeholder-block mb-3 h-2.5 w-20 rounded-xs" />}
+            <div className={cn("placeholder-block w-3/4 rounded-xs", SIZES[layout].titleBlock)} />
+            <div className="placeholder-block mt-2 h-3.5 w-1/2 rounded-xs" />
+            <div className="placeholder-block mt-2 h-3 w-2/5 rounded-xs" />
+            <div className={cn("flex h-4 items-center", SIZES[layout].slot)}>
+              <div className="placeholder-block h-0.5 w-full rounded-xs" />
+            </div>
+            {layout === "page" && <div className="placeholder-block mt-3.5 h-3 w-48 rounded-xs" />}
+          </div>
+        </Body>
+      </Frame>
     );
   }
 
   if (data.state === "idle" || data.state === "error") {
     return (
-      <Shell>
-        <p className="flex items-center gap-2.5 text-sm text-ink-faint">
-          <SpotifyIcon className="h-4 w-4" />
-          {data.state === "error"
-            ? "Spotify unavailable"
-            : "Not listening right now"}
-        </p>
-      </Shell>
+      <Frame layout={layout} label={layout === "page" ? "Right now" : "Now playing"}>
+        <Body layout={layout}>
+          <Artwork image={null} title="" className={SIZES[layout].art} />
+          <div className="min-w-0">
+            <p className="text-sm text-ink-dim">
+              {data.state === "error" ? "Spotify unavailable" : "Not listening right now"}
+            </p>
+            {layout === "page" && <LiveLine live={live} trouble={data.state === "error"} />}
+          </div>
+        </Body>
+      </Frame>
     );
   }
 
@@ -226,63 +242,189 @@ export default function NowPlaying() {
   const disconnected = failures >= STALE_AFTER_FAILURES;
   const playing = data.state === "playing" && !disconnected;
   const pct = playing ? Math.min((progress / Math.max(data.durationMs, 1)) * 100, 100) : 0;
+  const size = SIZES[layout];
+
+  const state = disconnected
+    ? "Can't reach Spotify — last known"
+    : data.state === "playing"
+      ? "Now playing"
+      : "Recently played";
 
   return (
-    <Shell>
-      <Artwork image={data.image} title={data.title} />
+    <Frame
+      layout={layout}
+      label={layout === "page" ? "Right now" : disconnected ? "Last known" : state}
+      playing={playing}
+      live={live}
+      trackUrl={data.url}
+    >
+      <Body layout={layout}>
+        <Artwork image={data.image} title={data.title} className={size.art} />
 
-      <div className="min-w-0 flex-1">
-        <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-faint">
-          {disconnected ? (
-            "Can't reach Spotify — last known"
-          ) : data.state === "playing" ? (
-            <span className="text-brand">Now playing</span>
-          ) : (
-            `Played ${relativeTime(data.playedAt)}`
+        <div className="min-w-0">
+          {layout === "page" && (
+            <p className={cn("label mb-2.5", playing && "text-brand-alt")}>{state}</p>
           )}
-        </p>
 
-        {data.url ? (
-          <a
-            href={data.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-1 block truncate text-[0.9375rem] text-ink transition-colors hover:text-brand"
-          >
-            {data.title}
-          </a>
-        ) : (
-          <p className="mt-1 truncate text-[0.9375rem] text-ink">{data.title}</p>
-        )}
-        <p className="truncate text-sm text-ink-dim">{data.artists}</p>
+          <p className={cn("line-clamp-2 text-ink", size.title)}>
+            {data.url ? (
+              <a
+                href={data.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors hover:text-brand-alt"
+              >
+                {data.title}
+              </a>
+            ) : (
+              data.title
+            )}
+          </p>
+          <p className={cn("truncate text-ink-dim", size.artist)}>{data.artists}</p>
+          {data.album && (
+            <p className={cn("truncate font-mono text-ink-faint", size.album)}>{data.album}</p>
+          )}
 
-        {/*
-          Always present so "playing" and "recently played" are the same
-          height — progress bar when playing, album name otherwise.
-        */}
-        <div className="mt-2.5 flex h-3.5 items-center gap-2.5">
-          {playing ? (
-            <>
-              <div className="h-px flex-1 bg-line">
-                {/* Keyed so a new track remounts at its start rather than sweeping back. */}
+          {/* Always present so "playing" and "recently played" are the same
+              height — progress when playing, when it was played otherwise. */}
+          <div className={cn("flex h-4 items-center gap-2.5", size.slot)}>
+            {playing ? (
+              <>
+                <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-ink-faint">
+                  {formatDuration(progress)}
+                </span>
                 <div
-                  key={`${data.title}|${data.durationMs}`}
-                  className="h-px bg-brand transition-[width] duration-1000 ease-linear"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              <span className="shrink-0 font-mono text-[10px] tabular-nums text-ink-faint">
-                {formatDuration(progress)} / {formatDuration(data.durationMs)}
+                  role="progressbar"
+                  aria-label="Playback progress"
+                  aria-valuemin={0}
+                  aria-valuemax={Math.round(data.durationMs / 1000)}
+                  aria-valuenow={Math.round(progress / 1000)}
+                  aria-valuetext={`${formatDuration(progress)} of ${formatDuration(data.durationMs)}`}
+                  className="h-0.5 flex-1 overflow-hidden rounded-full bg-line-soft"
+                >
+                  {/* Keyed so a new track remounts at its start rather than sweeping back. */}
+                  <div
+                    key={`${data.title}|${data.durationMs}`}
+                    className="bg-brand-gradient h-full transition-[width] duration-1000 ease-linear"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-ink-faint">
+                  {formatDuration(data.durationMs)}
+                </span>
+              </>
+            ) : (
+              <span className="truncate font-mono text-[10.5px] text-ink-faint">
+                {data.state === "recent" ? `Played ${relativeTime(data.playedAt)}` : "Position unknown"}
               </span>
-            </>
-          ) : (
-            <span className="truncate font-mono text-[10px] text-ink-faint">
-              {data.album ?? ""}
+            )}
+          </div>
+
+          {layout === "page" && <LiveLine live={live} trouble={disconnected} />}
+        </div>
+      </Body>
+    </Frame>
+  );
+}
+
+const SIZES = {
+  home: {
+    art: "size-[104px] sm:size-44",
+    body: "grid-cols-[104px_minmax(0,1fr)] gap-4 items-center sm:grid-cols-[176px_minmax(0,1fr)] sm:gap-5 sm:items-end",
+    title: "text-[17px] font-[550] leading-tight tracking-[-0.015em] sm:text-[21px]",
+    titleBlock: "h-5 sm:h-6",
+    artist: "mt-1 text-[14.5px]",
+    album: "mt-0.5 text-[11.5px]",
+    slot: "mt-3.5 sm:mt-[18px]",
+  },
+  page: {
+    art: "size-28 sm:size-[236px]",
+    body: "grid-cols-[112px_minmax(0,1fr)] gap-4 items-center sm:grid-cols-[236px_minmax(0,1fr)] sm:gap-[26px] sm:items-end",
+    title: "text-[19px] font-semibold leading-[1.15] tracking-[-0.025em] sm:text-[28px]",
+    titleBlock: "h-6 sm:h-8",
+    artist: "mt-1.5 text-sm sm:text-[16px]",
+    album: "mt-1 text-xs",
+    slot: "mt-3.5 sm:mt-[22px]",
+  },
+} as const;
+
+type Layout = keyof typeof SIZES;
+
+/** The tile's head row and a column that fills whatever height the tile has. */
+function Frame({
+  layout,
+  label,
+  playing = false,
+  live = true,
+  trackUrl = null,
+  children,
+}: {
+  layout: Layout;
+  label: string;
+  playing?: boolean;
+  live?: boolean;
+  trackUrl?: string | null;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex h-full flex-1 flex-col">
+      <div className="mb-4 flex min-h-4 items-center gap-2.5">
+        <h2
+          className={cn("label inline-flex items-center gap-2", playing && "text-brand-alt")}
+        >
+          {playing && (
+            <span className="np-eq" data-moving={live || undefined} aria-hidden="true">
+              <span />
+              <span />
+              <span />
             </span>
           )}
-        </div>
+          {label}
+        </h2>
+        {layout === "home" ? (
+          <a
+            href="/music"
+            className="ml-auto whitespace-nowrap font-mono text-[11px] text-ink-faint transition-colors hover:text-ink"
+          >
+            Music →
+          </a>
+        ) : (
+          trackUrl && (
+            <a
+              href={trackUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-auto whitespace-nowrap font-mono text-[11px] text-ink-faint transition-colors hover:text-ink"
+            >
+              Open in Spotify ↗
+            </a>
+          )
+        )}
       </div>
-    </Shell>
+      {children}
+    </div>
+  );
+}
+
+function Body({ layout, children }: { layout: Layout; children: React.ReactNode }) {
+  return <div className={cn("grid flex-1", SIZES[layout].body)}>{children}</div>;
+}
+
+function LiveLine({ live, trouble }: { live: boolean; trouble: boolean }) {
+  return (
+    <p className="mt-3.5 flex items-center gap-2 font-mono text-[11px] text-ink-faint">
+      <i
+        aria-hidden="true"
+        className={cn("size-1.5 shrink-0 rounded-full", !live ? "bg-ink-faint" : trouble ? "bg-warn" : "bg-ok")}
+      />
+      {live ? (
+        <span>
+          Live · <span className="max-sm:hidden">checks Spotify </span>every {POLL_MS / 1000}s
+        </span>
+      ) : (
+        "Live updates off · as of page load"
+      )}
+    </p>
   );
 }
 
@@ -290,7 +432,15 @@ export default function NowPlaying() {
  * Cross-fades between covers. The outgoing frame stays mounted underneath so
  * the tile never flashes empty; the first frame does not animate.
  */
-function Artwork({ image, title }: { image: string | null; title: string }) {
+function Artwork({
+  image,
+  title,
+  className,
+}: {
+  image: string | null;
+  title: string;
+  className: string;
+}) {
   const id = image ?? title;
   // Either [current], or [outgoing, incoming] while a fade is in flight.
   const [frames, setFrames] = useState([{ id, image, ready: true }]);
@@ -315,7 +465,12 @@ function Artwork({ image, title }: { image: string | null; title: string }) {
     setFrames((prev) => (prev.length > 1 ? prev.slice(-1) : prev));
 
   return (
-    <div className="relative h-14 w-14 shrink-0">
+    <div
+      className={cn(
+        "relative shrink-0 overflow-hidden rounded-card bg-raised shadow-[0_14px_34px_-14px_rgba(0,0,0,0.75)]",
+        className,
+      )}
+    >
       {frames.map((frame, index) => (
         <div
           key={frame.id}
@@ -329,30 +484,22 @@ function Artwork({ image, title }: { image: string | null; title: string }) {
             <img
               src={frame.image}
               alt=""
-              width={56}
-              height={56}
+              width={236}
+              height={236}
               decoding="async"
               onLoad={() => ready(frame.id)}
               onError={() => ready(frame.id)}
-              className="h-14 w-14 rounded-xs bg-raised object-cover"
+              className="h-full w-full bg-raised object-cover"
             />
           ) : (
-            <div className="grid h-14 w-14 place-items-center rounded-xs bg-raised">
-              <SpotifyIcon className="h-5 w-5 text-ink-faint" />
+            <div className="grid h-full w-full place-items-center bg-raised">
+              <SpotifyIcon className="h-7 w-7 text-ink-faint" />
             </div>
           )}
         </div>
       ))}
+      {/* A hairline inside the cover's edge, so a dark sleeve still has one. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-card shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]" />
     </div>
-  );
-}
-
-/**
- * Fixed-height frame shared by every state, so the page doesn't jump as the
- * fetch resolves.
- */
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-[5.5rem] items-center gap-4">{children}</div>
   );
 }

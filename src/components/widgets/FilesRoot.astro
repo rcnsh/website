@@ -1,5 +1,9 @@
 ---
 import FileBrowser from "@/components/react/FileBrowser";
+import FilesHero from "@/components/files/FilesHero.astro";
+import FilesUsage from "@/components/files/FilesUsage.astro";
+import { bucketTotals } from "@/lib/bucket-totals";
+import { kindTotals } from "@/lib/files-nav";
 import {
   cachedTree,
   listDirectory,
@@ -8,8 +12,17 @@ import {
   type R2Tree,
 } from "@/lib/r2";
 
-// Server island. Ships the whole directory tree with the page, or just the
-// root once the bucket outgrows that.
+// Server island, and the whole page below the top bar: the title tile's
+// figures, the usage tile and the browser all come from one read of the tree.
+// It ships the whole directory tree with the page, or just the root once the
+// bucket outgrows that.
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+
 let tree: R2Tree | null = null;
 let root: R2Listing | null = null;
 
@@ -19,11 +32,13 @@ try {
 } catch (error) {
   console.error("[files] listing failed", error);
 }
+
+const totals = tree ? bucketTotals(tree) : null;
+const kinds = tree ? kindTotals(tree) : null;
 ---
 
-<FileBrowser
-  client:idle
-  tree={tree}
-  initial={root}
-  bucketUrl={publicBucketBase()}
-/>
+<div class="bento">
+  <FilesHero title={title} description={description} totals={totals} wide={!kinds?.length} />
+  {kinds && kinds.length > 0 && <FilesUsage kinds={kinds} />}
+  <FileBrowser client:idle tree={tree} initial={root} bucketUrl={publicBucketBase()} />
+</div>

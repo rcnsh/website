@@ -1,12 +1,13 @@
 ---
+import StatTile from "@/components/home/StatTile.astro";
 import { getProfile } from "@/lib/github";
 
-// Deferred island. The page owns the <dl>; <astro-island> is display:contents,
-// so these land as its direct children.
+// Deferred island. Three tiles in three separate grid areas: the island emits
+// no wrapper, so each lands as a direct child of the page grid.
 //
-// The loader throws on failure now rather than caching a null, so the catch is
-// here. The strip still degrades to em dashes — there is nowhere in a three-cell
-// <dl> to put a sentence — but the failure is logged rather than silent.
+// The loader throws on failure rather than caching a null, so the catch is
+// here. The tiles still degrade to em dashes — there is no room in a figure
+// tile for a sentence — but the failure is logged rather than silent.
 let profile: Awaited<ReturnType<typeof getProfile>> = null;
 try {
   profile = await getProfile();
@@ -14,21 +15,24 @@ try {
   console.error("[github] stats island failed", error);
 }
 const since = profile ? new Date(profile.createdAt).getFullYear() : null;
-
-const facts = [
-  { label: "Repos", value: profile ? String(profile.publicRepos) : "—" },
-  { label: "Followers", value: profile ? String(profile.followers) : "—" },
-  { label: "On GitHub since", value: since ? String(since) : "—" },
-];
+const years = since ? new Date().getFullYear() - since : null;
 ---
 
-{
-  facts.map((fact) => (
-    <div>
-      <dt class="label">{fact.label}</dt>
-      <dd class="mt-1.5 font-mono text-base tabular-nums text-ink">
-        {fact.value}
-      </dd>
-    </div>
-  ))
-}
+<StatTile
+  class="[grid-area:s1]"
+  label="Repos"
+  value={profile ? String(profile.publicRepos) : "—"}
+  detail="public"
+/>
+<StatTile
+  class="[grid-area:s2]"
+  label="Followers"
+  value={profile ? String(profile.followers) : "—"}
+  detail="on GitHub"
+/>
+<StatTile
+  class="[grid-area:s3]"
+  label="On GitHub since"
+  value={since ? String(since) : "—"}
+  detail={years ? `${years} year${years === 1 ? "" : "s"}` : undefined}
+/>

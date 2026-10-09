@@ -30,9 +30,9 @@ const items = [...nav, ...externalLinks].map((item) => ({
     role="dialog"
     aria-modal="true"
     aria-label="Command palette"
-    class="card relative w-full max-w-md"
+    class="relative w-full max-w-[35rem] overflow-hidden rounded-tile border border-line bg-base shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]"
   >
-    <div class="flex items-center gap-3 border-b border-line px-4">
+    <div class="flex items-center gap-3 border-b border-line-soft px-4">
       <Icon name="search" class="palette-search h-3.5 w-3.5 shrink-0 text-ink-faint" />
       <span
         data-palette-prompt
@@ -44,9 +44,9 @@ const items = [...nav, ...externalLinks].map((item) => ({
         placeholder="Jump to…  ($ for a shell)"
         aria-label="Search pages and links"
         autocomplete="off"
-        class="w-full bg-transparent py-3 text-sm text-ink outline-none placeholder:text-ink-faint"
+        class="w-full bg-transparent py-3.5 text-sm text-ink outline-none placeholder:text-ink-faint"
       />
-      <kbd class="shrink-0 font-mono text-[10px] text-ink-faint">esc</kbd>
+      <kbd class="shrink-0 rounded border border-line-soft px-1.5 py-0.5 font-mono text-[10px] text-ink-faint">esc</kbd>
     </div>
 
     {/*
@@ -62,7 +62,7 @@ const items = [...nav, ...externalLinks].map((item) => ({
     </div>
 
     {/* Tall enough that the full, unfiltered list lands without scrolling. */}
-    <div data-palette-list class="max-h-[21.5rem] overflow-y-auto py-1">
+    <div data-palette-list class="max-h-[21.5rem] overflow-y-auto p-1.5">
       {
         items.map((item) => (
           <a
@@ -72,7 +72,7 @@ const items = [...nav, ...externalLinks].map((item) => ({
             data-haystack={item.haystack}
             target={item.external ? "_blank" : undefined}
             rel={item.external ? "noopener noreferrer" : undefined}
-            class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-ink-dim transition-colors hover:text-ink"
+            class="flex w-full items-center gap-3 rounded-[5px] px-2.5 py-2.5 text-left text-sm text-ink-dim transition-colors hover:text-ink"
           >
             <Icon
               name={item.icon}
@@ -86,9 +86,18 @@ const items = [...nav, ...externalLinks].map((item) => ({
         ))
       }
 
-      <p data-palette-empty hidden class="px-4 py-6 text-sm text-ink-faint">
+      <p data-palette-empty hidden class="px-2.5 py-6 text-sm text-ink-faint">
         Nothing matches “<span data-palette-query></span>”.
       </p>
+    </div>
+
+    <div
+      class="flex gap-3.5 border-t border-line-soft px-4 py-2.5 font-mono text-[10.5px] text-ink-faint"
+      aria-hidden="true"
+    >
+      <span><kbd class="palette-key">↑</kbd> <kbd class="palette-key">↓</kbd> move</span>
+      <span><kbd class="palette-key">↵</kbd> open</span>
+      <span><kbd class="palette-key">$</kbd> shell</span>
     </div>
   </div>
 </div>
@@ -107,6 +116,13 @@ const items = [...nav, ...externalLinks].map((item) => ({
     pointer-events: auto;
   }
 
+  .palette-key {
+    font: inherit;
+    border: 1px solid var(--color-line-soft);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
   /* A row's own `display: flex` outranks the UA rule for [hidden]. */
   [data-palette-item][hidden] {
     display: none;
@@ -119,7 +135,7 @@ const items = [...nav, ...externalLinks].map((item) => ({
   }
 
   [data-palette-item][data-active] :global(.palette-icon) {
-    color: var(--color-brand);
+    color: var(--color-brand-alt);
   }
 
   /* In shell mode the row list gives way to the scrollback. */

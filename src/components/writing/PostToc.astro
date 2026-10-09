@@ -1,0 +1,100 @@
+---
+import type { MarkdownHeading } from "astro";
+
+interface Props {
+  headings: MarkdownHeading[];
+}
+
+// h1 is the post title; below h4 the list stops being a map.
+const headings = Astro.props.headings.filter((h) => h.depth >= 2 && h.depth <= 4);
+const indent: Record<number, string> = { 2: "pl-3.5", 3: "pl-[26px] text-[0.8125rem]", 4: "pl-[38px] text-[0.8125rem]" };
+---
+
+<nav class="tile" aria-labelledby="toc-heading" data-toc>
+  <div class:list={["flex items-center gap-2.5", headings.length > 0 && "mb-4"]}>
+    <h2 class="label" id="toc-heading">{headings.length > 0 ? "On this page" : "Progress"}</h2>
+    <span
+      class="ml-auto font-mono text-[0.6875rem] tabular-nums text-ink-faint max-[1020px]:hidden"
+      aria-hidden="true"
+      data-toc-pct
+    >
+      0%
+    </span>
+  </div>
+
+  {
+    headings.length > 0 && (
+      <ol class="border-l border-line-soft">
+        {headings.map((h) => (
+          <li>
+            <a
+              href={`#${h.slug}`}
+              class:list={[
+                "toc-link -ml-px block border-l border-transparent py-[5px] pr-1 text-[0.84375rem] text-ink-faint transition-colors hover:text-ink",
+                indent[h.depth],
+              ]}
+            >
+              {h.text}
+            </a>
+          </li>
+        ))}
+      </ol>
+    )
+  }
+
+  <div
+    class="mt-4 h-0.5 overflow-hidden rounded-sm bg-line-soft max-[1020px]:hidden"
+    aria-hidden="true"
+  >
+    <i class="block h-full origin-left scale-x-0 bg-brand-gradient" data-toc-bar></i>
+  </div>
+</nav>
+
+<style>
+  .toc-link[aria-current] {
+    color: var(--color-ink);
+    border-left-color: var(--color-brand);
+  }
+</style>
+
+<script>
+  import { activeHeading, readingProgress } from "@/lib/reading-progress";
+
+  const toc = document.querySelector<HTMLElement>("[data-toc]");
+  const body = document.querySelector<HTMLElement>("[data-post-body]");
+
+  if (toc && body) {
+    const pct = toc.querySelector<HTMLElement>("[data-toc-pct]");
+    const bar = toc.querySelector<HTMLElement>("[data-toc-bar]");
+    const links = [...toc.querySelectorAll<HTMLAnchorElement>("a[href^='#']")];
+    const targets = links.map((a) => document.getElementById(decodeURIComponent(a.hash.slice(1))));
+
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      // The same offset the headings' scroll-margin clears, so a heading
+      // jumped to from here is the one marked current.
+      const header = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--header-h")) || 0;
+      const rect = body.getBoundingClientRect();
+      const progress = readingProgress(rect.top - header, rect.height, window.innerHeight - header);
+
+      const tops = targets.map((el) => el?.getBoundingClientRect().top ?? Infinity);
+      const current = activeHeading(tops, header + 32, progress >= 1);
+      links.forEach((a, i) => {
+        if (i === current) a.setAttribute("aria-current", "location");
+        else a.removeAttribute("aria-current");
+      });
+
+      bar?.style.setProperty("transform", `scaleX(${progress})`);
+      if (pct) pct.textContent = `${Math.round(progress * 100)}%`;
+    };
+
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+
+    addEventListener("scroll", schedule, { passive: true });
+    addEventListener("resize", schedule, { passive: true });
+    update();
+  }
+</script>

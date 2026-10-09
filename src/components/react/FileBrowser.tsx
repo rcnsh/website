@@ -1,55 +1,54 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
-import {
-  Check,
-  ChevronRight,
-  File,
-  FileArchive,
-  FileAudio,
-  FileCode,
-  FileImage,
-  FileText,
-  FileVideo,
-  Folder,
-  FolderOpen,
-  Link2,
-  Search,
-  X,
-} from "lucide-react";
 import type { R2File, R2Listing, R2Tree } from "@/lib/r2";
-import MediaPreview, { previewKind } from "@/components/react/MediaPreview";
+import {
+  baseName,
+  childOnPath,
+  crumbs,
+  type Entry,
+  fileEntry,
+  folderStats,
+  formatDay,
+  hashFor,
+  listingEntries,
+  matchRange,
+  nextSort,
+  parentOf,
+  parseHash,
+  SEARCH_MIN,
+  searchTree,
+  type SortKey,
+  SORT_KEYS,
+  sortEntries,
+} from "@/lib/files-nav";
+import { clampIndex, keyAction } from "@/lib/files-keys";
+import { isTextPreviewable } from "@/lib/text-preview";
 import { publicUrl } from "@/lib/thumbs";
-import { cn, fileKind, formatBytes, formatDate } from "@/lib/utils";
-
-const ICONS = {
-  image: { Icon: FileImage, colour: "text-emerald-500/70" },
-  video: { Icon: FileVideo, colour: "text-purple-400/70" },
-  audio: { Icon: FileAudio, colour: "text-pink-400/70" },
-  archive: { Icon: FileArchive, colour: "text-amber-500/70" },
-  doc: { Icon: FileText, colour: "text-red-400/70" },
-  code: { Icon: FileCode, colour: "text-brand" },
-  text: { Icon: FileText, colour: "text-ink-faint" },
-  file: { Icon: File, colour: "text-ink-faint" },
-} as const;
-
-/** Constant for the page and wanted by every row, hence a context. */
-const BucketBase = createContext("");
-
-/** The one file whose preview is open, by full key. */
-const Selection = createContext<{
-  selected: string | null;
-  toggle: (key: string) => void;
-}>({ selected: null, toggle: () => {} });
-
-/** Built here rather than sent with every file. */
-const urlFor = publicUrl;
+import { fileKind, formatBytes } from "@/lib/utils";
+import MediaPreview, {
+  Backfill,
+  DetailList,
+  Fallback,
+  previewKind,
+} from "@/components/react/MediaPreview";
+import { CardThumb, EntryIcon, ImagePreview, TextPreview } from "@/components/files/Previews";
+import {
+  ArrowDownIcon,
+  CheckIcon,
+  CloseIcon,
+  ExternalIcon,
+  GridIcon,
+  LinkIcon,
+  ListIcon,
+  SearchIcon,
+} from "@/components/files/icons";
 
 type Props = {
   /** Whole bucket, keyed by prefix. Null once the bucket is too big to inline. */
@@ -58,29 +57,59 @@ type Props = {
   bucketUrl: string;
 };
 
+type View = "list" | "grid";
+
+/** Rows drawn at first; a big folder grows the window as the selection walks down. */
+const WINDOW = 200;
+
+/** Children listed in a folder's preview. */
+const FOLDER_PEEK = 12;
+
+/** How long a folder must stay selected before its listing is fetched. */
+const PEEK_DELAY_MS = 250;
+
+const count = (n: number) => n.toLocaleString("en-GB");
+const plural = (n: number, word: string) => `${count(n)} ${word}${n === 1 ? "" : "s"}`;
+
 export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   // With a tree, every directory is already here and nothing is ever fetched.
   const complete = tree !== null;
   const [listings, setListings] = useState<Record<string, R2Listing>>(
     () => tree ?? (initial ? { "": initial } : {}),
   );
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  /** Folders whose children have ever been rendered. See `toggle`. */
-  const [mounted, setMounted] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState<Set<string>>(new Set());
   // Without this a failed fetch renders identically to an empty folder.
   const [failed, setFailed] = useState<Set<string>>(new Set());
   const [rootError, setRootError] = useState(!tree && !initial);
+  const stats = useMemo(() => (complete ? folderStats(listings) : null), [complete, listings]);
+
+  const [cwd, setCwd] = useState("");
+  /** The selected key in each folder visited, so stepping back restores it. */
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const [sort, setSort] = useState<SortKey>("name");
+  const [reverse, setReverse] = useState(false);
+  const [view, setView] = useState<View>("list");
+  const [limit, setLimit] = useState(WINDOW);
 
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<R2File[] | null>(null);
+  const [results, setResults] = useState<Entry[] | null>(null);
+  const [resultPick, setResultPick] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   // Otherwise a search that never ran reads as "Nothing matches".
   const [searchFailed, setSearchFailed] = useState(false);
 
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const root = useRef<HTMLElement>(null);
+  const search = useRef<HTMLInputElement>(null);
+  const list = useRef<HTMLDivElement>(null);
+  const curCol = useRef<HTMLDivElement>(null);
+  const parentCol = useRef<HTMLDivElement>(null);
+  const playback = useRef<(() => void) | null>(null);
+
   const load = useCallback(
     async (prefix: string) => {
-      if (complete || listings[prefix]) return;
+      if (complete || listings[prefix] || loading.has(prefix)) return;
       setLoading((prev) => new Set(prev).add(prefix));
       setFailed((prev) => {
         if (!prev.has(prefix)) return prev;
@@ -89,14 +118,11 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
         return next;
       });
       try {
-        const response = await fetch(
-          `/api/files/list?prefix=${encodeURIComponent(prefix)}`,
-        );
+        const response = await fetch(`/api/files/list?prefix=${encodeURIComponent(prefix)}`);
         // A 429 and a 500 both arrive as JSON, and neither is an empty folder.
         if (!response.ok) throw new Error(String(response.status));
         const data = (await response.json()) as R2Listing & { error?: boolean };
         if (data.error) throw new Error("listing unavailable");
-
         setListings((prev) => ({ ...prev, [prefix]: data }));
         if (prefix === "") setRootError(false);
       } catch {
@@ -110,63 +136,33 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
         });
       }
     },
-    [complete, listings],
+    [complete, listings, loading],
   );
 
-  // One-shot bootstrap: listing `load` here would refetch the root every time
-  // a listing lands and changes the callback's identity.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount only
+  // The current folder and its parent, whenever either is missing. Failed
+  // ones wait for the retry button rather than looping.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the folder, not on `load`'s identity
   useEffect(() => {
-    if (!complete && !initial) void load("");
-  }, []);
+    if (complete) return;
+    if (!listings[cwd] && !failed.has(cwd)) void load(cwd);
+    const parent = parentOf(cwd);
+    if (cwd && !listings[parent] && !failed.has(parent)) void load(parent);
+  }, [cwd, complete]);
 
-  const toggle = (prefix: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(prefix)) {
-        next.delete(prefix);
-      } else {
-        next.add(prefix);
-        void load(prefix);
-        // Grows only — the collapse animation needs children to stay in the DOM
-        // once opened.
-        setMounted((m) => (m.has(prefix) ? m : new Set(m).add(prefix)));
-      }
-      return next;
-    });
-  };
+  /* ---- Search ---- */
 
-  // Flat index of every file, re-keyed by full path so a match can be shown
-  // with its folder. Only meaningful when the whole tree is present.
-  const allFiles = useMemo(
-    () =>
-      complete
-        ? Object.entries(listings).flatMap(([prefix, listing]) =>
-            listing.files.map(
-              ([path, size, uploaded]): R2File => [prefix + path, size, uploaded],
-            ),
-          )
-        : [],
-    [complete, listings],
-  );
-
-  // Local and instant with a complete tree, otherwise debounced against
-  // /api/files/search.
   useEffect(() => {
     const term = query.trim();
-    if (term.length < 2) {
+    setResultPick(null);
+    if (term.length < SEARCH_MIN) {
       setResults(null);
       setSearching(false);
+      setSearchFailed(false);
       return;
     }
 
     if (complete) {
-      const needle = term.toLowerCase();
-      setResults(
-        allFiles
-          .filter(([key]) => key.toLowerCase().includes(needle))
-          .slice(0, 100),
-      );
+      setResults(searchTree(listings, term));
       setSearching(false);
       return;
     }
@@ -176,19 +172,19 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const response = await fetch(
-          `/api/files/search?q=${encodeURIComponent(term)}`,
-          { signal: controller.signal },
-        );
+        const response = await fetch(`/api/files/search?q=${encodeURIComponent(term)}`, {
+          signal: controller.signal,
+        });
         if (!response.ok) throw new Error(String(response.status));
         const data = (await response.json()) as { files: R2File[]; error?: boolean };
         if (data.error) throw new Error("search unavailable");
-        setResults(data.files ?? []);
+        setResults((data.files ?? []).map(([key, size, uploaded]) => fileEntry(key, size, uploaded)));
         setSearchFailed(false);
       } catch {
         // An abort is us superseding the request, not a failure.
         if (controller.signal.aborted) return;
         setSearchFailed(true);
+        setResults([]);
       } finally {
         if (!controller.signal.aborted) setSearching(false);
       }
@@ -198,453 +194,871 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, complete, allFiles]);
+  }, [query, complete, listings]);
 
-  const [selected, setSelected] = useState<string | null>(null);
-  const selection = useMemo(
-    () => ({
-      selected,
-      toggle: (key: string) => setSelected((current) => (current === key ? null : key)),
-    }),
-    [selected],
+  const searchActive = results !== null || searching || searchFailed;
+
+  /* ---- What is on screen ---- */
+
+  const listing = listings[cwd];
+  const items = useMemo(() => {
+    if (results) return sortEntries(results, sort, reverse);
+    if (!listing) return [];
+    return sortEntries(listingEntries(cwd, listing, stats), sort, reverse);
+  }, [results, listing, cwd, stats, sort, reverse]);
+
+  const pickedKey = results ? resultPick : picked[cwd];
+  const found = pickedKey ? items.findIndex((e) => e.key === pickedKey) : -1;
+  const index = clampIndex(found < 0 ? 0 : found, items.length);
+  const selected = index >= 0 ? items[index] : null;
+
+  // Reset the window whenever the list itself is replaced.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: deliberately keyed on the list's identity
+  useEffect(() => setLimit(WINDOW), [cwd, results]);
+  const shown = items.slice(0, Math.max(limit, index + 60));
+
+  /* ---- Moving ---- */
+
+  const select = useCallback(
+    (i: number) => {
+      const target = items[clampIndex(i, items.length)];
+      if (!target) return;
+      if (results) setResultPick(target.key);
+      else setPicked((prev) => ({ ...prev, [cwd]: target.key }));
+    },
+    [items, results, cwd],
   );
 
-  const root = listings[""];
+  const clearSearch = useCallback(() => {
+    setQuery("");
+    setResults(null);
+    setSearching(false);
+    setSearchFailed(false);
+  }, []);
+
+  const go = useCallback(
+    (prefix: string, focusKey?: string) => {
+      clearSearch();
+      const passed = childOnPath(cwd, prefix);
+      const keep = focusKey ?? passed;
+      if (keep) setPicked((prev) => ({ ...prev, [prefix]: keep }));
+      setCwd(prefix);
+    },
+    [cwd, clearSearch],
+  );
+
+  const open = useCallback(() => {
+    if (!selected) return;
+    if (selected.dir) go(selected.key);
+    else if (results) go(selected.folder, selected.key);
+    else playback.current?.();
+  }, [selected, results, go]);
+
+  const up = useCallback(() => {
+    if (searchActive) clearSearch();
+    else if (cwd) go(parentOf(cwd));
+  }, [searchActive, cwd, go, clearSearch]);
+
+  const focusList = () => list.current?.focus({ preventScroll: true });
+
+  const linkFor = useCallback(
+    (entry: Entry) =>
+      entry.dir
+        ? `${window.location.origin}${window.location.pathname}${hashFor(entry.key)}`
+        : new URL(publicUrl(bucketUrl, entry.key), window.location.href).href,
+    [bucketUrl],
+  );
+
+  const copyTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(copyTimer.current), []);
+  const copyLink = useCallback(
+    async (entry: Entry | null = selected) => {
+      if (!entry) return;
+      try {
+        await navigator.clipboard.writeText(linkFor(entry));
+        setCopied(entry.key);
+        window.clearTimeout(copyTimer.current);
+        copyTimer.current = window.setTimeout(() => setCopied(null), 1500);
+      } catch {
+        // Clipboard blocked — the link itself still works.
+      }
+    },
+    [selected, linkFor],
+  );
+
+  /* ---- Deep links ---- */
+
+  const applyHash = useCallback(() => {
+    const { prefix, file } = parseHash(window.location.hash);
+    if (complete) {
+      // A link to a folder without its trailing slash still opens the folder.
+      if (file && listings[`${file}/`]) {
+        setCwd(`${file}/`);
+        return;
+      }
+      if (!listings[prefix]) return;
+    }
+    setCwd(prefix);
+    if (file) setPicked((prev) => ({ ...prev, [prefix]: file }));
+  }, [complete, listings]);
+
+  const hashApplied = useRef(false);
+  // Layout effect so a deep link is in place before the first paint after
+  // hydration, not one frame after it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount only
+  useLayoutEffect(() => {
+    applyHash();
+    hashApplied.current = true;
+    const onHash = () => {
+      clearSearch();
+      applyHash();
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  // Search results are a view, not a place, so they leave the link alone.
+  const linkPath = results ? null : selected && !selected.dir ? selected.key : cwd;
+  useEffect(() => {
+    if (!hashApplied.current || linkPath === null) return;
+    const hash = hashFor(linkPath);
+    if (hash === window.location.hash || (!hash && !window.location.hash)) return;
+    // Replace, not push: walking a folder with j/k would bury the back button.
+    history.replaceState(history.state, "", `${window.location.pathname}${window.location.search}${hash}`);
+  }, [linkPath]);
+
+  /* ---- Keeping the selection in view ---- */
+
+  // scrollIntoView would scroll the page too; only the column should move.
+  const scrollIn = (column: HTMLElement | null, element: HTMLElement | null | undefined) => {
+    if (!column || !element) return;
+    const top = element.offsetTop - 44;
+    const bottom = element.offsetTop + element.offsetHeight + 8;
+    if (top < column.scrollTop) column.scrollTop = top;
+    else if (bottom > column.scrollTop + column.clientHeight) column.scrollTop = bottom - column.clientHeight;
+  };
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the selection or layout moves
+  useLayoutEffect(() => {
+    scrollIn(curCol.current, list.current?.querySelector<HTMLElement>('[aria-selected="true"]'));
+  }, [index, view, cwd, results]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the folder changes
+  useLayoutEffect(() => {
+    scrollIn(parentCol.current, parentCol.current?.querySelector<HTMLElement>(".on"));
+  }, [cwd, listings]);
+
+  // A folder's preview lists its children; without the tree that is a fetch,
+  // so it waits until the selection settles.
+  const peek = selected?.dir ? selected.key : null;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the folder
+  useEffect(() => {
+    if (complete || !peek || listings[peek] || failed.has(peek)) return;
+    const timer = setTimeout(() => void load(peek), PEEK_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [peek, complete]);
+
+  /* ---- Keys ---- */
+
+  const gridColumns = () => {
+    const cards = list.current?.querySelectorAll<HTMLElement>(".fb-card");
+    if (!cards?.length) return 1;
+    const top = cards[0].offsetTop;
+    let n = 0;
+    for (const card of cards) {
+      if (card.offsetTop !== top) break;
+      n++;
+    }
+    return n;
+  };
+
+  const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement;
+    const done = () => {
+      event.preventDefault();
+      // Stops "/" reaching the palette's window listener while in here.
+      event.stopPropagation();
+    };
+
+    if (target === search.current) {
+      if (event.key === "Escape") {
+        if (query) clearSearch();
+        else focusList();
+        done();
+      } else if (event.key === "ArrowDown" || event.key === "Enter") {
+        focusList();
+        if (event.key === "Enter" && results?.length) open();
+        done();
+      }
+      return;
+    }
+    // Controls with keys of their own.
+    if (target.closest("input, textarea, select, [contenteditable], video, audio, [role='slider']")) return;
+    if (target.closest("button, a") && (event.key === "Enter" || event.key === " ")) return;
+
+    const action = keyAction(event, { view, columns: gridColumns() });
+    if (!action) return;
+
+    switch (action.type) {
+      case "move":
+        select(index + action.by);
+        return done();
+      case "first":
+        select(0);
+        return done();
+      case "last":
+        select(items.length - 1);
+        return done();
+      case "open":
+        open();
+        return done();
+      case "up":
+        up();
+        return done();
+      case "search":
+        search.current?.focus();
+        search.current?.select();
+        return done();
+      case "sort":
+        setSort((s) => nextSort(s));
+        setReverse(false);
+        return done();
+      case "reverse":
+        setReverse((r) => !r);
+        return done();
+      case "view":
+        setView((v) => (v === "list" ? "grid" : "list"));
+        return done();
+      case "copy":
+        void copyLink();
+        return done();
+      case "toggle-play":
+        if (!playback.current) return;
+        playback.current();
+        return done();
+      case "escape":
+        if (!searchActive) return;
+        clearSearch();
+        focusList();
+        return done();
+    }
+  };
+
+  const onPick = (i: number) => {
+    focusList();
+    // A second tap on a touch screen opens; a mouse double-clicks.
+    if (i === index && window.matchMedia("(pointer: coarse)").matches) open();
+    else select(i);
+  };
+
+  /* ---- Render ---- */
+
+  const needle = results ? query.trim() : "";
+  const host = bucketUrl ? new URL(bucketUrl).host : "bucket";
+  const totalObjects = stats?.[""]?.objects ?? null;
+
+  const folderCount = items.filter((e) => e.dir).length;
+  const fileCount = items.length - folderCount;
+  const folderBytes =
+    stats?.[cwd]?.bytes ?? listing?.files.reduce((sum, [, size]) => sum + size, 0) ?? 0;
+
+  const summary = results
+    ? totalObjects !== null
+      ? `${count(results.length)} of ${count(totalObjects)} objects match`
+      : results.length >= 100
+        ? "first 100 matches"
+        : plural(results.length, "match")
+    : listing
+      ? [folderCount ? plural(folderCount, "folder") : null, plural(fileCount, "file"), formatBytes(folderBytes)]
+          .filter(Boolean)
+          .join(" · ")
+      : "";
+
+  const footPath = selected ? selected.key : cwd;
+  const footSegments = footPath.split("/").filter(Boolean);
 
   return (
-    <BucketBase value={bucketUrl}>
-     <Selection value={selection}>
-      <div>
-        <div className="relative mb-1">
-          <Search className="pointer-events-none absolute left-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint" />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search the whole bucket…"
-            aria-label="Search files"
-            className="w-full border-b border-line bg-transparent py-2.5 pl-6 pr-6 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-brand [&::-webkit-search-cancel-button]:hidden"
-          />
-          {searching && (
-            <span className="absolute right-0 top-1/2 -translate-y-1/2 font-mono text-[10px] text-ink-faint">
-              …
+    <section ref={root} className="fb tile animate-rise col-span-12 [animation-delay:.06s]" aria-label="File browser" onKeyDown={onKeyDown}>
+      <div className="fb-tb">
+        <nav className="fb-crumbs" aria-label="Folder">
+          {searchActive && query.trim().length >= SEARCH_MIN ? (
+            <span className="res">
+              Search results in the whole bucket for “<b>{query.trim()}</b>”
             </span>
+          ) : (
+            <>
+              <button type="button" onClick={() => go("")} aria-current={cwd === "" ? "page" : undefined}>
+                bucket
+              </button>
+              {crumbs(cwd).map((crumb, i, all) => (
+                <span key={crumb.prefix} className="contents">
+                  <span className="sep" aria-hidden="true">
+                    /
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => go(crumb.prefix)}
+                    aria-current={i === all.length - 1 ? "page" : undefined}
+                  >
+                    {crumb.name}
+                  </button>
+                </span>
+              ))}
+            </>
           )}
-          {!searching && query && (
+          <span className="cnt">{summary}</span>
+        </nav>
+
+        <div className="fb-tools">
+          <label className="fb-search">
+            <span className="sr-only">Search files</span>
+            <SearchIcon size={14} />
+            <input
+              ref={search}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search the whole bucket…"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <kbd className="fb-k">/</kbd>
+            {searching && <span className="busy">…</span>}
+            {query && (
+              <button
+                type="button"
+                className="x"
+                aria-label="Clear search"
+                onClick={() => {
+                  clearSearch();
+                  search.current?.focus();
+                }}
+              >
+                <CloseIcon size={13} />
+              </button>
+            )}
+          </label>
+
+          <div className="fb-sort">
+            <span aria-hidden="true">Sort</span>
+            <fieldset className="fb-seg">
+              <legend className="sr-only">Sort by</legend>
+              {SORT_KEYS.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={sort === key}
+                  onClick={() => {
+                    if (sort === key) setReverse((r) => !r);
+                    else {
+                      setSort(key);
+                      setReverse(false);
+                    }
+                  }}
+                >
+                  {key}
+                </button>
+              ))}
+            </fieldset>
             <button
               type="button"
-              onClick={() => setQuery("")}
-              aria-label="Clear search"
-              className="absolute right-0 top-1/2 -translate-y-1/2 text-ink-faint transition-colors hover:text-ink"
+              className="fb-rev"
+              aria-label="Reverse sort"
+              aria-pressed={reverse}
+              onClick={() => setReverse((r) => !r)}
             >
-              <X className="h-3.5 w-3.5" />
+              <ArrowDownIcon size={12} />
             </button>
-          )}
+          </div>
+
+          <fieldset className="fb-views">
+            <legend className="sr-only">View</legend>
+            <button type="button" aria-pressed={view === "list"} aria-label="List view" onClick={() => setView("list")}>
+              <ListIcon size={15} />
+            </button>
+            <button type="button" aria-pressed={view === "grid"} aria-label="Grid view" onClick={() => setView("grid")}>
+              <GridIcon size={15} />
+            </button>
+          </fieldset>
+        </div>
+      </div>
+
+      <div className="fb-cols">
+        <div ref={parentCol} className="fb-col fb-parent">
+          <ParentColumn
+            cwd={cwd}
+            searching={searchActive}
+            host={host}
+            listings={listings}
+            stats={stats}
+            sort={sort}
+            reverse={reverse}
+            onGo={go}
+          />
         </div>
 
-        <div className="border-b border-line">
+        <div ref={curCol} className="fb-col fb-cur">
+          <div className="fb-col-h">
+            <b>{searchActive ? "results" : cwd ? `${baseName(cwd)}/` : `${host}/`}</b>
+            <span>{items.length ? `${index + 1} / ${count(items.length)}` : searching ? "" : "empty"}</span>
+          </div>
+
           {searchFailed ? (
-            <p className="py-8 text-sm text-ink-faint">
-              Couldn't search just now — try again.
-            </p>
-          ) : results !== null ? (
-            <SearchResults results={results} query={query} />
-          ) : rootError ? (
-            /* The binding hint is a developer's problem, so dev only. */
-            <p className="py-8 text-sm text-ink-faint">
+            <p className="fb-empty">Couldn't search just now — try again.</p>
+          ) : searching && !results ? (
+            <SkeletonRows />
+          ) : !results && rootError && cwd === "" ? (
+            <p className="fb-empty">
               Couldn't reach the bucket.
               {import.meta.env.DEV && (
                 <>
-                  {" "}Check the{" "}
-                  <code className="font-mono text-ink-dim">BUCKET</code> binding
-                  in wrangler.jsonc.
+                  {" "}Check the <code className="font-mono text-ink-dim">BUCKET</code> binding in wrangler.jsonc.
                 </>
               )}
             </p>
-          ) : !root ? (
-            <div className="py-2">
-              {/* biome-ignore-start lint/suspicious/noArrayIndexKey: a fixed-length
-                skeleton — the rows are identical and never reorder. */}
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="placeholder-block my-1.5 h-4 rounded-xs" />
-              ))}
-              {/* biome-ignore-end lint/suspicious/noArrayIndexKey: skeleton */}
-            </div>
-          ) : root.folders.length === 0 && root.files.length === 0 ? (
-            <p className="py-8 text-sm text-ink-faint">The bucket is empty.</p>
+          ) : !results && !listing ? (
+            failed.has(cwd) ? (
+              <p className="fb-empty">
+                <button type="button" className="fb-textbtn" onClick={() => void load(cwd)}>
+                  Couldn't load this folder — retry
+                </button>
+              </p>
+            ) : (
+              <SkeletonRows />
+            )
+          ) : items.length === 0 ? (
+            <p className="fb-empty">
+              {results ? `Nothing matches “${query.trim()}”.` : cwd ? "This folder is empty." : "The bucket is empty."}
+            </p>
           ) : (
-            <div className="py-1">
-              <Level
-                prefix=""
-                depth={0}
-                listings={listings}
-                expanded={expanded}
-                mounted={mounted}
-                loading={loading}
-                failed={failed}
-                onToggle={toggle}
-              />
-            </div>
+            <>
+              <div
+                ref={list}
+                role="listbox"
+                tabIndex={0}
+                aria-label={results ? "Search results" : `Contents of ${cwd || "the bucket"}`}
+                aria-activedescendant={index >= 0 ? `fb-opt-${index}` : undefined}
+                className={view === "grid" ? "fb-grid outline-none" : `fb-rows outline-none${results ? " no-dt" : ""}`}
+              >
+                {shown.map((entry, i) =>
+                  view === "grid" ? (
+                    // biome-ignore lint/a11y/useFocusableInteractive: the listbox holds focus and points here with aria-activedescendant
+                    // biome-ignore lint/a11y/useKeyWithClickEvents: the listbox around it owns the keyboard
+                    <div
+                      key={entry.key}
+                      id={`fb-opt-${i}`}
+                      role="option"
+                      aria-selected={i === index}
+                      className="fb-card"
+                      onClick={() => onPick(i)}
+                      onDoubleClick={open}
+                    >
+                      <CardThumb entry={entry} base={bucketUrl} />
+                      <div className="meta">
+                        <b title={entry.key}>
+                          {entry.dir ? `${entry.name}/` : <Highlight text={entry.name} query={needle} />}
+                        </b>
+                        <span>
+                          {entry.dir
+                            ? entry.count !== null
+                              ? plural(entry.count, "item")
+                              : "folder"
+                            : `${formatBytes(entry.size ?? 0)}${entry.uploaded ? ` · ${formatDay(entry.uploaded)}` : ""}`}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <Row
+                      key={entry.key}
+                      id={`fb-opt-${i}`}
+                      entry={entry}
+                      selected={i === index}
+                      query={needle}
+                      showFolder={results !== null}
+                      onClick={() => onPick(i)}
+                      onDoubleClick={open}
+                    />
+                  ),
+                )}
+              </div>
+              {items.length > shown.length && (
+                <div className="fb-more">
+                  <button type="button" className="fb-textbtn" onClick={() => setLimit(shown.length + WINDOW)}>
+                    show {count(Math.min(WINDOW, items.length - shown.length))} more of{" "}
+                    {count(items.length - shown.length)}
+                  </button>
+                </div>
+              )}
+              {!results && listing?.truncated && (
+                <p className="fb-note">Showing the first 20,000 objects in this folder.</p>
+              )}
+            </>
           )}
         </div>
 
-        {root?.truncated && (
-          <p className="mt-3 font-mono text-[11px] text-ink-faint">
-            Showing the first 20,000 objects in this folder.
-          </p>
-        )}
+        <div className="fb-col fb-pv-col">
+          <div className="fb-col-h">
+            <b>preview</b>
+            {selected && <span>{selected.dir ? "folder" : fileKind(selected.name)}</span>}
+          </div>
+          {selected && (
+            <div className="fb-pv">
+              <div className="fb-pv-head">
+                <EntryIcon entry={selected} />
+                <p title={selected.key}>{selected.dir ? `${selected.name}/` : selected.name}</p>
+                {!selected.dir && (
+                  <a
+                    href={publicUrl(bucketUrl, selected.key)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="fb-icon-btn"
+                    aria-label="Open in a new tab"
+                    title="Open in a new tab"
+                  >
+                    <ExternalIcon size={14} />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  className={copied === selected.key ? "fb-icon-btn ok" : "fb-icon-btn"}
+                  aria-label={copied === selected.key ? "Link copied" : "Copy link"}
+                  title="Copy link (y)"
+                  onClick={() => void copyLink(selected)}
+                >
+                  {copied === selected.key ? (
+                    <CheckIcon size={14} />
+                  ) : (
+                    <LinkIcon size={14} />
+                  )}
+                </button>
+              </div>
+              {selected.dir ? (
+                <FolderPreview
+                  entry={selected}
+                  listing={listings[selected.key]}
+                  failed={failed.has(selected.key)}
+                  stats={stats}
+                  sort={sort}
+                  reverse={reverse}
+                  bucketUrl={bucketUrl}
+                  onGo={go}
+                />
+              ) : (
+                <FilePreview key={selected.key} entry={selected} bucketUrl={bucketUrl} playback={playback} />
+              )}
+            </div>
+          )}
+        </div>
       </div>
-     </Selection>
-    </BucketBase>
+
+      <div className="fb-foot">
+        <span className="sp">
+          <span>
+            {host}/
+            {footSegments.slice(0, -1).map((s) => `${s}/`).join("")}
+            {footSegments.length > 0 && (
+              <b>
+                {footSegments[footSegments.length - 1]}
+                {footPath.endsWith("/") ? "/" : ""}
+              </b>
+            )}
+          </span>
+          {items.length > 0 && (
+            <span className="pos">
+              {index + 1}/{count(items.length)}
+            </span>
+          )}
+        </span>
+        <span className="keys" aria-hidden="true">
+          <span>
+            <kbd className="fb-k">j</kbd>
+            <kbd className="fb-k">k</kbd>
+            <em>move</em>
+          </span>
+          <span>
+            <kbd className="fb-k">h</kbd>
+            <kbd className="fb-k">l</kbd>
+            <em>out · in</em>
+          </span>
+          <span className="x1">
+            <kbd className="fb-k">↵</kbd>
+            <em>open · play</em>
+          </span>
+          <span className="x2">
+            <kbd className="fb-k">/</kbd>
+            <em>search</em>
+          </span>
+          <span className="x2">
+            <kbd className="fb-k">y</kbd>
+            <em>copy link</em>
+          </span>
+          <span className="x1">
+            <kbd className="fb-k">s</kbd>
+            <kbd className="fb-k">r</kbd>
+            <em>sort</em>
+          </span>
+          <span className="x2">
+            <kbd className="fb-k">v</kbd>
+            <em>view</em>
+          </span>
+        </span>
+      </div>
+    </section>
   );
 }
 
 /* -------------------------------------------------------------------------- */
 
-type LevelProps = {
-  prefix: string;
-  depth: number;
-  listings: Record<string, R2Listing>;
-  expanded: Set<string>;
-  /** Folders whose children have been rendered at least once. */
-  mounted: Set<string>;
-  loading: Set<string>;
-  /** Folders whose last load failed, so a failure is not drawn as emptiness. */
-  failed: Set<string>;
-  onToggle: (prefix: string) => void;
-};
-
-function Level({
-  prefix,
-  depth,
-  listings,
-  expanded,
-  mounted,
-  loading,
-  failed,
-  onToggle,
-}: LevelProps) {
-  const listing = listings[prefix];
-
-  // No listing plus a recorded failure is an outage, not an empty folder.
-  if (!listing) {
-    if (!failed.has(prefix)) return null;
-    return (
-      <button
-        type="button"
-        onClick={() => onToggle(prefix)}
-        className="py-1 font-mono text-[0.8125rem] text-ink-faint underline decoration-line-strong underline-offset-[4px] transition-colors hover:text-ink-dim hover:decoration-brand"
-        style={{ paddingLeft: `${depth * 16}px` }}
-      >
-        couldn't load — retry
-      </button>
-    );
-  }
-
+function Highlight({ text, query }: { text: string; query: string }) {
+  const range = query ? matchRange(text, query) : null;
+  if (!range) return <>{text}</>;
   return (
     <>
-      {listing.folders.map((name) => {
-        const childPrefix = `${prefix}${name}/`;
-        return (
-          <FolderRow
-            key={childPrefix}
-            name={name}
-            prefix={childPrefix}
-            depth={depth}
-            isOpen={expanded.has(childPrefix)}
-            isLoading={loading.has(childPrefix)}
-            listings={listings}
-            expanded={expanded}
-            mounted={mounted}
-            loading={loading}
-            failed={failed}
-            onToggle={onToggle}
-          />
-        );
-      })}
-      {listing.files.map((file) => (
-        <FileRow key={file[0]} file={file} parent={prefix} depth={depth} />
+      {text.slice(0, range[0])}
+      <mark>{text.slice(range[0], range[1])}</mark>
+      {text.slice(range[1])}
+    </>
+  );
+}
+
+function SkeletonRows() {
+  return (
+    <div className="px-4 py-2.5" aria-hidden="true">
+      {/* biome-ignore-start lint/suspicious/noArrayIndexKey: a fixed-length skeleton */}
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="placeholder-block my-2.5 h-4 rounded-xs" />
       ))}
-    </>
-  );
-}
-
-function FolderRow({
-  name,
-  prefix,
-  depth,
-  isOpen,
-  isLoading,
-  listings,
-  expanded,
-  mounted,
-  loading,
-  failed,
-  onToggle,
-}: {
-  name: string;
-  prefix: string;
-  depth: number;
-  isOpen: boolean;
-  isLoading: boolean;
-} & Omit<LevelProps, "prefix" | "depth">) {
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={() => onToggle(prefix)}
-        aria-expanded={isOpen}
-        className="group flex w-full items-center gap-2 py-2 text-left sm:py-1"
-        style={{ paddingLeft: `${depth * 16}px` }}
-      >
-        <span
-          className={cn(
-            "shrink-0 text-ink-faint transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
-            isOpen && "rotate-90",
-          )}
-        >
-          <ChevronRight className="h-3.5 w-3.5" />
-        </span>
-
-        {isOpen ? (
-          <FolderOpen className="h-4 w-4 shrink-0 text-brand" />
-        ) : (
-          <Folder className="h-4 w-4 shrink-0 text-brand/60" />
-        )}
-
-        <span className="truncate font-mono text-[0.8125rem] text-ink-dim transition-colors group-hover:text-ink">
-          {name}
-        </span>
-
-        {isLoading && (
-          <span className="shrink-0 font-mono text-[10px] text-ink-faint">…</span>
-        )}
-      </button>
-
-      {/*
-        A CSS grid-row transition, not an animated height: `1fr` needs no
-        measurement, so it nests cleanly and can't get stuck at 0 if the frame
-        loop is starved in a background tab.
-      */}
-      <div
-        className={cn(
-          "grid transition-[grid-template-rows] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
-          isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-        )}
-      >
-        {/* `inert` keeps collapsed rows out of the tab order and the a11y tree. */}
-        <div className="min-h-0 overflow-hidden" inert={!isOpen}>
-          <div
-            className="border-l border-line"
-            style={{ marginLeft: `${depth * 16 + 7}px` }}
-          >
-            <div style={{ marginLeft: `-${depth * 16 + 7}px` }}>
-              {/*
-                Gated on first open. The whole tree is inlined, so without this
-                React would mount every file row on first paint and reconcile
-                them all on every keystroke.
-              */}
-              {mounted.has(prefix) && (
-                <Level
-                  prefix={prefix}
-                  depth={depth + 1}
-                  listings={listings}
-                  expanded={expanded}
-                  mounted={mounted}
-                  loading={loading}
-                  failed={failed}
-                  onToggle={onToggle}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* biome-ignore-end lint/suspicious/noArrayIndexKey: skeleton */}
     </div>
   );
 }
 
-function FileRow({
-  file,
-  parent,
-  depth,
+function Row({
+  entry,
+  id,
+  selected,
+  on,
+  query = "",
+  showFolder = false,
+  onClick,
+  onDoubleClick,
 }: {
-  file: R2File;
-  /** Prefix of the listing this row came from, which makes up the rest of its key. */
-  parent: string;
-  depth: number;
+  entry: Entry;
+  id?: string;
+  /** Set in the current column, where rows are listbox options. */
+  selected?: boolean;
+  /** Set in the parent column and folder previews, where rows are plain list items. */
+  on?: boolean;
+  query?: string;
+  showFolder?: boolean;
+  onClick: () => void;
+  onDoubleClick?: () => void;
 }) {
-  const [name, size, uploaded] = file;
-  const base = useContext(BucketBase);
-  const key = parent + name;
-  const { Icon, colour } = ICONS[fileKind(name)];
+  const option = selected !== undefined;
+  const meta: ReactNode = entry.dir
+    ? entry.count !== null
+      ? plural(entry.count, "item")
+      : ""
+    : entry.uploaded
+      ? formatDay(entry.uploaded)
+      : "";
+  const className = `fb-row${entry.dir ? " dir" : ""}${on ? " on" : ""}`;
+  const body = (
+    <>
+      <EntryIcon entry={entry} />
+      <span className="nm" title={entry.key}>
+        {showFolder && entry.folder && (
+          <span className="path">
+            <Highlight text={entry.folder} query={query} />
+          </span>
+        )}
+        {entry.dir ? `${entry.name}/` : <Highlight text={entry.name} query={query} />}
+      </span>
+      <span className="m dt">{meta}</span>
+      <span className="m">{entry.size !== null ? formatBytes(entry.size) : ""}</span>
+    </>
+  );
+
+  if (option) {
+    return (
+      // biome-ignore lint/a11y/useFocusableInteractive: the listbox holds focus and points here with aria-activedescendant
+      // biome-ignore lint/a11y/useKeyWithClickEvents: the listbox around it owns the keyboard
+      <div id={id} role="option" aria-selected={selected} className={className} onClick={onClick} onDoubleClick={onDoubleClick}>
+        {body}
+      </div>
+    );
+  }
+  // Parent column and folder previews: a pointer shortcut to what the
+  // keyboard reaches with h and l.
+  return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: h and l are the keyboard path
+    <li className={className} onClick={onClick}>
+      {body}
+    </li>
+  );
+}
+
+function ParentColumn({
+  cwd,
+  searching,
+  host,
+  listings,
+  stats,
+  sort,
+  reverse,
+  onGo,
+}: {
+  cwd: string;
+  searching: boolean;
+  host: string;
+  listings: Record<string, R2Listing>;
+  stats: ReturnType<typeof folderStats> | null;
+  sort: SortKey;
+  reverse: boolean;
+  onGo: (prefix: string, focusKey?: string) => void;
+}) {
+  if (searching) {
+    return (
+      <>
+        <div className="fb-col-h">
+          <b>search</b>
+          <span>bucket</span>
+        </div>
+        <p className="fb-note">
+          Searching every key in the bucket, not just this folder.
+          <br />
+          <br />
+          <kbd className="fb-k">esc</kbd> to go back.
+        </p>
+      </>
+    );
+  }
+
+  if (cwd === "") {
+    return (
+      <>
+        <div className="fb-col-h">
+          <b>r2://</b>
+        </div>
+        <ul className="fb-rows">
+          <Row entry={{ dir: true, name: host, key: "", folder: "", size: null, uploaded: null, count: null }} on onClick={() => onGo("")} />
+        </ul>
+      </>
+    );
+  }
+
+  const parent = parentOf(cwd);
+  const listing = listings[parent];
+  const entries = listing ? sortEntries(listingEntries(parent, listing, stats), sort, reverse) : [];
+  return (
+    <>
+      <div className="fb-col-h">
+        <b>{parent ? `${baseName(parent)}/` : `${host}/`}</b>
+      </div>
+      {listing ? (
+        <ul className="fb-rows">
+          {entries.map((entry) => (
+            <Row
+              key={entry.key}
+              entry={entry}
+              on={entry.key === cwd}
+              onClick={() => (entry.dir ? onGo(entry.key) : onGo(parent, entry.key))}
+            />
+          ))}
+        </ul>
+      ) : (
+        <SkeletonRows />
+      )}
+    </>
+  );
+}
+
+function FolderPreview({
+  entry,
+  listing,
+  failed,
+  stats,
+  sort,
+  reverse,
+  bucketUrl,
+  onGo,
+}: {
+  entry: Entry;
+  listing: R2Listing | undefined;
+  failed: boolean;
+  stats: ReturnType<typeof folderStats> | null;
+  sort: SortKey;
+  reverse: boolean;
+  bucketUrl: string;
+  onGo: (prefix: string, focusKey?: string) => void;
+}) {
+  const children = listing ? sortEntries(listingEntries(entry.key, listing, stats), sort, reverse) : null;
+  const rows: [string, string][] = [];
+  if (entry.count !== null) rows.push(["Objects", count(entry.count)]);
+  else if (listing) rows.push(["Here", `${plural(listing.folders.length, "folder")}, ${plural(listing.files.length, "file")}`]);
+  if (entry.size !== null) rows.push(["Size", formatBytes(entry.size)]);
+  if (entry.uploaded) rows.push(["Updated", formatDay(entry.uploaded)]);
+  const hasMedia = listing?.files.some(([name]) => previewKind(name) !== null) ?? false;
 
   return (
     <>
-      <div
-        className="group flex items-center gap-2 py-2 sm:py-1"
-        style={{ paddingLeft: `${depth * 16}px` }}
-      >
-        <span className="w-3.5 shrink-0" />
-        <Icon className={cn("h-4 w-4 shrink-0", colour)} />
-
-        <FileName fileKey={key} className="text-ink-dim">
-          {name}
-        </FileName>
-
-        <CopyLink url={urlFor(base, key)} />
-
-        <span className="hidden shrink-0 font-mono text-[11px] text-ink-faint sm:block">
-          {formatDate(new Date(uploaded * 1000))}
-        </span>
-        <span className="w-14 shrink-0 text-right font-mono text-[11px] tabular-nums text-ink-faint">
-          {formatBytes(size)}
-        </span>
-      </div>
-      <Preview fileKey={key} size={size} indent={depth * 16 + 22} />
+      {children === null ? (
+        failed ? (
+          <p className="fb-note">Couldn't list this folder.</p>
+        ) : (
+          <SkeletonRows />
+        )
+      ) : children.length === 0 ? (
+        <p className="fb-note">This folder is empty.</p>
+      ) : (
+        <>
+          <ul className="fb-rows">
+            {children.slice(0, FOLDER_PEEK).map((child) => (
+              <Row key={child.key} entry={child} onClick={() => onGo(entry.key, child.key)} />
+            ))}
+          </ul>
+          {children.length > FOLDER_PEEK && <p className="more-k">and {count(children.length - FOLDER_PEEK)} more</p>}
+        </>
+      )}
+      {rows.length > 0 && <DetailList rows={rows} />}
+      {bucketUrl && hasMedia && <Backfill folder={entry.key} base={bucketUrl} />}
     </>
   );
 }
 
-/**
- * A file's name: a toggle for its preview when it is media, otherwise a plain
- * link to the file.
- */
-function FileName({
-  fileKey,
-  className,
-  children,
+function FilePreview({
+  entry,
+  bucketUrl,
+  playback,
 }: {
-  fileKey: string;
-  className?: string;
-  children: React.ReactNode;
+  entry: Entry;
+  bucketUrl: string;
+  playback: React.RefObject<(() => void) | null>;
 }) {
-  const base = useContext(BucketBase);
-  const { selected, toggle } = useContext(Selection);
-  const classes = cn(
-    "min-w-0 flex-1 truncate text-left font-mono text-[0.8125rem] transition-colors hover:text-brand",
-    className,
-  );
-
-  if (!previewKind(fileKey)) {
+  const media = previewKind(entry.name);
+  if (media) {
     return (
-      <a
-        href={urlFor(base, fileKey)}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={classes}
-        title={fileKey}
-      >
-        {children}
-      </a>
-    );
-  }
-
-  const open = selected === fileKey;
-  return (
-    <button
-      type="button"
-      onClick={() => toggle(fileKey)}
-      aria-expanded={open}
-      className={cn(classes, open && "text-brand")}
-      title={fileKey}
-    >
-      {children}
-    </button>
-  );
-}
-
-/** The open preview, under the row that opened it. */
-function Preview({ fileKey, size, indent }: { fileKey: string; size: number; indent: number }) {
-  const base = useContext(BucketBase);
-  const { selected, toggle } = useContext(Selection);
-  const kind = previewKind(fileKey);
-  if (selected !== fileKey || !kind) return null;
-
-  return (
-    <div style={{ paddingLeft: `${indent}px` }}>
       <MediaPreview
-        key={fileKey}
-        fileKey={fileKey}
-        kind={kind}
-        size={size}
-        bucketBase={base}
-        onClose={() => toggle(fileKey)}
+        fileKey={entry.key}
+        kind={media}
+        size={entry.size ?? 0}
+        bucketBase={bucketUrl}
+        control={playback}
       />
-    </div>
-  );
-}
-
-function CopyLink({ url }: { url: string }) {
-  const [copied, setCopied] = useState(false);
-  const timer = useRef<number | undefined>(undefined);
-
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(new URL(url, window.location.href).href);
-      setCopied(true);
-      timer.current = window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      // Clipboard blocked — the link itself still works.
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={copy}
-      aria-label="Copy link"
-      className="-m-2 shrink-0 p-2 text-ink-faint opacity-0 transition-opacity hover:text-ink focus-visible:opacity-100 group-hover:opacity-100"
-    >
-      {copied ? (
-        <Check className="h-3 w-3 text-emerald-400" />
-      ) : (
-        <Link2 className="h-3 w-3" />
-      )}
-    </button>
-  );
-}
-
-function SearchResults({ results, query }: { results: R2File[]; query: string }) {
-  const base = useContext(BucketBase);
-
-  if (results.length === 0) {
-    return (
-      <p className="py-8 text-sm text-ink-faint">Nothing matches “{query}”.</p>
     );
   }
-
+  if (fileKind(entry.name) === "image") return <ImagePreview entry={entry} base={bucketUrl} />;
+  if (isTextPreviewable(entry.name)) return <TextPreview entry={entry} base={bucketUrl} />;
   return (
-    <div className="py-1">
-      <p className="py-1.5 font-mono text-[11px] text-ink-faint">
-        {results.length} match{results.length === 1 ? "" : "es"}
-      </p>
-      {/* Results span the bucket, so a path here is a whole key. */}
-      {results.map(([key, size]) => {
-        const name = key.split("/").pop() ?? key;
-        const folder = key.slice(0, key.length - name.length);
-        const { Icon, colour } = ICONS[fileKind(name)];
-        const url = urlFor(base, key);
-
-        return (
-          <div key={key}>
-            <div className="group flex items-center gap-2 py-2 sm:py-1">
-              <Icon className={cn("h-4 w-4 shrink-0", colour)} />
-              <FileName fileKey={key}>
-                {folder && <span className="text-ink-faint">{folder}</span>}
-                <span className="text-ink-dim">{name}</span>
-              </FileName>
-              <CopyLink url={url} />
-              <span className="w-14 shrink-0 text-right font-mono text-[11px] tabular-nums text-ink-faint">
-                {formatBytes(size)}
-              </span>
-            </div>
-            <Preview fileKey={key} size={size} indent={24} />
-          </div>
-        );
-      })}
-    </div>
+    <>
+      <Fallback
+        url={publicUrl(bucketUrl, entry.key)}
+        name={entry.name}
+        size={entry.size ?? 0}
+        uploaded={entry.uploaded ?? undefined}
+        message="No preview for this format."
+      />
+      <DetailList rows={[["Key", entry.key]]} />
+    </>
   );
 }

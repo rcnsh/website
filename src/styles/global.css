@@ -26,6 +26,9 @@
      screen: 1.26:1 and 1.62:1 were invisible outside a dark room. */
   --color-line: #3f3d3a;
   --color-line-strong: #58544f;
+  /* Tile edges and rules inside a tile. Only ever drawn on --color-surface,
+     where the tile's own fill already separates it from the page. */
+  --color-line-soft: #2a2826;
 
   /* ink-faint is not decoration — it sets the tagline, every section label and
      all metadata, so it has to clear 4.5:1 on --color-base. Lifted along its
@@ -42,6 +45,11 @@
      blue → indigo in the order the logo itself does. */
   --color-brand-blue: #6f9bd8;
 
+  /* State only — never decoration. */
+  --color-ok: #7fbf8e;
+  --color-warn: #d8b46f;
+  --color-bad: #e08a8a;
+
   /* Display voice is the metadata mono set heavy — no extra font to download. */
   --font-display: var(--font-mono);
   --font-sans:
@@ -50,8 +58,12 @@
   --font-mono:
     "Geist Mono Variable", ui-monospace, "SF Mono", "Cascadia Code", monospace;
 
-  /* Small — large radii are what make a page read as a stack of widgets. */
+  /* Small even on tiles: past ~8px a bento grid reads as a dashboard kit. */
   --radius-card: 5px;
+  --radius-tile: 7px;
+
+  /* The page frame every layout shares — top bar, main and footer line up. */
+  --container-page: 74rem;
 
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
 
@@ -122,23 +134,92 @@
   ::-webkit-scrollbar-track {
     background: transparent;
   }
+  /* Transparent border, not a page-coloured one: scrollers sit inside tiles
+     and dialogs too, where a --color-base ring shows. */
   ::-webkit-scrollbar-thumb {
-    background: var(--color-line-strong);
-    border: 3px solid var(--color-base);
+    background: var(--color-line-strong) padding-box;
+    border: 3px solid transparent;
     border-radius: 99px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-ink-faint);
+    background: var(--color-ink-faint) padding-box;
   }
 }
 
 /* --- Utilities ---
-   `card` is only for things needing real containment, like a dialog or the
-   file tree. Everything else is separated by rules and whitespace. */
+   `card` is for containment inside a tile — a dialog, a cover, a cell. */
 @utility card {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   background: var(--color-surface);
+}
+
+/* The page grid. Twelve columns on desktop; pages restate spans per
+   breakpoint rather than relying on auto-placement, so nothing reflows into
+   a gap. */
+@utility bento {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+/* The one container on a page. Padding lives on the tile, not its parent,
+   so a tile can opt out (a file browser runs edge to edge) with `p-0`. */
+@utility tile {
+  position: relative;
+  min-width: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line-soft);
+  border-radius: var(--radius-tile);
+  padding: 1.25rem 1.375rem;
+  transition:
+    border-color 0.25s var(--ease-out-quint),
+    background-color 0.25s var(--ease-out-quint);
+
+  &:hover {
+    border-color: var(--color-line);
+  }
+}
+
+/* A tile that is itself one link. */
+@utility tile-link {
+  &:hover {
+    background: var(--color-raised);
+  }
+}
+
+/* A subpage's title tile: the identity tile's voice at a smaller size, with
+   the same corner glow. */
+@utility page-hero {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  /* Compounded with .tile so it outranks tile's own padding whatever order
+     Tailwind emits the two utilities in. */
+  &.tile {
+    padding: 1.75rem 2rem 1.625rem;
+  }
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: auto -12% -70% auto;
+    width: 55%;
+    aspect-ratio: 1;
+    background: radial-gradient(
+      closest-side,
+      color-mix(in oklab, var(--color-brand) 13%, transparent),
+      transparent
+    );
+    pointer-events: none;
+  }
+}
+
+/* The blue → indigo run the mark itself makes. For a fill or a 1–2px rule,
+   never for text at reading size. */
+@utility bg-brand-gradient {
+  background-image: linear-gradient(100deg, var(--color-brand-blue), var(--color-brand));
 }
 
 /* Mono at heavy weight, tracked in — fixed advance widths read loose at size. */

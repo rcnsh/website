@@ -1,0 +1,42 @@
+---
+import Icon from "@/components/Icon.astro";
+
+/** A tile that is one link: icon top-left, arrow top-right, title and a mono line. */
+interface Props {
+  href: string;
+  title: string;
+  detail: string;
+  icon: string;
+  external?: boolean;
+  class?: string;
+}
+
+const { href, title, detail, icon, external = false, class: className } = Astro.props;
+---
+
+<a
+  href={href}
+  target={external ? "_blank" : undefined}
+  rel={external ? "noopener noreferrer" : undefined}
+  class:list={["tile tile-link group flex flex-col justify-between gap-[18px] text-ink", className]}
+>
+  <div class="flex items-start justify-between">
+    <span
+      class="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-line-soft bg-raised text-ink-dim transition-colors group-hover:border-line group-hover:text-brand-alt"
+    >
+      <Icon name={icon} class="h-4 w-4" />
+    </span>
+    <slot name="corner">
+      <span
+        aria-hidden="true"
+        class="text-ink-faint transition-[color,transform] duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-brand-alt"
+      >
+        ↗
+      </span>
+    </slot>
+  </div>
+  <div>
+    <div class="text-[15px] font-[550]">{title}</div>
+    <div class="mt-[3px] font-mono text-[11px] text-ink-faint">{detail}</div>
+  </div>
+</a>
