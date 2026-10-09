@@ -18,12 +18,6 @@ export type ArtKind = "hardware" | "mark" | "drawn";
 /** Art that sits on the desk wired or paired to the daily driver. */
 const PERIPHERAL_ART = new Set(["keyboard", "mouse", "airpods"]);
 
-export const KIND_NOTE: Record<ArtKind, string> = {
-  hardware: "Hardware — drawn by hand on a 96px grid.",
-  mark: "Software — shown with its own mark.",
-  drawn: "Software — drawn, since it has no mark of its own.",
-};
-
 export function artKind(
   groupIndex: number,
   art: string,
