@@ -19,10 +19,6 @@ a server island (`server:defer`) or a route that opts out with
   stale-while-revalidate caching
 - **GitHub OAuth**, hand-rolled in `src/lib/auth.ts`
 
-A second Worker under `workers/multiplayer/` serves cursor presence over Durable
-Objects. It deploys separately and agrees with the client on its rates through
-`shared/multiplayer.ts`.
-
 Listening data comes from a separate music-warehouse Worker rather than from
 Spotify, so this site holds no Spotify credential of its own.
 
@@ -44,7 +40,7 @@ back to an empty state, so a blank file still gives a working site with the live
 parts missing.
 
 `npm run generate` writes the derived files git does not carry: share cards, the
-cursor room list, the 88x31 button and `public/_headers`. It already runs inside
+88x31 button and `public/_headers`. It already runs inside
 `dev`, `build` and `preview` — run it alone after a fresh clone if the editor
 wants the imports resolved.
 
@@ -54,13 +50,12 @@ wants the imports resolved.
 npm run deploy
 ```
 
-Builds, deploys the site Worker, then the multiplayer one. Migrations are not
-part of it; `npm run db:migrate:remote` is separate and deliberate.
+Builds and deploys the Worker. Migrations are not part of it; `npm run db:migrate:remote` is separate and deliberate.
 
-The site bills per request, per CPU millisecond and per Durable Object second,
-with no spend cap behind any of them. [`docs/abuse.md`](docs/abuse.md) covers
-what that exposes, the CPU ceilings and per-client budgets in the two
-`wrangler.jsonc` files, the two things that have to be set in the dashboard
+The site bills per request and per CPU millisecond, with no spend cap behind
+either. [`docs/abuse.md`](docs/abuse.md) covers
+what that exposes, the CPU ceilings and per-client budgets in
+`wrangler.jsonc`, the two things that have to be set in the dashboard
 because code cannot express them, and what to do if it is happening now.
 
 ## Layout
@@ -76,9 +71,7 @@ src/
   layouts/    the page shell
   pages/
     api/      endpoints (prerender = false)
-shared/       dependency-free TS, imported by both Workers and the scripts
-workers/
-  multiplayer/  cursor presence, over Durable Objects
+shared/       dependency-free TS, imported by the Worker and the scripts
 scripts/      the generators behind `npm run generate`
 migrations/   D1 migrations, from drizzle-kit
 ```
@@ -109,13 +102,12 @@ hold a component, and the command palette's contents, built from `nav` + `links`
 | Command | Does |
 | --- | --- |
 | `npm run dev` | Dev server in workerd, with local D1/R2/KV |
-| `npm run dev:multiplayer` | The cursor Worker, on :8788 |
 | `npm run build` | `astro check`, a production build, then a headers check |
 | `npm run generate` | The derived files git does not carry |
 | `npm test` | Unit tests, on the Node test runner — no framework |
 | `npm run lint` / `lint:fix` | Biome. Lint only; the repo is not format-clean |
 | `npm run preview` | Build, then serve on the real bindings |
-| `npm run deploy` | Build and deploy both Workers |
+| `npm run deploy` | Build and deploy the Worker |
 | `npm run cf-types` | Regenerate `worker-configuration.d.ts` after editing bindings |
 | `npm run db:generate` | New migration from the Drizzle schema |
 | `npm run db:migrate:local` / `:remote` | Apply migrations |

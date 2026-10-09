@@ -1,7 +1,7 @@
 # Denial of wallet
 
-The Workers Paid plan bills per request, per CPU millisecond, and per Durable
-Object second. There is no spend cap behind it. So the interesting failure mode
+The Workers Paid plan bills per request and per CPU millisecond. There is no
+spend cap behind it. So the interesting failure mode
 for this site is not someone taking it down — it is someone leaving it up and
 running the meter.
 
@@ -23,39 +23,28 @@ Rates below are Workers Paid, September 2026.
 | `/api/files/*` and the FilesRoot island | The above, but more CPU each — they read the whole bucket tree out of KV | `SCAN_BUDGET`, 80/min. Search alone used to hold that budget on the theory that walking the keys was the cost; it is not, the KV read is, and `/api/files/list` and the island make the identical read |
 | `/api/files/meta` | Up to 48 ranged R2 reads (24 MiB) and a demux on a cold key; measured at 26 ms CPU cold for a one-hour 60 fps MOV with its moov at the end | `API_BUDGET`, and a KV entry per object and upload time, so each file is parsed once. The KV key space is bounded by the bucket's contents: a key that does not exist 404s before anything is written. A file over the read budget is cached as unsupported; any other failure is not cached and costs its reads again |
 | `/api/files/thumbs` | Owner-only R2 writes under `.thumbs/` | Owner session plus same-origin check before the body is read, `Content-Length` capped before parsing. Anyone else gets `{ owner: false }` without a D1 read unless they hold a session cookie |
-| `/api/multiplayer` upgrades | $0.15/M Durable Object requests over 1M | `SOCKET_BUDGET`, 30 upgrades per client per minute |
-| Cursor messages | Incoming WebSocket messages count as DO requests at 20:1 | `MAX_PEERS` (20 a room, 7 rooms) × `MAX_MESSAGES_PER_SECOND` (30) |
-| Cursor connections | $12.50/M GB-s over 400k | Hibernation. `acceptWebSocket()`, not `accept()` — this is the difference between "billed while anyone is connected" and "billed while anyone is moving" |
 | D1 | $1.00/M rows written, $0.001/M rows read | Sessions are the only unauthenticated write path; `AUTH_BUDGET` caps it at 10/min. Reads are bounded by the caches below rather than by the budget: `/api/guestbook/list` was 26 rows on every call and is now answered from the edge |
 | KV | $5.00/M writes, $0.50/M reads over the included 1M/10M | Writes happen on cache fill and invalidation only. Nothing user-facing writes to KV directly — which is why an endpoint that *invalidates* is worth more attention than one that reads |
 | R2 | $0.36/M class B ops. Egress is free | Files are served off `upload.rcn.sh`, R2's own domain, which never reaches a Worker. `/api/files/download` now returns 404 whenever `PUBLIC_BUCKET_URL` is set, so the proxying path is closed rather than merely unused |
 
 Worst case with everything in this repository working and no dashboard rules at
-all: the multiplayer Worker is bounded at roughly $100/month, because both its
-concurrency and its message rate have ceilings. The site Worker is not bounded
-at all — per-client budgets are per Cloudflare location, so a caller spread
+all: the Worker is not bounded — per-client budgets are per Cloudflare location, so a caller spread
 across colos multiplies its allowance by however many it reaches. That gap is
 what the WAF rule below is for.
 
 ## What the repository does
 
-- **`limits.cpu_ms`** in both `wrangler.jsonc` files. The default is 30 seconds
-  of CPU per invocation. 500ms on the site and 50ms on the multiplayer Worker
-  is two orders of magnitude above what either needs, and cuts the worst case
+- **`limits.cpu_ms`** in `wrangler.jsonc`. The default is 30 seconds of CPU
+  per invocation. 500ms is two orders of magnitude above what the site needs, and cuts the worst case
   per request by 60x. This is the single highest-leverage line here: CPU past
   the included allowance costs 30x more per request than the request does.
 - **`ratelimits` bindings**, spent in `src/lib/throttle.ts` from the middleware,
   before `next()` and so before any route touches D1, KV or R2. Counted in the
   same isolate the Worker already runs in: no subrequest, no latency, no charge.
-- **An upgrade budget on the cursor Worker** (`churning()` in
-  `workers/multiplayer/src/index.ts`). `MAX_PEERS` bounds how many sockets can
-  be open and `Budget` bounds how fast one may talk, but neither bounds
-  connect-disconnect-repeat, which bills a Durable Object request each time
-  without ever filling a room.
 - **Caching.** See below — it is now doing more of this work than the budgets
   are.
 
-Everything in `throttle.ts` and `churning()` fails open — a missing binding, a
+Everything in `throttle.ts` fails open — a missing binding, a
 missing client address, a limiter that throws. A cost control that takes the
 site down when it misfires is a worse outage than the bill it prevents.
 
@@ -71,7 +60,6 @@ the response is public.
 | Server islands, as a class | `src/middleware.ts` | 300s at the edge |
 | `/api/guestbook/list` | Cache API, keyed on the re-encoded cursor | 60s |
 | `/api/files/search` | Cache API, keyed on the normalised query | 60s |
-| `/api/multiplayer/count` | Cache API | 10s |
 
 Every one of those keys is bounded on purpose. Search has a length cap; the
 guestbook cursor is re-encoded from a validated pair, so junk collapses onto the
@@ -132,7 +120,7 @@ Check they arrive. An alert nobody receives is not a control.
 In rough order of how much it costs to be wrong:
 
 1. **Look before acting.** Workers & Pages → the Worker → Metrics, and Security
-   → Events. Both Workers have `observability` on, so Workers Logs has the
+   → Events. The Worker has `observability` on, so Workers Logs has the
    429s. A spike shaped like one path from a handful of ASNs is an attack; a
    spike across every path is a link somewhere.
 2. **Tighten the rate limiting rule.** Lower the threshold, or point it at the
@@ -141,10 +129,7 @@ In rough order of how much it costs to be wrong:
 3. **Add a custom rule** if the traffic has a signature — an ASN, a country, a
    user agent. Custom rules run before rate limiting and take a Block action.
    Do not block a whole country to stop one host.
-4. **Turn the feature off** rather than the site. Cursors are the surface with
-   duration billing: deleting the `rcn.sh/api/multiplayer*` route leaves the
-   site working and the cursors quietly absent.
-5. **Last resort**: `wrangler delete`, or disable the route, and serve nothing.
+4. **Last resort**: `wrangler delete`, or disable the route, and serve nothing.
    Costs nothing and does nothing. Prefer any step above it.
 
 ## When adding a route
@@ -172,6 +157,6 @@ Three questions worth asking, in order of how much they have cost here:
    would have one reader's fragment served to another. Nothing enforces this —
    see `CLAUDE.md`.
 
-Namespace ids are account-wide, not per-Worker. The site uses the 1000 range
-and the multiplayer Worker the 2000 range; two bindings sharing an id share
-their counters.
+Namespace ids are account-wide, not per-Worker. The site uses the 1000 range;
+two bindings sharing an id share their counters, so a future Worker should
+take another range.

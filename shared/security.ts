@@ -7,22 +7,14 @@
  * load it.
  */
 
-export interface HeaderContext {
-  /** In dev the cursor Worker is on its own port; in production `'self'` covers it. */
-  dev?: boolean;
-}
-
-/** Both schemes: the socket, and the presence count beside it. */
-const DEV_MULTIPLAYER = "ws://localhost:8788 http://localhost:8788";
-
-export function securityHeaders({ dev = false }: HeaderContext = {}) {
+export function securityHeaders() {
   return {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
     "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
-    "Content-Security-Policy": contentSecurityPolicy(dev),
+    "Content-Security-Policy": contentSecurityPolicy(),
   } satisfies Record<string, string>;
 }
 
@@ -40,16 +32,14 @@ export const BUCKET_ORIGIN = "https://upload.rcn.sh";
  * passes Astro any `directives`; then a host must be in both. See CLAUDE.md
  * § Maintenance.
  */
-function baseDirectives(dev = false): string[] {
+function baseDirectives(): string[] {
   return [
     "default-src 'self'",
     "base-uri 'self'",
     "form-action 'self'",
     "object-src 'none'",
     "font-src 'self'",
-    // The cursor socket. Same origin, but `'self'` covering ws/wss is a CSP3
-    // clarification some browsers were late to, so spell out the scheme.
-    `connect-src 'self' wss://rcn.sh ${BUCKET_ORIGIN}${dev ? ` ${DEV_MULTIPLAYER}` : ""}`,
+    `connect-src 'self' ${BUCKET_ORIGIN}`,
     // Spotify spreads art across several scdn.co subdomains, hence wildcards.
     `img-src 'self' data: https://*.scdn.co https://*.spotifycdn.com https://avatars.githubusercontent.com ${BUCKET_ORIGIN}`,
     `media-src 'self' ${BUCKET_ORIGIN}`,
@@ -77,9 +67,9 @@ export const SCRIPT_SOURCES = [
  * Astro's hash-locked <meta> is what binds; dropping it here leaves an
  * intersection that admits no inline script at all. See CLAUDE.md § Maintenance.
  */
-function contentSecurityPolicy(dev: boolean): string {
+function contentSecurityPolicy(): string {
   return [
-    ...baseDirectives(dev),
+    ...baseDirectives(),
     "frame-ancestors 'none'",
     `script-src ${SCRIPT_SOURCES.join(" ")} 'unsafe-inline'`,
     "style-src 'self' 'unsafe-inline'",

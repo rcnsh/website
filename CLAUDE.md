@@ -1,13 +1,12 @@
 # rcn.sh
 
 Personal site. Astro 7 (static by default, server islands for live data) on
-Cloudflare Workers, with D1, R2 and KV. A second Worker under
-`workers/multiplayer/` serves cursor presence over Durable Objects.
+Cloudflare Workers, with D1, R2 and KV.
 
 ```
 npm run dev        # astro dev, port 4321
 npm run build      # generate → wrangler types → astro check → astro build → verify:headers
-npm test           # node --test over src/, shared/, workers/
+npm test           # node --test over src/, shared/
 npm run lint       # biome lint (NOT format — the repo is not biome-formatted)
 npm run preview    # build, then wrangler dev on the real bindings
 ```
@@ -159,11 +158,6 @@ prerender time for the home page, not `/`. `TopBar` normalises this; anything
 else comparing pathnames must too. It differs from `astro dev`, so it is
 invisible in development.
 
-**`src/lib/cursors.ts` uses *equal* jitter, not full jitter.** Full jitter has
-no lower bound and halves the expected wait before `isStalled` warns the
-reader, which broke a five-second guarantee about one run in eight. A test pins
-this; if it fails, do not "fix" it by loosening the assertion.
-
 **The repo is lint-clean but not format-clean.** `npm run lint` runs
 `biome lint` only. Do not run `biome format --write` across the repo — it
 rewrites files wholesale and buries real changes.
@@ -188,5 +182,5 @@ kept as a record, not a to-do list.
   code. Load-bearing invariants belong in the Maintenance section above, where
   they are findable, not buried at their call site.
 - Tests are `node --test`; no framework. Pure logic is extracted from
-  components so it can be tested (`edge-fade`, `coalesce`, `cursors`).
-- `shared/` is dependency-free TypeScript imported by both Workers and scripts.
+  components so it can be tested (`edge-fade`, `coalesce`).
+- `shared/` is dependency-free TypeScript imported by the Worker and scripts.

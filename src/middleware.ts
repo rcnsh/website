@@ -4,7 +4,7 @@ import { SESSION_COOKIE } from "@/lib/auth";
 import { throttle } from "@/lib/throttle";
 
 /** For anything the Worker renders; public/_headers covers the rest. */
-const SECURITY_HEADERS = securityHeaders({ dev: import.meta.env.DEV });
+const SECURITY_HEADERS = securityHeaders();
 
 const CSP = "Content-Security-Policy";
 

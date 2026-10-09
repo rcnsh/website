@@ -20,15 +20,6 @@
         "8787"
       ],
       "port": 8787
-    },
-    {
-      "name": "website-multiplayer",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "dev:multiplayer"
-      ],
-      "port": 8788
     }
   ]
 }
