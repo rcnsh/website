@@ -27,21 +27,8 @@ describe("security headers", () => {
     }
   });
 
-  test("localhost is a development-only exception", () => {
+  test("no localhost exception reaches the policy", () => {
     assert.ok(!securityHeaders()["Content-Security-Policy"].includes("localhost"));
-    assert.ok(
-      securityHeaders({ dev: true })["Content-Security-Policy"].includes(
-        "ws://localhost:8788",
-      ),
-    );
-  });
-
-  // Same Worker, same port: admitting one but not the other half-works.
-  test("development admits both halves of the cursor Worker", () => {
-    const policy = securityHeaders({ dev: true })["Content-Security-Policy"];
-
-    assert.ok(policy.includes("ws://localhost:8788"));
-    assert.ok(policy.includes("http://localhost:8788"));
   });
 
   // Asserts on SCRIPT_SOURCES, not on the header: the header was never the
@@ -105,7 +92,7 @@ describe("the CSP is route-invariant", () => {
   test("the policy does not vary between calls", () => {
     assert.equal(
       securityHeaders()["Content-Security-Policy"],
-      securityHeaders({})["Content-Security-Policy"],
+      securityHeaders()["Content-Security-Policy"],
     );
   });
 });

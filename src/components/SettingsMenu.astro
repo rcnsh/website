@@ -1,18 +1,10 @@
 ---
 import Icon from "./Icon.astro";
 
-/**
- * The cog in the header and the popover it opens. Only the markup and this
- * script are eager; src/lib/multiplayer.ts is behind a dynamic import.
- */
+/** The cog in the header and the popover it opens. */
 
 /** `key` is both the lib/prefs.ts storage name and the hook the script binds by. */
 const settings = [
-  {
-    key: "multiplayer",
-    label: "Multiplayer",
-    description: "Show other readers' cursors on this page.",
-  },
   {
     key: "live",
     label: "Live updates",
@@ -32,27 +24,10 @@ const settings = [
     data-settings-trigger
     aria-label="Settings"
     aria-expanded="false"
-    class="relative -m-2.5 flex items-center gap-1.5 p-2.5 text-ink-faint transition-colors hover:text-ink-dim"
+    class="relative -m-2.5 flex items-center p-2.5 text-ink-faint transition-colors hover:text-ink-dim"
   >
-    {/*
-      How many people here have cursors on, while multiplayer is off. Without
-      it the feature only shows itself when two people switch it on over the
-      same paragraph at once, and otherwise looks broken. Replaced by the dot
-      below once connected.
-    */}
-    <span
-      data-settings-count
-      hidden
-      class="font-mono text-[0.6875rem] leading-none text-brand"></span>
-
     {/* 14px to sit level with the ⌘K label; padding grows the hit target. */}
     <Icon name="settings" class="h-3.5 w-3.5" />
-    {/* Lit while multiplayer is connected, so the state is legible from the bar. */}
-    <span
-      data-settings-dot
-      hidden
-      class="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand ring-2 ring-base"
-    ></span>
   </button>
 
   <div
@@ -73,9 +48,7 @@ const settings = [
               >
                 {setting.label}
               </label>
-              <p
-                data-settings-status={setting.key}
-                class="mt-0.5 text-xs leading-snug text-ink-faint"
+              <p class="mt-0.5 text-xs leading-snug text-ink-faint"
               >
                 {setting.description}
               </p>
@@ -149,42 +122,17 @@ const settings = [
 </style>
 
 <script>
-  import type { Session, SessionState } from "@/lib/multiplayer";
   import { closeOnOtherOverlay, overlayOpened } from "@/lib/overlays";
   import {
     applyMotion,
     liveUpdates,
     motionReduced,
-    readPref,
     REDUCED_MOTION_QUERY,
     setLiveUpdates,
     setMotionReduced,
-    writePref,
   } from "@/lib/prefs";
 
-  let session: Session | null = null;
-  let starting = false;
   let bindings: AbortController | null = null;
-
-  /** The presence count, and which page it was counted on. */
-  let countedRoom = "";
-  let countedAt = 0;
-  let counted = 0;
-
-  const COUNT_TTL_MS = 10_000;
-
-  /* Dev runs the cursor Worker on its own port; production is a route here. */
-  const COUNT_ENDPOINT = import.meta.env.DEV
-    ? "http://localhost:8788/api/multiplayer/count"
-    : "/api/multiplayer/count";
-
-  /** The room key, normalised the way the Worker normalises it. */
-  const room = () => location.pathname.replace(/\/+$/, "") || "/";
-
-  /** Private browsing throws on the first read; the feature is just off there. */
-  const stored = () => readPref("multiplayer") === "on";
-
-  const remember = (on: boolean) => writePref("multiplayer", on ? "on" : null);
 
   function setupSettings() {
     bindings?.abort();
@@ -195,128 +143,16 @@ const settings = [
 
     const trigger = root.querySelector<HTMLButtonElement>("[data-settings-trigger]");
     const panel = root.querySelector<HTMLElement>("[data-settings-panel]");
-    const dot = root.querySelector<HTMLElement>("[data-settings-dot]");
-    const count = root.querySelector<HTMLElement>("[data-settings-count]");
 
     const switchFor = (key: string) =>
       root.querySelector<HTMLButtonElement>(`[data-settings-toggle="${key}"]`);
 
-    const toggle = switchFor("multiplayer");
     const live = switchFor("live");
     const motion = switchFor("motion");
-    const status = root.querySelector<HTMLElement>(
-      '[data-settings-status="multiplayer"]',
-    );
-    if (!trigger || !panel || !dot || !count) return;
-    if (!toggle || !live || !motion || !status) return;
+    if (!trigger || !panel || !live || !motion) return;
 
     bindings = new AbortController();
     const { signal } = bindings;
-
-    const IDLE_COPY = "Show other readers' cursors on this page.";
-
-    /** "one other person" / "3 other people" — the count, said in words. */
-    const others = (n: number) =>
-      n === 1 ? "one other person" : `${n} other people`;
-
-    /* The dot means "connected", not "switched on", so a dropped socket does
-       not read as an empty room. */
-    const describe = (state: SessionState) => {
-      dot.hidden = !state.live;
-      // The socket knows better than the poll, so the poll gets out of the way.
-      count.hidden = true;
-
-      // A refusal is not a failure: "still trying" would be a lie.
-      if (state.refused === "full") {
-        status.textContent = "On — this page is full. Try again in a bit.";
-        return;
-      }
-      if (state.refused === "unknown") {
-        status.textContent = "On — cursors aren't available on this page.";
-        return;
-      }
-      // Reconnecting too fast, or someone else on the same address; waiting fixes it.
-      if (state.refused === "busy") {
-        status.textContent = "On — reconnecting too often. Try again in a minute.";
-        return;
-      }
-      // Not something a working client can provoke.
-      if (state.refused === "flood") {
-        status.textContent = "On — disconnected for sending too fast.";
-        return;
-      }
-
-      if (state.stalled) {
-        status.textContent = "On — can't reach the server. Still trying.";
-        return;
-      }
-      if (!state.live) {
-        status.textContent = "On — connecting…";
-        return;
-      }
-
-      status.textContent =
-        state.peers === 0
-          ? "On — nobody else is here yet."
-          : `On — ${others(state.peers)} ${state.peers === 1 ? "is" : "are"} here.`;
-    };
-
-    /** What the cog and the panel say while multiplayer is switched off. */
-    const describeIdle = () => {
-      count.hidden = counted < 1 || countedRoom !== room();
-      count.textContent = String(counted);
-
-      trigger.setAttribute(
-        "aria-label",
-        count.hidden ? "Settings" : `Settings — ${others(counted)} here`,
-      );
-
-      status.textContent = count.hidden
-        ? IDLE_COPY
-        : counted === 1
-          ? "One other person here has cursors on."
-          : `${counted} other people here have cursors on.`;
-    };
-
-    const paint = (on: boolean) => {
-      toggle.setAttribute("aria-checked", String(on));
-      if (!on) {
-        dot.hidden = true;
-        describeIdle();
-      }
-    };
-
-    /** Who is in this page's room, for someone who has not joined it. */
-    const refreshCount = async (force = false) => {
-      if (session || document.hidden) return;
-
-      const here = room();
-      const fresh = countedRoom === here && Date.now() - countedAt < COUNT_TTL_MS;
-      if (fresh && !force) {
-        describeIdle();
-        return;
-      }
-
-      try {
-        const response = await fetch(
-          `${COUNT_ENDPOINT}?room=${encodeURIComponent(here)}`,
-          { credentials: "omit", signal },
-        );
-        // A page with no room answers 400, which is a legitimate zero.
-        const body = response.ok
-          ? ((await response.json()) as { peers?: unknown })
-          : null;
-
-        counted = typeof body?.peers === "number" ? body.peers : 0;
-        countedRoom = here;
-        countedAt = Date.now();
-      } catch {
-        // Offline, blocked, or navigated away. The next page-load asks again.
-        counted = 0;
-      }
-
-      if (!stored()) describeIdle();
-    };
 
     const setOpen = (open: boolean) => {
       // Takes the command palette down with it — see lib/overlays.
@@ -326,49 +162,6 @@ const settings = [
     };
 
     closeOnOtherOverlay("settings", () => setOpen(false), signal);
-
-    // Arrow consts: a hoisted `function` would not inherit the null-narrowing above.
-    const enable = async () => {
-      // Two clicks before the chunk lands should not open two sockets.
-      if (session || starting) return;
-      starting = true;
-      try {
-        const { start } = await import("@/lib/multiplayer");
-        // The switch may have been turned back off while this was in flight.
-        if (!stored()) return;
-        session = start();
-        session.onState(describe);
-      } catch {
-        remember(false);
-        paint(false);
-        status.textContent = "Multiplayer could not start.";
-      } finally {
-        starting = false;
-      }
-    };
-
-    const disable = () => {
-      session?.destroy();
-      session = null;
-    };
-
-    toggle.addEventListener(
-      "click",
-      () => {
-        const on = toggle.getAttribute("aria-checked") !== "true";
-        remember(on);
-        paint(on);
-
-        if (on) {
-          void enable();
-        } else {
-          disable();
-          // The count is stale the moment we leave the room. Ask again.
-          void refreshCount(true);
-        }
-      },
-      { signal },
-    );
 
     /** Switches that are nothing but a stored boolean; consumers listen to lib/prefs. */
     const bindPlain = (
@@ -402,29 +195,12 @@ const settings = [
       { signal },
     );
 
-    trigger.addEventListener(
-      "click",
-      () => {
-        setOpen(panel.hidden);
-        // Opening the panel is the moment the number in it starts mattering.
-        if (!panel.hidden) void refreshCount();
-      },
-      { signal },
-    );
+    trigger.addEventListener("click", () => setOpen(panel.hidden), { signal });
 
     document.addEventListener(
       "pointerdown",
       (event) => {
         if (!panel.hidden && !root.contains(event.target as Node)) setOpen(false);
-      },
-      { signal },
-    );
-
-    // A background tab loads hidden and is never asked for a count.
-    document.addEventListener(
-      "visibilitychange",
-      () => {
-        if (!document.hidden && !stored()) void refreshCount();
       },
       { signal },
     );
@@ -440,22 +216,6 @@ const settings = [
     );
 
     root.setAttribute("data-settings-ready", "");
-
-    const on = stored();
-    paint(on);
-
-    // Nothing to poll for while the socket is doing better than polling.
-    if (!on) void refreshCount();
-
-    if (on) {
-      // Already running from a previous page — re-point it at this markup.
-      if (session) {
-        session.setRoom(location.pathname);
-        session.onState(describe);
-      } else {
-        void enable();
-      }
-    }
   }
 
   // Module scripts are deferred, so the DOM is parsed by the time this runs.

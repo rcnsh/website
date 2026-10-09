@@ -8,8 +8,6 @@ public/_headers
 # The 88x31 button, drawn by `npm run badge` from src/lib/badge.ts.
 public/badge.png
 public/badge@2x.png
-# Written by `npm run rooms` from the site's own pages.
-shared/rooms.generated.ts
 
 # dependencies
 node_modules/
@@ -37,4 +35,3 @@ pnpm-debug.log*
 !.vscode/extensions.json
 .idea/
 .impeccable/
-shared/rooms.generated.ts

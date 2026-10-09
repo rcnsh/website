@@ -6,7 +6,7 @@
 
 const EVENT = "rcn:pref";
 
-export type PrefKey = "multiplayer" | "live" | "motion";
+export type PrefKey = "live" | "motion";
 
 /** Reads a raw stored value. `null` means "never chosen", not "off". */
 export function readPref(key: PrefKey): string | null {

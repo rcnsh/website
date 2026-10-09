@@ -36,11 +36,10 @@ jobs:
       - name: Generate Worker types
         run: npx wrangler types
 
-      # Share cards, the cursor Worker's room list and public/_headers are all
-      # derived files the build writes and git does not carry. The room list is
-      # imported by the Worker, so nothing below typechecks without it — and
-      # running the generators here is also the only thing that would notice
-      # one of them breaking, since the build itself cannot run in CI.
+      # Share cards, the 88x31 button and public/_headers are derived files the
+      # build writes and git does not carry. Running the generators here is the
+      # only thing that would notice one of them breaking, since the build
+      # itself cannot run in CI.
       - name: Generate derived files
         run: npm run generate
 

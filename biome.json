@@ -3,7 +3,6 @@
   "files": {
     "includes": [
       "src/**",
-      "workers/**",
       "shared/**",
       "*.ts",
       "*.json",

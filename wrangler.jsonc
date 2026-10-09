@@ -12,8 +12,7 @@
 
   // Per-client budgets, spent in src/lib/throttle.ts. Limits are per minute,
   // per Cloudflare location, and sized well above what the site's own
-  // JavaScript asks for. `namespace_id` is account-wide, not per Worker — the
-  // multiplayer Worker uses the 2000 range so its counters stay separate.
+  // JavaScript asks for. `namespace_id` is account-wide, not per Worker.
   "ratelimits": [
     // Everything the Worker renders that is not matched below.
     {
