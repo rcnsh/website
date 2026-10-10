@@ -1,5 +1,5 @@
 import { defineMiddleware } from "astro:middleware";
-import { securityHeaders } from "../shared/security.ts";
+import { completePolicy, securityHeaders } from "../shared/security.ts";
 import { SESSION_COOKIE } from "@/lib/auth";
 import { throttle } from "@/lib/throttle";
 
@@ -8,9 +8,6 @@ const SECURITY_HEADERS = securityHeaders();
 
 const CSP = "Content-Security-Policy";
 
-/** The one directive Astro does not emit — a `<meta>` CSP cannot express it. */
-const FRAME_ANCESTORS = "frame-ancestors 'none'";
-
 function harden(response: Response) {
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
     // Never clobber a route's own CSP: overwriting a hashed policy with this
@@ -18,11 +15,7 @@ function harden(response: Response) {
     if (name === CSP) {
       const existing = response.headers.get(CSP);
       if (existing) {
-        if (!existing.includes("frame-ancestors")) {
-          // Astro's policy ends with a `;`. Legal, but it reads as a bug.
-          const policy = existing.trim().replace(/;+$/, "");
-          response.headers.set(CSP, `${policy}; ${FRAME_ANCESTORS}`);
-        }
+        response.headers.set(CSP, completePolicy(existing));
         continue;
       }
     }

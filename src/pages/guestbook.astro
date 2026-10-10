@@ -15,6 +15,7 @@ import {
   type GuestbookEntry,
   type GuestbookStats,
 } from "@/lib/guestbook";
+import { forbidden, sameOrigin } from "@/lib/csrf";
 import { containsProfanity } from "@/lib/profanity";
 import { nextAllowedAt } from "@/lib/rate-limit";
 import { relativeTime } from "@/lib/utils";
@@ -64,11 +65,16 @@ try {
 
 /** Validates and stores a submission; returns an ERRORS key, or null on success. */
 async function sign(): Promise<string | null> {
-  const formData = await Astro.request.formData();
+  // `security.checkOrigin` only inspects form-like content types, so a JSON or
+  // octet-stream body reached here unchecked and made formData() throw a 500.
+  let formData: FormData;
+  try {
+    formData = await Astro.request.formData();
+  } catch {
+    return "empty";
+  }
   const message = String(formData.get("message") ?? "").trim();
 
-  // A form post is always form-like, so `security.checkOrigin` covers this one
-  // and no explicit check is needed — unlike the JSON routes; see lib/csrf.
   if (!session) return "auth";
   if (!message) return "empty";
   if (message.length > MAX_LENGTH) return "long";
@@ -98,6 +104,7 @@ async function sign(): Promise<string | null> {
 
 // Post/redirect/get, so a reload or Back never re-submits the form.
 if (dbReady && Astro.request.method === "POST") {
+  if (!sameOrigin(Astro.request, Astro.url.origin)) return forbidden();
   const failed = await sign();
   return Astro.redirect(
     failed ? `/guestbook?error=${failed}#gb-status` : "/guestbook?posted#gb-status",
@@ -310,7 +317,7 @@ const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
             role="status"
             class="scroll-mt-[calc(var(--header-h)+1.5rem)]"
           >
-            {error && ERRORS[error] && (
+            {error && Object.hasOwn(ERRORS, error) && (
               <p class="mt-3 text-[0.84375rem] text-bad">{ERRORS[error]}</p>
             )}
 

@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import {
+  COOKIE_SECURE,
   OAUTH_STATE_COOKIE,
   createSession,
   exchangeCodeForToken,
@@ -13,7 +14,7 @@ export const GET: APIRoute = async ({ cookies, url, redirect }) => {
   const state = url.searchParams.get("state");
   const expectedState = cookies.get(OAUTH_STATE_COOKIE)?.value;
 
-  cookies.delete(OAUTH_STATE_COOKIE, { path: "/" });
+  cookies.delete(OAUTH_STATE_COOKIE, { path: "/", secure: COOKIE_SECURE });
 
   // The state check is what stops a third party from replaying a login.
   if (!code || !state || !expectedState || state !== expectedState) {
