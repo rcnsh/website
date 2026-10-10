@@ -1,0 +1,165 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import Streaks from "@/components/music/stats/Streaks.astro";
+import OnRepeat from "@/components/music/stats/OnRepeat.astro";
+import Obsessions from "@/components/music/stats/Obsessions.astro";
+import TopOverTime from "@/components/music/stats/TopOverTime.astro";
+import TimeOfDay from "@/components/music/stats/TimeOfDay.astro";
+import Eras from "@/components/music/stats/Eras.astro";
+import { pageOgHref, pages, site } from "@/lib/site";
+
+const page = pages.musicStats;
+---
+
+<Layout title={page.title} description={page.description} image={pageOgHref("music")}>
+  <div class="bento max-sm:gap-2.5">
+    <section
+      class="tile page-hero col-span-12 animate-rise max-sm:px-5 max-sm:pt-6 max-sm:pb-[22px] min-[1021px]:col-span-5 min-[1021px]:min-h-[300px]"
+      aria-labelledby="stats-title"
+    >
+      <nav aria-label="Breadcrumb" class="flex items-center gap-1.5 font-mono text-[11.5px] text-ink-faint">
+        <a href="/" class="transition-colors hover:text-ink">{site.name}</a>
+        <span class="text-line-strong" aria-hidden="true">/</span>
+        <a href="/music" class="transition-colors hover:text-ink">music</a>
+        <span class="text-line-strong" aria-hidden="true">/</span>
+        <span aria-current="page">stats</span>
+      </nav>
+      <h1 id="stats-title" class="display-face mt-5 text-[2.4rem] text-ink sm:mt-[26px] sm:text-[clamp(2.25rem,4vw,3rem)]">
+        {page.title}
+      </h1>
+      <p class="mt-3 max-w-[52ch] text-[0.9375rem] leading-[1.65] text-ink-dim sm:text-[0.96875rem]">
+        {page.description}
+      </p>
+      <p class="mt-auto pt-5 font-mono text-[11px] leading-relaxed text-ink-faint sm:pt-[22px]">
+        Counted by my own warehouse of every play since mid-2020. Only totals, shares and months reach this page, most
+        of it as of the end of last week. The play-by-play log stays private.
+      </p>
+    </section>
+
+    <section
+      class="tile col-span-12 animate-rise [animation-delay:30ms] max-sm:p-[18px] min-[1021px]:col-span-7"
+      aria-labelledby="streaks-title"
+    >
+      <Streaks server:defer>
+        <div slot="fallback" aria-hidden="true" class="min-h-[581px] min-[1021px]:min-h-[305px]">
+          <div class="mb-4 flex min-h-4 items-center"><span class="label">Streaks</span></div>
+          <div class="grid gap-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+            <div>
+              <div class="placeholder-block h-[52px] w-20 rounded-xs"></div>
+              <div class="placeholder-block mt-3 h-2.5 w-40 rounded-xs"></div>
+              <div class="mt-6 grid grid-cols-2 gap-4">
+                {[0, 1, 2, 3].map(() => <div class="placeholder-block h-9 w-24 rounded-xs" />)}
+              </div>
+            </div>
+            <div class="flex flex-col gap-3.5 pt-6">
+              {[0, 1, 2, 3, 4].map(() => <div class="placeholder-block h-6 w-full rounded-xs" />)}
+            </div>
+          </div>
+        </div>
+      </Streaks>
+    </section>
+
+    <section
+      class="tile col-span-12 animate-rise [animation-delay:60ms] max-sm:p-[18px] min-[1021px]:col-span-7"
+      aria-labelledby="repeat-title"
+    >
+      <OnRepeat server:defer>
+        <div slot="fallback" aria-hidden="true" class="min-h-[857px] min-[1021px]:min-h-[568px]">
+          <div class="mb-4 flex min-h-4 items-center"><span class="label">On repeat</span></div>
+          <ol class="divide-y divide-line-soft border-t border-line-soft">
+            {
+              Array.from({ length: 6 }).map(() => (
+                <li class="flex items-center gap-3.5 py-2.5">
+                  <div class="placeholder-block h-9 w-9 shrink-0 rounded-xs" />
+                  <span class="min-w-0 flex-1">
+                    <span class="placeholder-block block h-3 w-40 rounded-xs" />
+                    <span class="placeholder-block mt-1.5 block h-2.5 w-24 rounded-xs" />
+                  </span>
+                </li>
+              ))
+            }
+          </ol>
+        </div>
+      </OnRepeat>
+    </section>
+
+    <section
+      class="tile col-span-12 animate-rise [animation-delay:90ms] max-sm:p-[18px] min-[1021px]:col-span-5"
+      aria-labelledby="obsessions-title"
+    >
+      <Obsessions server:defer>
+        <div slot="fallback" aria-hidden="true" class="min-h-[1004px] min-[1021px]:min-h-[846px]">
+          <div class="mb-4 flex min-h-4 items-center"><span class="label">Biggest obsessions</span></div>
+          <div class="flex flex-col gap-3.5">
+            {Array.from({ length: 10 }).map(() => <div class="placeholder-block h-[46px] w-full rounded-xs" />)}
+          </div>
+        </div>
+      </Obsessions>
+    </section>
+
+    <section class="tile col-span-12 animate-rise [animation-delay:120ms] max-sm:p-[18px]" aria-labelledby="top-title">
+      <TopOverTime server:defer>
+        <div slot="fallback" aria-hidden="true" class="min-h-[1012px] min-[1021px]:min-h-[512px]">
+          <div class="mb-4 flex min-h-4 items-center"><span class="label">Who I was listening to</span></div>
+          <div class="placeholder-block h-[260px] w-full rounded-xs max-sm:h-[220px]"></div>
+          <div class="mt-6 grid grid-cols-2 gap-2.5 sm:max-[1020px]:grid-cols-3 min-[1021px]:grid-cols-7">
+            {Array.from({ length: 7 }).map(() => <div class="placeholder-block h-[112px] rounded-xs" />)}
+          </div>
+        </div>
+      </TopOverTime>
+    </section>
+
+    <section
+      class="tile col-span-12 animate-rise [animation-delay:150ms] max-sm:p-[18px] min-[1021px]:col-span-7"
+      aria-labelledby="time-title"
+    >
+      <TimeOfDay server:defer>
+        <div slot="fallback" aria-hidden="true" class="min-h-[643px] min-[1021px]:min-h-[616px]">
+          <div class="mb-4 flex min-h-4 items-center"><span class="label">Time of day</span></div>
+          <div class="placeholder-block h-[190px] w-full rounded-xs"></div>
+          <div class="placeholder-block mt-6 h-[180px] w-full rounded-xs"></div>
+        </div>
+      </TimeOfDay>
+    </section>
+
+    <section
+      class="tile col-span-12 animate-rise [animation-delay:180ms] max-sm:p-[18px] min-[1021px]:col-span-5"
+      aria-labelledby="eras-title"
+    >
+      <Eras server:defer>
+        <div slot="fallback" aria-hidden="true" class="min-h-[651px] min-[1021px]:min-h-[608px]">
+          <div class="mb-4 flex min-h-4 items-center"><span class="label">Newcastle → Singapore</span></div>
+          <div class="placeholder-block h-16 w-full rounded-xs"></div>
+          <div class="mt-5 flex flex-col gap-2.5">
+            {Array.from({ length: 10 }).map(() => <div class="placeholder-block h-4 w-full rounded-xs" />)}
+          </div>
+        </div>
+      </Eras>
+    </section>
+  </div>
+</Layout>
+
+<script>
+  // One delegated listener for every chart's readout. Island markup lands
+  // after this runs, so nothing binds per element. The readout repeats what
+  // the chart's text summary and table already say, hence aria-hidden there:
+  // this is a pointer convenience, not the way to reach a value.
+  const resting = new WeakMap<HTMLElement, string>();
+
+  document.addEventListener("pointerover", (event) => {
+    const mark = (event.target as Element).closest<HTMLElement>("[data-tip]");
+    const chart = mark?.closest<HTMLElement>("[data-chart]");
+    const readout = chart?.querySelector<HTMLElement>("[data-chart-readout]");
+    if (!mark || !readout) return;
+    if (!resting.has(readout)) resting.set(readout, readout.textContent ?? "");
+    readout.textContent = mark.dataset.tip ?? "";
+  });
+
+  document.addEventListener("pointerout", (event) => {
+    const chart = (event.target as Element).closest<HTMLElement>("[data-chart]");
+    const next = (event as PointerEvent).relatedTarget as Element | null;
+    if (!chart || (next && chart.contains(next) && next.closest("[data-tip]"))) return;
+    const readout = chart.querySelector<HTMLElement>("[data-chart-readout]");
+    if (readout && resting.has(readout)) readout.textContent = resting.get(readout)!;
+  });
+</script>

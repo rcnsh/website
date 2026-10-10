@@ -105,7 +105,7 @@ function normaliseTrack(raw: z.infer<typeof trackSchema>): Track {
 
 // --- Transport ---
 
-async function warehouse(path: string): Promise<unknown> {
+export async function warehouse(path: string): Promise<unknown> {
   const { MUSIC_WAREHOUSE_URL, MUSIC_WAREHOUSE_TOKEN } = env;
 
   if (!MUSIC_WAREHOUSE_URL || !MUSIC_WAREHOUSE_TOKEN) {

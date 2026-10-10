@@ -60,6 +60,7 @@ const schema = z.object({
     }),
     uses: pageSchema,
     music: pageSchema,
+    musicStats: pageSchema,
     guestbook: pageSchema.extend({
       maxMessageLength: z.number().int().positive().default(200),
     }),
