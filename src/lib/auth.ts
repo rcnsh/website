@@ -4,8 +4,22 @@ import { env, waitUntil } from "cloudflare:workers";
 import type { AstroCookies } from "astro";
 import { getDb, schema } from "./db";
 
-export const SESSION_COOKIE = "rcnsh_session";
-export const OAUTH_STATE_COOKIE = "rcnsh_oauth_state";
+/**
+ * Unconditional outside dev, not derived from the request scheme: a first-ever
+ * visitor landing on http:// would otherwise get a cookie without `Secure` and
+ * send it in the clear. HSTS cannot help that first navigation.
+ */
+export const COOKIE_SECURE = !import.meta.env.DEV;
+
+/**
+ * `__Host-` stops any other *.rcn.sh host from setting these for rcn.sh: a
+ * planted state cookie would sign a visitor in as the planter. Browsers refuse
+ * the prefix without `Secure`, so dev keeps the bare names — and a deletion
+ * must carry `secure` too, or it is ignored.
+ */
+const COOKIE_PREFIX = COOKIE_SECURE ? "__Host-" : "";
+export const SESSION_COOKIE = `${COOKIE_PREFIX}rcnsh_session`;
+export const OAUTH_STATE_COOKIE = `${COOKIE_PREFIX}rcnsh_oauth_state`;
 
 const USER_AGENT = "rcn.sh";
 
@@ -141,13 +155,6 @@ async function sweepExpiredSessions(): Promise<void> {
     .where(lt(schema.sessions.expiresAt, new Date()));
 }
 
-/**
- * Unconditional outside dev, not derived from the request scheme: a first-ever
- * visitor landing on http:// would otherwise get a cookie without `Secure` and
- * send it in the clear. HSTS cannot help that first navigation.
- */
-export const COOKIE_SECURE = !import.meta.env.DEV;
-
 export async function createSession(
   user: SessionUser,
   cookies: AstroCookies,
@@ -194,7 +201,7 @@ export async function getSession(
 
   if (row.expiresAt.getTime() <= Date.now()) {
     await db.delete(schema.sessions).where(eq(schema.sessions.id, id));
-    cookies.delete(SESSION_COOKIE, { path: "/" });
+    cookies.delete(SESSION_COOKIE, { path: "/", secure: COOKIE_SECURE });
     return null;
   }
 
@@ -243,7 +250,7 @@ export async function destroySession(cookies: AstroCookies): Promise<void> {
     const id = await hashToken(token);
     await getDb().delete(schema.sessions).where(eq(schema.sessions.id, id));
   }
-  cookies.delete(SESSION_COOKIE, { path: "/" });
+  cookies.delete(SESSION_COOKIE, { path: "/", secure: COOKIE_SECURE });
 }
 
 // --- GitHub profile ---

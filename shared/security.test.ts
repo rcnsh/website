@@ -1,6 +1,12 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { BUCKET_ORIGIN, headersFile, securityHeaders, SCRIPT_SOURCES } from "./security.ts";
+import {
+  BUCKET_ORIGIN,
+  completePolicy,
+  headersFile,
+  securityHeaders,
+  SCRIPT_SOURCES,
+} from "./security.ts";
 
 // public/_headers and src/middleware.ts must not drift apart.
 describe("security headers", () => {
@@ -94,5 +100,36 @@ describe("the CSP is route-invariant", () => {
       securityHeaders()["Content-Security-Policy"],
       securityHeaders()["Content-Security-Policy"],
     );
+  });
+});
+
+// Astro sends its own CSP header on prerender = false pages (/guestbook).
+describe("completePolicy", () => {
+  const astro =
+    "script-src 'self' 'sha256-abc'; style-src 'self' 'sha256-def'; style-src-attr 'unsafe-inline';";
+
+  test("adds the base directives a route's policy lacks", () => {
+    const policy = completePolicy(astro);
+    for (const directive of [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      `connect-src 'self' ${BUCKET_ORIGIN}`,
+    ]) {
+      assert.ok(policy.includes(directive), `missing ${directive}`);
+    }
+  });
+
+  test("never loosens the route's own script-src", () => {
+    const policy = completePolicy(astro);
+    assert.equal(policy.match(/(^|; )script-src /g)?.length, 1);
+    assert.ok(!/script-src[^;]*'unsafe-inline'/.test(policy));
+  });
+
+  test("leaves a complete policy alone", () => {
+    const full = securityHeaders()["Content-Security-Policy"];
+    assert.equal(completePolicy(full), full);
   });
 });

@@ -76,6 +76,27 @@ function contentSecurityPolicy(): string {
   ].join("; ");
 }
 
+/**
+ * A route's own CSP with every directive it lacks added from the base set.
+ * Astro's header on a `prerender = false` page carries only script-src and
+ * style-src, so keeping it unchanged left the page with no default-src,
+ * base-uri, object-src or form-action. Directives it does carry are never
+ * touched: its hashed script-src is the best policy on the site.
+ */
+export function completePolicy(existing: string): string {
+  const present = new Set(
+    existing
+      .split(";")
+      .map((directive) => directive.trim().split(/\s+/)[0]?.toLowerCase())
+      .filter(Boolean),
+  );
+  const missing = [...baseDirectives(), "frame-ancestors 'none'"].filter(
+    (directive) => !present.has(directive.split(" ")[0]),
+  );
+  const policy = existing.trim().replace(/;+$/, "");
+  return missing.length ? [policy, ...missing].join("; ") : policy;
+}
+
 /** The contents of public/_headers. Always the production set. */
 export function headersFile(): string {
   const rules = Object.entries(securityHeaders())

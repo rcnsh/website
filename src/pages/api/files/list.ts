@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { cachedDirectory, normalisePrefix } from "@/lib/r2";
+import { cachedDirectory, isHiddenKey, normalisePrefix } from "@/lib/r2";
 
 export const prerender = false;
 
@@ -9,6 +9,14 @@ export const prerender = false;
  */
 export const GET: APIRoute = async ({ url }) => {
   const prefix = normalisePrefix(url.searchParams.get("prefix"));
+  // The live-LIST fallback past the cached tree's cap does not skip hidden
+  // keys, so refuse them here as thumbs.ts does.
+  if (isHiddenKey(prefix)) {
+    return new Response(JSON.stringify({ error: "Bad request" }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  }
 
   try {
     const listing = await cachedDirectory(prefix);
