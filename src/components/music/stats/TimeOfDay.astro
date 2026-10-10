@@ -1,0 +1,37 @@
+---
+import { getRhythm, type Rhythm } from "@/lib/music-stats";
+import TimeOfDayPanel from "./TimeOfDayPanel.astro";
+
+let data: Rhythm | null = null;
+try {
+  data = await getRhythm();
+} catch (error) {
+  console.error("[music-stats] time of day island failed", error);
+}
+---
+
+<div data-chart>
+  <div class="mb-4 flex min-h-4 items-center gap-2.5">
+    <h2 id="time-title" class="label">Time of day</h2>
+    <span class="ml-auto font-mono text-[11px] text-ink-dim" data-chart-readout aria-hidden="true">
+      Share of plays by local hour
+    </span>
+  </div>
+
+  {
+    !data ? (
+      <p class="text-sm text-ink-faint">Couldn't reach the music warehouse.</p>
+    ) : (
+      <>
+        <div data-year="all">
+          <TimeOfDayPanel eras={data.eras} />
+        </div>
+        {data.years.map((year) => (
+          <div data-year={year.year}>
+            <TimeOfDayPanel eras={year.eras} year={year.year} />
+          </div>
+        ))}
+      </>
+    )
+  }
+</div>

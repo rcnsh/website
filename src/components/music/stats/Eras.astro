@@ -1,0 +1,136 @@
+---
+import { getEras, type Eras } from "@/lib/music-stats";
+import { monthLabel, monthRange, percent } from "@/lib/music-stats-view";
+
+let data: Eras | null = null;
+try {
+  data = await getEras();
+} catch (error) {
+  console.error("[music-stats] eras island failed", error);
+}
+
+// The time-of-day chart's era colours, so Newcastle and Singapore read the
+// same across the page.
+const BEFORE = "var(--color-brand)";
+const AFTER = "#c08050";
+const ROWS = 5;
+
+const range = (months: { from: string; to: string } | null) => (months ? monthRange(months.from, months.to) : "");
+
+const shifts = data ? [...data.risers.slice(0, ROWS), ...data.fallers.slice(0, ROWS)] : [];
+const max = Math.max(0.05, ...shifts.flatMap((s) => [s.before, s.after]));
+const at = (share: number) => `${(share / max) * 100}%`;
+
+const s = data?.summary;
+const verdict = s
+  ? s.typical_change.exceeded_by === 0
+    ? "a bigger reshuffle than any earlier stretch of the same length"
+    : s.change > s.typical_change.median
+      ? `bigger than usual, but ${s.typical_change.exceeded_by} of ${s.typical_change.windows} earlier stretches of the same length changed more`
+      : "about what any two stretches of the same length look like"
+  : "";
+const groups = [
+  { title: "Up since the move", rows: data?.risers.slice(0, ROWS) ?? [] },
+  { title: "Down since the move", rows: data?.fallers.slice(0, ROWS) ?? [] },
+];
+---
+
+<div data-chart>
+  <div class="mb-4 flex min-h-4 items-center gap-2.5">
+    <h2 id="eras-title" class="label">Newcastle → Singapore</h2>
+    <span class="ml-auto font-mono text-[11px] text-ink-dim" data-chart-readout aria-hidden="true">
+      {data?.move_month ? `moved ${monthLabel(data.move_month)}` : ""}
+    </span>
+  </div>
+  <p data-year-note class="-mt-2 mb-3 font-mono text-[11px] text-ink-dim">Always the months either side of the move, whichever year is picked.</p>
+
+  {
+    !data ? (
+      <p class="text-sm text-ink-faint">Couldn't reach the music warehouse.</p>
+    ) : !data.ready || !s ? (
+      <p class="text-sm text-ink-faint">Too soon after the move to compare.</p>
+    ) : (
+      <>
+        <p class="text-[14px] leading-relaxed text-ink-dim">
+          Comparing {range(data.singapore)} in Singapore with {range(data.before)} before I left,{" "}
+          {percent(1 - s.change)} of my listening stayed with the same artists. That's {verdict}.{" "}
+          <span class="text-ink">{percent(s.known_artist_share)}</span> of plays since have gone to artists I'd already heard
+          in Newcastle.
+        </p>
+
+        <ul class="mt-4 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-ink-dim">
+          <li class="flex items-center gap-1.5">
+            <span class="inline-block h-2 w-2 rounded-full border-2" style={`border-color:${BEFORE}`} aria-hidden="true" />
+            {data.before ? range(data.before) : "Before"}
+          </li>
+          <li class="flex items-center gap-1.5">
+            <span class="inline-block h-2 w-2 rounded-full" style={`background:${AFTER}`} aria-hidden="true" />
+            {data.singapore ? range(data.singapore) : "Singapore"}
+          </li>
+        </ul>
+
+        {groups.map((group) => (
+          <div class="mt-4">
+            <h3 class="mb-2 font-mono text-[11px] text-ink-faint">{group.title}</h3>
+            <ol class="flex flex-col gap-2">
+              {group.rows.map((row) => {
+                const lo = Math.min(row.before, row.after);
+                const hi = Math.max(row.before, row.after);
+                const tip = `${row.artist} · ${percent(row.before)} before → ${percent(row.after)} in Singapore`;
+                return (
+                  <li class="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)_3.25rem] items-center gap-3" data-tip={tip}>
+                    <span class="truncate text-[13px] text-ink">{row.artist}</span>
+                    <span class="relative block h-3" aria-hidden="true" data-tip={tip}>
+                      <span class="absolute inset-x-0 top-1/2 h-px bg-line-soft" />
+                      <span class="absolute top-1/2 h-0.5 -translate-y-1/2 bg-line-strong" style={`left:${at(lo)};width:calc(${at(hi)} - ${at(lo)})`} />
+                      <span
+                        class="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-surface"
+                        style={`left:${at(row.before)};border-color:${BEFORE}`}
+                      />
+                      <span
+                        class="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-surface"
+                        style={`left:${at(row.after)};background:${AFTER}`}
+                      />
+                    </span>
+                    <span class="text-right font-mono text-[11px] tabular-nums text-ink-dim">
+                      {row.after > row.before ? "+" : "−"}
+                      {percent(Math.abs(row.after - row.before))}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        ))}
+
+        <p class="mt-5 text-[12.5px] leading-relaxed text-ink-faint">
+          Shares of plays, credited to each song's lead artist. Spotify doesn't expose genres to this app, so this compares
+          artists, not genres.
+        </p>
+
+        <details class="mt-3 text-[12.5px] text-ink-dim">
+          <summary class="cursor-pointer font-mono text-[11px] text-ink-faint hover:text-ink">Show as a table</summary>
+          <table class="mt-3 w-full font-mono text-[11px] tabular-nums">
+            <caption class="sr-only">Artist share of plays before and after the move</caption>
+            <thead>
+              <tr class="text-left text-ink-faint">
+                <th scope="col" class="py-1 pr-3 font-normal">Artist</th>
+                <th scope="col" class="py-1 pr-3 font-normal">Before</th>
+                <th scope="col" class="py-1 pr-3 font-normal">Singapore</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-line-soft">
+              {shifts.map((row) => (
+                <tr>
+                  <th scope="row" class="py-1 pr-3 text-left font-normal">{row.artist}</th>
+                  <td class="py-1 pr-3">{percent(row.before)}</td>
+                  <td class="py-1 pr-3">{percent(row.after)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      </>
+    )
+  }
+</div>

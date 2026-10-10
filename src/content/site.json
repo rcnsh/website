@@ -36,6 +36,10 @@
       "title": "Music",
       "description": "Now playing, top tracks and artists, and recently played, from Spotify."
     },
+    "musicStats": {
+      "title": "Listening stats",
+      "description": "Six years of Spotify history: streaks, time of day, what's on repeat, who I was listening to each quarter, and what changed when I moved to Singapore."
+    },
     "guestbook": {
       "title": "Guestbook",
       "description": "Sign in with GitHub to leave a message.",

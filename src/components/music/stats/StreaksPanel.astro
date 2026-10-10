@@ -1,0 +1,109 @@
+---
+import type { StreakSet } from "@/lib/music-stats";
+import { monthRange, percent, plural } from "@/lib/music-stats-view";
+
+interface Props {
+  sets: StreakSet[];
+  /** Whether the span runs up to now, so a streak can still be going. */
+  live: boolean;
+  /** The calendar year shown, or undefined for all time. */
+  year?: string;
+}
+
+const { sets, live, year } = Astro.props;
+const daily = sets.find((set) => set.threshold === 1);
+const heavier = sets.filter((set) => set.threshold > 1);
+type Streak = NonNullable<StreakSet["longest"]>;
+
+// A running streak comes in whole weeks only (an exact count would date its
+// first day), so it is drawn at its floor and labelled "N wk+".
+const length = (streak: Streak) => streak.days ?? streak.weeks * 7;
+const best = (streak: Streak | null) =>
+  !streak ? "none" : streak.days === null ? `${plural(streak.weeks, "week")}+` : plural(streak.days, "day");
+const longest = daily?.longest ? length(daily.longest) : 0;
+---
+
+{
+  !daily ? (
+    <p class="text-sm text-ink-faint">No plays counted{year ? ` in ${year}` : ""}.</p>
+  ) : (
+    <div class="grid gap-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+      <div class="flex flex-col">
+        {live ? (
+          <>
+            <p class="font-mono text-[3.25rem] font-semibold leading-none tracking-[-0.05em] text-ink">
+              {daily.current_weeks}
+            </p>
+            <p class="mt-2 font-mono text-[11px] text-ink-dim">
+              {daily.current_weeks === 1 ? "week" : "weeks"} in a row with something playing every day
+            </p>
+          </>
+        ) : (
+          <>
+            <p class="font-mono text-[3.25rem] font-semibold leading-none tracking-[-0.05em] text-ink">
+              {daily.longest ? length(daily.longest) : 0}
+            </p>
+            <p class="mt-2 font-mono text-[11px] text-ink-dim">days in a row, the longest run of {year}</p>
+          </>
+        )}
+        <dl class="mt-5 grid grid-cols-2 gap-x-6 gap-y-4">
+          {live && (
+            <div class="flex flex-col-reverse gap-1">
+              <dt class="font-mono text-[10.5px] text-ink-dim">Longest</dt>
+              <dd class="font-mono text-lg font-semibold tracking-[-0.02em] text-ink">{best(daily.longest)}</dd>
+            </div>
+          )}
+          <div class="flex flex-col-reverse gap-1">
+            <dt class="font-mono text-[10.5px] text-ink-dim">Days with a play</dt>
+            <dd class="font-mono text-lg font-semibold tracking-[-0.02em] text-ink">{percent(daily.active_share)}</dd>
+          </div>
+          {heavier.map((set) => (
+            <div class="flex flex-col-reverse gap-1">
+              <dt class="font-mono text-[10.5px] text-ink-dim">{set.threshold}+ plays a day</dt>
+              <dd class="font-mono text-[13px] text-ink">
+                {live ? (
+                  <>
+                    {plural(set.current_weeks, "week")} now <span class="text-ink-dim">· best {best(set.longest)}</span>
+                  </>
+                ) : (
+                  <>best {best(set.longest)}</>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <p class="mt-auto pt-5 font-mono text-[11px] text-ink-dim">
+          {live ? "Counted to the end of last week." : `Runs crossing into another year count only their ${year} days.`}
+        </p>
+      </div>
+
+      <div>
+        <h3 class="mb-2 font-mono text-[11px] text-ink-dim">Longest runs{year ? ` in ${year}` : ""}</h3>
+        <ol class="flex flex-col gap-2.5">
+          {daily.top.map((streak) => (
+            <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
+              <span class="truncate text-[13px] text-ink">
+                {monthRange(streak.from, streak.to)}
+                {streak.running && <span class="ml-1.5 font-mono text-[10.5px] text-brand-alt">running</span>}
+              </span>
+              <span class="font-mono text-[12px] tabular-nums text-ink-dim">
+                {streak.days === null ? `${streak.weeks}` : streak.days}
+                <span aria-hidden="true">{streak.days === null ? " wk+" : "d"}</span>
+                <span class="sr-only">{streak.days === null ? " weeks or more" : " days"}</span>
+              </span>
+              <span class="col-span-2 block h-1.5 rounded-full bg-line-soft" aria-hidden="true">
+                <span
+                  class:list={["block h-full rounded-full", streak.running ? "bg-brand-gradient" : "bg-line-strong"]}
+                  style={`width:${(length(streak) / Math.max(1, longest)) * 100}%`}
+                />
+              </span>
+            </li>
+          ))}
+        </ol>
+        <p class="mt-4 text-[12.5px] leading-relaxed text-ink-faint">
+          A streak survives until a whole day passes without a play, counted in local time wherever I was living.
+        </p>
+      </div>
+    </div>
+  )
+}

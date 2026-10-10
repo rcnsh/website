@@ -1,0 +1,48 @@
+---
+import { getRhythm, type Rhythm } from "@/lib/music-stats";
+import { monthLabel } from "@/lib/music-stats-view";
+import StreaksPanel from "./StreaksPanel.astro";
+
+let data: Rhythm | null = null;
+try {
+  data = await getRhythm();
+} catch (error) {
+  console.error("[music-stats] streaks island failed", error);
+}
+---
+
+<div>
+  <div class="mb-4 flex min-h-4 items-center gap-2.5">
+    <h2 id="streaks-title" class="label">Streaks</h2>
+    {
+      data && (
+        <span class="ml-auto font-mono text-[11px] text-ink-dim">
+          <span data-year="all">since {monthLabel(data.range.from)}</span>
+          {data.years.map((year) => (
+            <span data-year={year.year}>
+              {year.year}
+              {year.partial ? " so far" : ""}
+            </span>
+          ))}
+        </span>
+      )
+    }
+  </div>
+
+  {
+    !data ? (
+      <p class="text-sm text-ink-faint">Couldn't reach the music warehouse.</p>
+    ) : (
+      <>
+        <div data-year="all">
+          <StreaksPanel sets={data.streaks} live />
+        </div>
+        {data.years.map((year) => (
+          <div data-year={year.year}>
+            <StreaksPanel sets={year.streaks} live={year.partial} year={year.year} />
+          </div>
+        ))}
+      </>
+    )
+  }
+</div>
