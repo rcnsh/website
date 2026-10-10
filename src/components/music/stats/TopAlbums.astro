@@ -9,7 +9,12 @@ try {
   console.error("[music-stats] top albums island failed", error);
 }
 
-const top = Math.max(1, ...(data?.albums.map((album) => album.plays) ?? []));
+const lists = data
+  ? [
+      { key: "all", label: "all time", albums: data.albums },
+      ...data.years.map((y) => ({ key: y.year, label: y.partial ? `${y.year} so far` : y.year, albums: y.albums })),
+    ]
+  : [];
 const years = (from: string, to: string) =>
   from.slice(0, 4) === to.slice(0, 4) ? from.slice(0, 4) : `${from.slice(0, 4)}–${to.slice(0, 4)}`;
 ---
@@ -17,45 +22,52 @@ const years = (from: string, to: string) =>
 <div>
   <div class="mb-4 flex min-h-4 items-center gap-2.5">
     <h2 id="albums-title" class="label">Most-played albums</h2>
-    <span class="ml-auto font-mono text-[11px] text-ink-dim">all time</span>
+    <span class="ml-auto font-mono text-[11px] text-ink-dim">
+      {lists.map((list) => <span data-year={list.key}>{list.label}</span>)}
+    </span>
   </div>
 
   {
     !data ? (
       <p class="text-sm text-ink-faint">Couldn't reach the music warehouse.</p>
-    ) : data.albums.length === 0 ? (
-      <p class="text-sm text-ink-faint">Nothing to show yet.</p>
     ) : (
       <>
-        <ol class="flex flex-col gap-3.5">
-          {data.albums.map((album, i) => (
-            <li class="grid grid-cols-[1.25rem_2.5rem_minmax(0,1fr)_auto] items-center gap-x-3">
-              <span class="font-mono text-[11px] text-ink-dim tabular-nums">{i + 1}</span>
-              {album.image ? (
-                <img src={cover(album.image, 64)} alt="" width={40} height={40} loading="lazy" class="h-10 w-10 rounded-xs bg-raised object-cover" />
-              ) : (
-                <div class="h-10 w-10 rounded-xs bg-raised" />
-              )}
-              <span class="min-w-0">
-                <span class="block truncate text-[14px] text-ink">{album.name}</span>
-                <span class="block truncate text-[12px] text-ink-dim">
-                  {album.artist} · {years(album.from, album.to)}
-                </span>
-              </span>
-              <span class="text-right font-mono text-[13px] text-ink tabular-nums">
-                {album.plays.toLocaleString("en-GB")}
-                <span class="sr-only"> plays</span>
-              </span>
-              <span class="col-span-2" />
-              <span class="col-span-2 mt-1.5 flex items-center gap-2.5">
-                <span class="block h-1 flex-1 rounded-full bg-line-soft" aria-hidden="true">
-                  <span class="block h-full rounded-full bg-brand" style={`width:${(album.plays / top) * 100}%`} />
-                </span>
-                <span class="font-mono text-[10.5px] text-ink-dim">{plural(album.songs, "song")}</span>
-              </span>
-            </li>
-          ))}
-        </ol>
+        {lists.map((list) => {
+          const top = Math.max(1, ...list.albums.map((album) => album.plays));
+          return list.albums.length === 0 ? (
+            <p class="text-sm text-ink-faint" data-year={list.key}>No album reached {data.min_songs} songs.</p>
+          ) : (
+            <ol class="flex flex-col gap-3.5" data-year={list.key}>
+              {list.albums.map((album, i) => (
+                <li class="grid grid-cols-[1.25rem_2.5rem_minmax(0,1fr)_auto] items-center gap-x-3">
+                  <span class="font-mono text-[11px] text-ink-dim tabular-nums">{i + 1}</span>
+                  {album.image ? (
+                    <img src={cover(album.image, 64)} alt="" width={40} height={40} loading="lazy" class="h-10 w-10 rounded-xs bg-raised object-cover" />
+                  ) : (
+                    <div class="h-10 w-10 rounded-xs bg-raised" />
+                  )}
+                  <span class="min-w-0">
+                    <span class="block truncate text-[14px] text-ink">{album.name}</span>
+                    <span class="block truncate text-[12px] text-ink-dim">
+                      {album.artist} · {years(album.from, album.to)}
+                    </span>
+                  </span>
+                  <span class="text-right font-mono text-[13px] text-ink tabular-nums">
+                    {album.plays.toLocaleString("en-GB")}
+                    <span class="sr-only"> plays</span>
+                  </span>
+                  <span class="col-span-2" />
+                  <span class="col-span-2 mt-1.5 flex items-center gap-2.5">
+                    <span class="block h-1 flex-1 rounded-full bg-line-soft" aria-hidden="true">
+                      <span class="block h-full rounded-full bg-brand" style={`width:${(album.plays / top) * 100}%`} />
+                    </span>
+                    <span class="font-mono text-[10.5px] text-ink-dim">{plural(album.songs, "song")}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          );
+        })}
         <p class="mt-5 text-[12.5px] leading-relaxed text-ink-faint">
           Albums with at least {data.min_songs} different songs played, so one song on loop doesn't make the list. Counted to
           the end of last week.

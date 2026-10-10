@@ -90,7 +90,11 @@ const summary = dominant
           aria-label={summary}
         >
           {columns.map((column) => (
-            <div class="group flex justify-center hover:bg-[color-mix(in_oklab,var(--color-ink)_5%,transparent)]" data-tip={column.tip}>
+            <div
+              class="group flex justify-center transition-opacity hover:bg-[color-mix(in_oklab,var(--color-ink)_5%,transparent)]"
+              data-tip={column.tip}
+              data-col-year={column.period.slice(0, 4)}
+            >
               <div class:list={["flex w-full max-w-6 flex-col-reverse gap-[2px]", column.partial && "opacity-60"]}>
                 {column.segments.map((segment) => (
                   <i class="block min-h-px" style={`flex:${segment.share} 0 0;background:${segment.colour}`} data-tip={column.tip} />
@@ -107,7 +111,7 @@ const summary = dominant
           aria-hidden="true"
         >
           {columns.map((column) => (
-            <div class="flex h-full items-end justify-center" data-tip={column.tip}>
+            <div class="flex h-full items-end justify-center transition-opacity" data-tip={column.tip} data-col-year={column.period.slice(0, 4)}>
               <i class="block w-full max-w-6 rounded-t-[2px] bg-line-strong" style={`height:${Math.max(4, (column.plays / maxPlays) * 100)}%`} data-tip={column.tip} />
             </div>
           ))}
@@ -123,12 +127,60 @@ const summary = dominant
           Lower strip: plays per quarter, so a thin quarter's big share reads as thin. Credited to each song's lead artist.
         </p>
 
+        {years.map((year) => (
+          <div data-year={year.period} class="mt-6 grid gap-6 sm:grid-cols-2">
+            <div>
+              <h3 class="mb-2.5 font-mono text-[11px] text-ink-dim">
+                Top artists, {year.period}
+                {year.partial ? " so far" : ""}
+              </h3>
+              <ol class="flex flex-col gap-2">
+                {year.artists.map((artist, i) => (
+                  <li class="grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
+                    <span class="font-mono text-[11px] text-ink-dim tabular-nums">{i + 1}</span>
+                    <span class="truncate text-[13.5px] text-ink">{artist.name}</span>
+                    <span class="font-mono text-[11px] tabular-nums text-ink-dim">{percent(artist.share)}</span>
+                    <span />
+                    <span class="col-span-2 block h-1 rounded-full bg-line-soft" aria-hidden="true">
+                      <span
+                        class="block h-full rounded-full"
+                        style={`width:${(artist.share / Math.max(0.01, year.artists[0]?.share ?? 1)) * 100}%;background:${
+                          leaders.find((leader) => leader.name === artist.name)?.colour ?? "var(--color-line-strong)"
+                        }`}
+                      />
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+            <div>
+              <h3 class="mb-2.5 font-mono text-[11px] text-ink-dim">Top songs</h3>
+              <ol class="flex flex-col gap-2.5">
+                {year.tracks.map((song) => (
+                  <li class="flex items-center gap-3">
+                    {song.image ? (
+                      <img src={cover(song.image, 64)} alt="" width={36} height={36} loading="lazy" class="h-9 w-9 shrink-0 rounded-xs object-cover" />
+                    ) : (
+                      <span class="h-9 w-9 shrink-0 rounded-xs bg-raised" />
+                    )}
+                    <span class="min-w-0 flex-1">
+                      <span class="block truncate text-[13.5px] text-ink">{song.name}</span>
+                      <span class="block truncate text-[12px] text-ink-dim">{song.artist}</span>
+                    </span>
+                    <span class="font-mono text-[11px] tabular-nums text-ink-dim">{plural(song.plays, "play")}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        ))}
+
         <ol class="mt-6 grid grid-cols-2 gap-2.5 sm:max-[1020px]:grid-cols-3 min-[1021px]:grid-cols-7">
           {years.map((year) => {
             const lead = year.artists[0]!;
             const song = year.tracks[0];
             return (
-              <li class="card flex flex-col gap-2 p-3">
+              <li class="card flex flex-col gap-2 p-3 transition-colors" data-card-year={year.period}>
                 <span class="flex items-baseline justify-between font-mono text-[11px] text-ink-dim">
                   {year.period}
                   {year.partial && <span>so far</span>}

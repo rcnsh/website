@@ -1,16 +1,6 @@
 ---
 import { getRhythm, type Rhythm } from "@/lib/music-stats";
-import {
-  WEEKDAYS,
-  heatLevel,
-  hourLabel,
-  linePath,
-  monthLabel,
-  niceShareMax,
-  peakHour,
-  percent,
-  shareBetween,
-} from "@/lib/music-stats-view";
+import TimeOfDayPanel from "./TimeOfDayPanel.astro";
 
 let data: Rhythm | null = null;
 try {
@@ -18,43 +8,6 @@ try {
 } catch (error) {
   console.error("[music-stats] time of day island failed", error);
 }
-
-// Validated against the tile surface (#131311) with the dataviz palette
-// checker: distinct under every colour-vision deficiency, both >= 3:1.
-const ERA_COLOURS = ["var(--color-brand)", "#c08050"];
-const W = 600;
-const H = 150;
-
-// Singapore's line is dashed too, so the eras never differ by colour alone.
-const DASHES = [undefined, "6 4"];
-
-const eras = data?.eras ?? [];
-const lines = eras.flatMap((era, i) =>
-  era.hour_share
-    ? [
-        {
-          ...era,
-          hours: era.hour_share,
-          colour: ERA_COLOURS[i] ?? "var(--color-ink-dim)",
-          dash: DASHES[i],
-          peak: peakHour(era.hour_share),
-          night: shareBetween(era.hour_share, 0, 6),
-        },
-      ]
-    : [],
-);
-const max = niceShareMax(Math.max(0, ...lines.flatMap((line) => line.hours)));
-const paths = lines.map((line) => linePath(line.hours, W, H, max));
-const hoursWithheld = eras.filter((era) => !era.hour_share && era.hours_available_from);
-
-const gridEra = eras.find((era) => era.grid);
-const gridMax = gridEra?.grid ? Math.max(...gridEra.grid.flat()) : 0;
-const withheld = eras.filter((era) => !era.grid && era.grid_available_from);
-
-const summary = lines
-  .map((era) => `${era.label}: busiest at ${hourLabel(era.peak)}, ${percent(era.night)} of plays between midnight and 6am`)
-  .join(". ");
-const ticks = [0, 6, 12, 18, 23];
 ---
 
 <div data-chart>
@@ -70,152 +23,15 @@ const ticks = [0, 6, 12, 18, 23];
       <p class="text-sm text-ink-faint">Couldn't reach the music warehouse.</p>
     ) : (
       <>
-        <ul class="mb-3 flex flex-wrap gap-x-5 gap-y-1 font-mono text-[11px] text-ink-dim">
-          {lines.map((era) => (
-            <li class="flex items-center gap-2">
-              <svg class="h-1 w-4 overflow-visible" viewBox="0 0 16 4" aria-hidden="true">
-                <line x1="1" x2="15" y1="2" y2="2" stroke={era.colour} stroke-width="2" stroke-linecap="round" stroke-dasharray={era.dash} />
-              </svg>
-              {era.label}
-              <span class="text-ink-dim">
-                {monthLabel(era.from)}–{era.to ? monthLabel(era.to) : "now"}
-              </span>
-            </li>
-          ))}
-        </ul>
-
-        <div class="relative h-[150px]" role="img" aria-label={`Share of plays by local hour. ${summary}.`}>
-          <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" class="absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
-            {[0.25, 0.5, 0.75, 1].map((f) => (
-              <line x1="0" x2={W} y1={H - f * H} y2={H - f * H} class="stroke-line-soft" stroke-width="1" vector-effect="non-scaling-stroke" />
-            ))}
-            <line x1="0" x2={W} y1={H} y2={H} class="stroke-line" stroke-width="1" vector-effect="non-scaling-stroke" />
-            {lines.map((era, i) => (
-              <path d={paths[i]} fill="none" stroke={era.colour} stroke-dasharray={era.dash} stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" />
-            ))}
-          </svg>
-          <span class="absolute -top-1 left-0 font-mono text-[10px] text-ink-faint" aria-hidden="true">{percent(max)}</span>
-          <div class="absolute inset-0 grid grid-cols-24" aria-hidden="true">
-            {Array.from({ length: 24 }, (_, hour) => (
-              <i
-                class="block hover:bg-[color-mix(in_oklab,var(--color-ink)_6%,transparent)]"
-                data-tip={`${hourLabel(hour)} · ${lines.map((era) => `${era.label} ${percent(era.hours[hour] ?? 0)}`).join(" · ")}`}
-              />
-            ))}
-          </div>
+        <div data-year="all">
+          <TimeOfDayPanel eras={data.eras} />
         </div>
-        <div class="relative mt-2 h-3 font-mono text-[10px] text-ink-faint" aria-hidden="true">
-          {ticks.map((hour) => (
-            <span class="absolute -translate-x-1/2 first:translate-x-0 last:-translate-x-full" style={`left:${(hour / 23) * 100}%`}>
-              {hourLabel(hour)}
-            </span>
-          ))}
-        </div>
-
-        <p class="mt-4 text-[13px] leading-relaxed text-ink-dim">{summary}.</p>
-
-        {gridEra?.grid && (
-          <div class="mt-6">
-            <h3 class="mb-3 font-mono text-[11px] text-ink-dim">
-              {gridEra.label}, by weekday and hour
-            </h3>
-            <div
-              class="grid gap-[2px]"
-              style="grid-template-columns: 2.25rem repeat(24, minmax(0, 1fr))"
-              role="img"
-              aria-label={`Weekday by hour heatmap of ${gridEra.label} listening; the table below lists every value.`}
-            >
-              {gridEra.grid.map((row, day) => (
-                <>
-                  <span class="self-center font-mono text-[10px] text-ink-faint" aria-hidden="true">{WEEKDAYS[day]}</span>
-                  {row.map((value, hour) => (
-                    <i
-                      class="heat-cell block aspect-square rounded-[2px]"
-                      style={`--l:${heatLevel(value, gridMax).toFixed(3)}`}
-                      data-tip={`${WEEKDAYS[day]} ${hourLabel(hour)} · ${percent(value)} of ${gridEra.label} plays`}
-                    />
-                  ))}
-                </>
-              ))}
-            </div>
-            <div class="mt-2 flex items-center justify-end gap-2 font-mono text-[10px] text-ink-faint" aria-hidden="true">
-              less
-              <span class="heat-legend inline-block h-1.5 w-20 rounded-full" />
-              more
-            </div>
+        {data.years.map((year) => (
+          <div data-year={year.year}>
+            <TimeOfDayPanel eras={year.eras} year={year.year} />
           </div>
-        )}
-
-        {hoursWithheld.map((era) => (
-          <p class="mt-4 font-mono text-[11px] leading-relaxed text-ink-dim">
-            {era.label}'s hours appear from {monthLabel(era.hours_available_from!)}, once there's a month of them.
-          </p>
         ))}
-
-        {withheld.map((era) => (
-          <p class="mt-4 font-mono text-[11px] leading-relaxed text-ink-dim">
-            {era.label}'s weekday grid appears from {monthLabel(era.grid_available_from!)}. Until it covers six months,
-            each cell would describe particular nights rather than a routine.
-          </p>
-        ))}
-
-        <details class="mt-4 text-[12.5px] text-ink-dim">
-          <summary class="cursor-pointer font-mono text-[11px] text-ink-faint hover:text-ink">Show as a table</summary>
-          <div class="mt-3 max-h-72 overflow-auto">
-            <table class="w-full font-mono text-[11px] tabular-nums">
-              <caption class="sr-only">Share of plays by local hour, per era</caption>
-              <thead>
-                <tr class="text-left text-ink-faint">
-                  <th scope="col" class="py-1 pr-3 font-normal">Hour</th>
-                  {lines.map((era) => <th scope="col" class="py-1 pr-3 font-normal">{era.label}</th>)}
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-line-soft">
-                {Array.from({ length: 24 }, (_, hour) => (
-                  <tr>
-                    <th scope="row" class="py-1 pr-3 text-left font-normal">{hourLabel(hour)}</th>
-                    {lines.map((era) => <td class="py-1 pr-3">{percent(era.hours[hour] ?? 0)}</td>)}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {gridEra?.grid && (
-              <table class="mt-4 w-full font-mono text-[11px] tabular-nums">
-                <caption class="mb-1 text-left text-ink-faint">{gridEra.label}: share of plays by weekday and hour</caption>
-                <thead>
-                  <tr class="text-left text-ink-faint">
-                    <th scope="col" class="py-1 pr-2 font-normal">Hour</th>
-                    {WEEKDAYS.map((day) => <th scope="col" class="py-1 pr-2 font-normal">{day}</th>)}
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-line-soft">
-                  {Array.from({ length: 24 }, (_, hour) => (
-                    <tr>
-                      <th scope="row" class="py-1 pr-2 text-left font-normal">{hourLabel(hour)}</th>
-                      {gridEra.grid!.map((row) => <td class="py-1 pr-2">{percent(row[hour] ?? 0)}</td>)}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </details>
       </>
     )
   }
 </div>
-
-<style>
-  .heat-cell {
-    background: color-mix(in oklab, var(--color-brand-alt) calc(var(--l) * 100%), var(--color-raised));
-  }
-
-  .heat-cell:hover {
-    outline: 1px solid var(--color-ink);
-    outline-offset: -1px;
-  }
-
-  .heat-legend {
-    background: linear-gradient(90deg, var(--color-raised), var(--color-brand-alt));
-  }
-</style>

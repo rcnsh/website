@@ -25,28 +25,37 @@ const streakSchema = z.object({
   running: z.boolean(),
 });
 
+const streakSetSchema = z.object({
+  threshold: z.number().int(),
+  current_weeks: z.number().int(),
+  longest: streakSchema.nullable(),
+  top: z.array(streakSchema),
+  active_share: share,
+});
+
+const eraRhythmSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  from: month,
+  to: month.nullable(),
+  hour_share: z.array(share).length(24).nullable(),
+  grid: z.array(z.array(share).length(24)).length(7).nullable(),
+  hours_available_from: month.nullable(),
+  grid_available_from: month.nullable(),
+});
+
 const rhythmSchema = z.object({
   as_of: z.string(),
   range: z.object({ from: month, to: month }),
-  streaks: z.array(
+  streaks: z.array(streakSetSchema),
+  eras: z.array(eraRhythmSchema),
+  // Every figure above again, per local calendar year, for the page's year switch.
+  years: z.array(
     z.object({
-      threshold: z.number().int(),
-      current_weeks: z.number().int(),
-      longest: streakSchema.nullable(),
-      top: z.array(streakSchema),
-      active_share: share,
-    }),
-  ),
-  eras: z.array(
-    z.object({
-      key: z.string(),
-      label: z.string(),
-      from: month,
-      to: month.nullable(),
-      hour_share: z.array(share).length(24).nullable(),
-      grid: z.array(z.array(share).length(24)).length(7).nullable(),
-      hours_available_from: month.nullable(),
-      grid_available_from: month.nullable(),
+      year: z.string(),
+      partial: z.boolean(),
+      streaks: z.array(streakSetSchema),
+      eras: z.array(eraRhythmSchema),
     }),
   ),
 });
@@ -77,20 +86,21 @@ const repeatSchema = z.object({
   ),
 });
 
+const albumSchema = z.object({
+  name: z.string(),
+  artist: z.string(),
+  image: z.string().nullable(),
+  plays: z.number().int(),
+  songs: z.number().int(),
+  from: month,
+  to: month,
+});
+
 const albumsSchema = z.object({
   as_of: z.string(),
   min_songs: z.number().int(),
-  albums: z.array(
-    z.object({
-      name: z.string(),
-      artist: z.string(),
-      image: z.string().nullable(),
-      plays: z.number().int(),
-      songs: z.number().int(),
-      from: month,
-      to: month,
-    }),
-  ),
+  albums: z.array(albumSchema),
+  years: z.array(z.object({ year: z.string(), partial: z.boolean(), albums: z.array(albumSchema) })),
 });
 
 const periodSchema = z.object({
@@ -141,6 +151,9 @@ const erasSchema = z.object({
 });
 
 export type Rhythm = z.infer<typeof rhythmSchema>;
+export type StreakSet = z.infer<typeof streakSetSchema>;
+export type EraRhythm = z.infer<typeof eraRhythmSchema>;
+export type TopAlbum = z.infer<typeof albumSchema>;
 export type OnRepeat = z.infer<typeof repeatSchema>;
 export type TopAlbums = z.infer<typeof albumsSchema>;
 export type TopOverTime = z.infer<typeof topSchema>;

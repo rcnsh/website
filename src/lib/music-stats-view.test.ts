@@ -10,6 +10,8 @@ import {
   peakHour,
   percent,
   quarterLabel,
+  statsYears,
+  yearSwitchCss,
   shareBetween,
 } from "./music-stats-view.ts";
 
@@ -67,5 +69,17 @@ describe("chart geometry", () => {
     const shares = Array.from({ length: 24 }, (_, h) => (h === 16 ? 0.2 : h < 2 ? 0.1 : 0));
     assert.equal(peakHour(shares), 16);
     assert.ok(Math.abs(shareBetween(shares, 22, 6) - 0.2) < 1e-9);
+  });
+});
+
+describe("year switch", () => {
+  test("offers every year from the first to the current one", () => {
+    assert.deepEqual(statsYears(new Date("2026-10-11T00:00:00Z")), ["2020", "2021", "2022", "2023", "2024", "2025", "2026"]);
+  });
+
+  test("shows only the chosen year's panels, or all time when none is chosen", () => {
+    const css = yearSwitchCss(["2024"]);
+    assert.match(css, /html:not\(\[data-stats-year\]\) \[data-year\]:not\(\[data-year='all'\]\)\{display:none\}/);
+    assert.match(css, /html\[data-stats-year='2024'\] \[data-year\]:not\(\[data-year='2024'\]\)\{display:none\}/);
   });
 });
