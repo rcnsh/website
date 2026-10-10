@@ -11,7 +11,6 @@ import {
   percent,
   quarterLabel,
   statsYears,
-  yearSwitchCss,
   shareBetween,
 } from "./music-stats-view.ts";
 
@@ -77,9 +76,4 @@ describe("year switch", () => {
     assert.deepEqual(statsYears(new Date("2026-10-11T00:00:00Z")), ["2020", "2021", "2022", "2023", "2024", "2025", "2026"]);
   });
 
-  test("shows only the chosen year's panels, or all time when none is chosen", () => {
-    const css = yearSwitchCss(["2024"]);
-    assert.match(css, /html:not\(\[data-stats-year\]\) \[data-year\]:not\(\[data-year='all'\]\)\{display:none\}/);
-    assert.match(css, /html\[data-stats-year='2024'\] \[data-year\]:not\(\[data-year='2024'\]\)\{display:none\}/);
-  });
 });

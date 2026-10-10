@@ -7,7 +7,7 @@ import TopOverTime from "@/components/music/stats/TopOverTime.astro";
 import TimeOfDay from "@/components/music/stats/TimeOfDay.astro";
 import Eras from "@/components/music/stats/Eras.astro";
 import { pageOgHref, pages, site } from "@/lib/site";
-import { statsYears, yearSwitchCss } from "@/lib/music-stats-view";
+import { statsYears } from "@/lib/music-stats-view";
 
 const page = pages.musicStats;
 // Fixed at build. A new year appears in the switch on the next deploy; until
@@ -154,21 +154,65 @@ const years = statsYears(new Date());
       </Eras>
     </section>
   </div>
-  <Fragment set:html={`<style>${yearSwitchCss(years)}</style>`} />
 </Layout>
+
+<style is:global>
+  /* The year switch. Islands render a panel for every year (data-year) and
+     the script below marks the ones matching the chosen year. Static rules,
+     so the built page's hashed style-src allows them. With no year chosen,
+     or no script, all time shows. */
+  html:not([data-stats-year]) [data-year]:not([data-year="all"]),
+  html:not([data-stats-year]) [data-year-note],
+  html[data-stats-year] [data-year]:not([data-year-match]) {
+    display: none;
+  }
+
+  html[data-stats-year] [data-col-year]:not([data-year-match]) {
+    opacity: 0.3;
+  }
+
+  html[data-stats-year] [data-card-year][data-year-match] {
+    border-color: var(--color-brand);
+  }
+</style>
 
 <script>
   // One delegated listener for every chart's readout. Island markup lands
   // after this runs, so nothing binds per element. The readout repeats what
   // the chart's text summary and table already say, hence aria-hidden there:
   // this is a pointer convenience, not the way to reach a value.
-  // The year switch only sets an attribute; yearSwitchCss does the showing
-  // and hiding, so panels from islands that arrive later need nothing here.
+  // The year switch sets data-stats-year on <html> and marks every element
+  // tagged with a year that matches it; the page's global styles do the
+  // rest. Islands land after this runs, so new markup is marked as it
+  // arrives (observer callbacks run before the next paint, so nothing
+  // flashes).
   const switcher = document.querySelector<HTMLFieldSetElement>("[data-year-switch]");
+  const TAGGED = "[data-year], [data-col-year], [data-card-year]";
+  let chosen = "all";
+
+  const markOne = (el: HTMLElement) => {
+    const year = el.dataset.year ?? el.dataset.colYear ?? el.dataset.cardYear;
+    el.toggleAttribute("data-year-match", year === chosen);
+  };
+  const mark = (root: Element | Document) => {
+    for (const el of root.querySelectorAll<HTMLElement>(TAGGED)) markOne(el);
+  };
   const showYear = (year: string) => {
+    chosen = year;
     if (year === "all") delete document.documentElement.dataset.statsYear;
     else document.documentElement.dataset.statsYear = year;
+    mark(document);
   };
+  new MutationObserver((records) => {
+    if (chosen === "all") return;
+    for (const record of records) {
+      for (const node of record.addedNodes) {
+        if (!(node instanceof HTMLElement)) continue;
+        if (node.matches(TAGGED)) markOne(node);
+        mark(node);
+      }
+    }
+  }).observe(document.body, { childList: true, subtree: true });
   const linked = new URLSearchParams(location.search).get("year");
   const linkedInput = linked ? switcher?.querySelector<HTMLInputElement>(`input[value="${CSS.escape(linked)}"]`) : null;
   if (linked && linkedInput) {

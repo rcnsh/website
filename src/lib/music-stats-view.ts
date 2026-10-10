@@ -117,23 +117,3 @@ export function statsYears(now: Date): string[] {
   return years;
 }
 
-/**
- * The CSS behind the year switch. Islands render a panel for every year
- * (`data-year`) and the switch only sets `data-stats-year` on <html>, so
- * panels that land after a switch are already right, with no script per
- * island. With no year set, "all" shows.
- */
-export function yearSwitchCss(years: string[]): string {
-  const rules = [
-    "html:not([data-stats-year]) [data-year]:not([data-year='all']){display:none}",
-    "html:not([data-stats-year]) [data-year-note]{display:none}",
-  ];
-  for (const year of years) {
-    rules.push(
-      `html[data-stats-year='${year}'] [data-year]:not([data-year='${year}']){display:none}`,
-      `html[data-stats-year='${year}'] [data-col-year]:not([data-col-year='${year}']){opacity:.3}`,
-      `html[data-stats-year='${year}'] [data-card-year='${year}']{border-color:var(--color-brand)}`,
-    );
-  }
-  return rules.join("\n");
-}
