@@ -1,87 +1,102 @@
 # rcn.sh
 
-My personal site: **[rcn.sh](https://rcn.sh)**. Writing, music, files and a
+My personal site → **[rcn.sh](https://rcn.sh)**. Writing, music, files and a
 guestbook, on Astro 7 and Cloudflare Workers.
 
+<!-- TODO: add screenshot/GIF at docs/screenshot.png -->
+<!-- ![rcn.sh](docs/screenshot.png) -->
+
 Replaces [`rcnsh-astro`](https://github.com/rcnsh/rcnsh-astro), which stopped
-building against current packages.
+building against current packages. How it fits together is in
+[`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-## How it's built
+## Quickstart
 
-Static by default. Pages prerender at build time; anything live arrives through
-a server island (`server:defer`) or a route that opts out with
-`export const prerender = false`.
-
-- **Astro 7** — the site
-- **React 19** — command palette, file browser, music explorer, now-playing card
-- **Tailwind 4** — tokens live in `@theme` at the top of `src/styles/global.css`
-- **D1 + Drizzle** for the guestbook and sessions, **R2** for files, **KV** for
-  stale-while-revalidate caching
-- **GitHub OAuth**, hand-rolled in `src/lib/auth.ts`
-
-Listening data comes from a separate music-warehouse Worker rather than from
-Spotify, so this site holds no Spotify credential of its own.
-
-The command palette has a shell in it. `$` at the prompt gets a small POSIX-ish
-one over a read-only view of the site.
-
-## Running it
+Node 22.12 or later.
 
 ```bash
 npm install
-cp .dev.vars.example .dev.vars   # that file says what each one is for
+cp .dev.vars.example .dev.vars
 npm run db:migrate:local
-npm run dev
+npm run dev                      # http://localhost:4321
 ```
 
-The Cloudflare resources already exist and their ids are committed in
-`wrangler.jsonc`. Nothing in `.dev.vars` is mandatory — every integration falls
-back to an empty state, so a blank file still gives a working site with the live
-parts missing.
+Nothing in `.dev.vars` is mandatory. Every integration falls back to an empty
+state, so a blank file still gives a working site with the live parts missing.
+
+The R2 binding is `remote: true`, so `npm run dev` reads the real bucket and
+needs `npx wrangler login` first. D1 and KV are local.
 
 `npm run generate` writes the derived files git does not carry: share cards, the
-88x31 button and `public/_headers`. It already runs inside
-`dev`, `build` and `preview` — run it alone after a fresh clone if the editor
-wants the imports resolved.
+88x31 button and `public/_headers`. It already runs inside `dev`, `build` and
+`preview`. Run it alone after a fresh clone if the editor wants the imports
+resolved, along with `npm run cf-types` for `worker-configuration.d.ts`.
 
-## Deploying
+## Configuration
+
+### Secrets
+
+In `.dev.vars` locally, Worker secrets in production. Declared by hand in
+`src/env.d.ts`; keep that, `.dev.vars.example` and this list in step.
+
+| Name | For |
+| --- | --- |
+| `GITHUB_CLIENT_ID` | guestbook sign-in, the GitHub OAuth app |
+| `GITHUB_CLIENT_SECRET` | same app |
+| `GITHUB_TOKEN` | classic PAT with `read:user`. Contribution graph (GraphQL needs auth) and the 5000/hr REST limit |
+| `MUSIC_WAREHOUSE_TOKEN` | read-only token for the music-warehouse Worker (its `READ_TOKEN`) |
 
 ```bash
-npm run deploy
+npx wrangler secret put GITHUB_CLIENT_SECRET
 ```
 
-Builds and deploys the Worker. Migrations are not part of it; `npm run db:migrate:remote` is separate and deliberate.
+### Vars
 
-The site bills per request and per CPU millisecond, with no spend cap behind
-either. [`docs/abuse.md`](docs/abuse.md) covers
-what that exposes, the CPU ceilings and per-client budgets in
-`wrangler.jsonc`, the two things that have to be set in the dashboard
-because code cannot express them, and what to do if it is happening now.
+Plain `vars` in `wrangler.jsonc`.
 
-## Layout
+| Name | For |
+| --- | --- |
+| `PUBLIC_BUCKET_URL` | the R2 bucket's custom domain. File URLs are built from it; when set, `/api/files/download` is closed |
+| `MUSIC_WAREHOUSE_URL` | base URL of the music-warehouse Worker |
+| `GITHUB_USERNAME` | whose repos and contributions to show. Falls back to `site.json` |
+| `OWNER_GITHUB_ID` | numeric GitHub id, not the login. Gates owner-only routes (`/api/files/thumbs`) |
 
+### Bindings
+
+| Binding | Type | Holds |
+| --- | --- | --- |
+| `DB` | D1 | guestbook entries, sessions. Migrations in `migrations/` |
+| `BUCKET` | R2 | the public file area |
+| `CACHE` | KV | stale-while-revalidate cache: GitHub, music, the file tree, file metadata, the guestbook's first page |
+| `API_BUDGET` | rate limit | everything the Worker renders, 120/min |
+| `SCAN_BUDGET` | rate limit | routes that read the whole file tree, 80/min |
+| `AUTH_BUDGET` | rate limit | the OAuth round trip, 10/min |
+
+The resources already exist and their ids are committed in `wrangler.jsonc`.
+On another account, create them and paste the new ids in:
+
+```bash
+npx wrangler d1 create rcnsh
+npx wrangler kv namespace create CACHE
+npx wrangler r2 bucket create <bucket>
+npm run cf-types
 ```
-src/
-  content/    site.json, and the blog posts
-  lib/        config, utils, one module per integration
-    db/       Drizzle schema + D1 client
-  components/
-    react/    client islands
-    widgets/  server islands
-  layouts/    the page shell
-  pages/
-    api/      endpoints (prerender = false)
-shared/       dependency-free TS, imported by the Worker and the scripts
-scripts/      the generators behind `npm run generate`
-migrations/   D1 migrations, from drizzle-kit
-```
 
-Bindings come from `cloudflare:workers`:
+Rate-limit `namespace_id`s are account-wide; two bindings sharing one share
+counters.
 
-```ts
-import { env } from "cloudflare:workers";
-env.DB; // D1   env.BUCKET; // R2   env.CACHE; // KV
-```
+### GitHub OAuth app
+
+GitHub → Settings → Developer settings → OAuth Apps. No scopes are requested.
+
+| | Callback URL |
+| --- | --- |
+| local | `http://localhost:4321/api/auth/callback` |
+| production | `https://rcn.sh/api/auth/callback` |
+
+GitHub allows one callback per app, so local and production need an app each.
+
+### Site text
 
 `src/content/site.json` holds the parts that are text rather than code — name,
 bio, page titles, nav, links, the /uses list, pinned repos, the clock.
@@ -93,26 +108,70 @@ Invalid src/content/site.json:
   identity.author: Invalid input
 ```
 
-Prose fields take `[text](url)` links and nothing else. Two things are not in
-the JSON: icons, mapped by name in `src/components/icons.ts` because JSON cannot
-hold a component, and the command palette's contents, built from `nav` + `links`.
+Prose fields take `[text](url)` links and nothing else. Icons are mapped by name
+in `src/components/icons.ts`; the command palette is built from `nav` + `links`.
+
+## Writing a post
+
+```bash
+$EDITOR src/content/blog/some-post.md   # → /blog/some-post
+```
+
+```markdown
+---
+title: "Post title"
+description: "One sentence. Used on the index, in meta tags, and in both feeds."
+pubDate: 2026-10-11
+draft: true
+---
+```
+
+`updatedDate` is optional. `draft: true` shows under `npm run dev` and is
+dropped from the build. A missing field fails the build with the file named.
+`.md` only, no MDX. The share card is drawn by `npm run generate`.
+
+`src/content/blog/_formatting-reference.md` is a draft showing every element the
+prose styles handle.
+
+## Deploying
+
+Deploys go through Wrangler; the project has not moved to `cf` yet.
+
+```bash
+npx wrangler login
+npm run deploy                   # build, then wrangler deploy
+npm run db:migrate:remote        # only when migrations/ changed
+```
+
+Migrations are not part of `deploy`; applying them is separate and deliberate.
+Secrets are set once with `wrangler secret put`, above.
+
+The build needs Cloudflare credentials and a filled-in `.dev.vars`:
+prerendering reads the remote R2 bucket and the live integrations. That is why
+CI (`ci.yml`) stops at lint, tests and `astro check`, and the full build runs
+weekly in `build.yml`.
+
+The site bills per request and per CPU millisecond, with no spend cap behind
+either. [`docs/abuse.md`](docs/abuse.md) covers what that exposes, the CPU
+ceiling and per-client budgets, the two things that have to be set in the
+dashboard, and what to do if it is happening now.
 
 ## Scripts
 
 | Command | Does |
 | --- | --- |
-| `npm run dev` | Dev server in workerd, with local D1/R2/KV |
-| `npm run build` | `astro check`, a production build, then a headers check |
-| `npm run generate` | The derived files git does not carry |
-| `npm test` | Unit tests, on the Node test runner — no framework |
+| `npm run dev` | dev server in workerd, local D1/KV, remote R2 |
+| `npm run build` | generate, `wrangler types`, `astro check`, build, headers check |
+| `npm run generate` | the derived files git does not carry |
+| `npm test` | unit tests, on the Node test runner. No framework |
 | `npm run lint` / `lint:fix` | Biome. Lint only; the repo is not format-clean |
-| `npm run preview` | Build, then serve on the real bindings |
-| `npm run deploy` | Build and deploy the Worker |
-| `npm run cf-types` | Regenerate `worker-configuration.d.ts` after editing bindings |
-| `npm run db:generate` | New migration from the Drizzle schema |
-| `npm run db:migrate:local` / `:remote` | Apply migrations |
-| `npm run db:studio` | Drizzle Studio against D1 |
-| `npm run world` / `marks` | Redraw the map outlines and the brand marks. Rarely |
+| `npm run preview` | build, then `wrangler dev` on the real bindings |
+| `npm run deploy` | build and deploy the Worker |
+| `npm run cf-types` | regenerate `worker-configuration.d.ts` after editing bindings |
+| `npm run db:generate` | new migration from the Drizzle schema |
+| `npm run db:migrate:local` / `:remote` | apply migrations |
+| `npm run db:studio` | Drizzle Studio |
+| `npm run world` / `marks` | redraw the map outlines and the brand marks. Rarely |
 
 ## Notes to self
 
@@ -124,7 +183,11 @@ before touching the middleware, `astro.config.ts` or `shared/security.ts`.
 `audit/` holds point-in-time reports. Every finding in them is closed; they are
 kept as a record, not a to-do list.
 
----
+## Reuse
 
-MIT. It is built around my own accounts and content, so it is not meant to be
-run as-is by anyone else, but take whatever is useful.
+MIT, see [`LICENSE`](LICENSE). It is built around my own accounts and content,
+so it is not meant to be run as-is by anyone else, but take whatever is useful.
+
+## Issues
+
+Something broken on the site → [open an issue](https://github.com/rcnsh/website/issues).
