@@ -2,7 +2,7 @@
 import Layout from "@/layouts/Layout.astro";
 import Streaks from "@/components/music/stats/Streaks.astro";
 import OnRepeat from "@/components/music/stats/OnRepeat.astro";
-import Obsessions from "@/components/music/stats/Obsessions.astro";
+import TopAlbums from "@/components/music/stats/TopAlbums.astro";
 import TopOverTime from "@/components/music/stats/TopOverTime.astro";
 import TimeOfDay from "@/components/music/stats/TimeOfDay.astro";
 import Eras from "@/components/music/stats/Eras.astro";
@@ -85,16 +85,16 @@ const page = pages.musicStats;
 
     <section
       class="tile col-span-12 animate-rise [animation-delay:90ms] max-sm:p-[18px] min-[1021px]:col-span-5"
-      aria-labelledby="obsessions-title"
+      aria-labelledby="albums-title"
     >
-      <Obsessions server:defer>
-        <div slot="fallback" aria-hidden="true" class="min-h-[1004px] min-[1021px]:min-h-[846px]">
-          <div class="mb-4 flex min-h-4 items-center"><span class="label">Biggest obsessions</span></div>
+      <TopAlbums server:defer>
+        <div slot="fallback" aria-hidden="true" class="min-h-[1004px] min-[1021px]:min-h-[837px]">
+          <div class="mb-4 flex min-h-4 items-center"><span class="label">Most-played albums</span></div>
           <div class="flex flex-col gap-3.5">
-            {Array.from({ length: 10 }).map(() => <div class="placeholder-block h-[46px] w-full rounded-xs" />)}
+            {Array.from({ length: 10 }).map(() => <div class="placeholder-block h-[62px] w-full rounded-xs" />)}
           </div>
         </div>
-      </Obsessions>
+      </TopAlbums>
     </section>
 
     <section class="tile col-span-12 animate-rise [animation-delay:120ms] max-sm:p-[18px]" aria-labelledby="top-title">

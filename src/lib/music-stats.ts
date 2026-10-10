@@ -77,22 +77,18 @@ const repeatSchema = z.object({
   ),
 });
 
-const obsessionsSchema = z.object({
+const albumsSchema = z.object({
   as_of: z.string(),
-  window_days: z.number().int(),
-  items: z.array(
+  min_songs: z.number().int(),
+  albums: z.array(
     z.object({
-      track_id: z.string(),
       name: z.string(),
-      artists: z.string(),
-      album: z.string().nullable(),
+      artist: z.string(),
       image: z.string().nullable(),
-      month,
-      peak_week_plays: z.number().int(),
-      peak_week_days: z.number().int(),
-      run_plays: z.number().int(),
-      run_from: month,
-      run_to: month,
+      plays: z.number().int(),
+      songs: z.number().int(),
+      from: month,
+      to: month,
     }),
   ),
 });
@@ -146,7 +142,7 @@ const erasSchema = z.object({
 
 export type Rhythm = z.infer<typeof rhythmSchema>;
 export type OnRepeat = z.infer<typeof repeatSchema>;
-export type Obsessions = z.infer<typeof obsessionsSchema>;
+export type TopAlbums = z.infer<typeof albumsSchema>;
 export type TopOverTime = z.infer<typeof topSchema>;
 export type Eras = z.infer<typeof erasSchema>;
 
@@ -178,6 +174,6 @@ const DAY = 24 * HOUR;
 // reads as wrong: "on repeat" a week late is a different list.
 export const getRhythm = () => load("rhythm", rhythmSchema, HOUR, 14 * DAY);
 export const getOnRepeat = () => load("on-repeat", repeatSchema, 30 * 60, DAY);
-export const getObsessions = () => load("obsessions", obsessionsSchema, DAY, 30 * DAY);
+export const getTopAlbums = () => load("albums", albumsSchema, 6 * HOUR, 14 * DAY);
 export const getTopOverTime = () => load("top-over-time", topSchema, 6 * HOUR, 14 * DAY);
 export const getEras = () => load("eras", erasSchema, 6 * HOUR, 30 * DAY);
