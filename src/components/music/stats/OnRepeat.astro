@@ -20,8 +20,8 @@ const daysAgo = (index: number, length: number) => {
 
 <div data-chart>
   <div class="mb-4 flex min-h-4 items-center gap-2.5">
-    <h2 id="repeat-title" class="label">On repeat</h2>
-    <span class="ml-auto font-mono text-[11px] text-ink-dim" data-chart-readout aria-hidden="true">
+    <h2 id="repeat-title" class="label shrink-0 whitespace-nowrap">On repeat</h2>
+    <span class="ml-auto min-w-0 truncate font-mono text-[11px] text-ink-dim" data-chart-readout aria-hidden="true">
       {data ? `Last ${data.window_days} days` : ""}
     </span>
   </div>

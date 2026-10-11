@@ -37,8 +37,8 @@ const groups = [
 
 <div data-chart>
   <div class="mb-4 flex min-h-4 items-center gap-2.5">
-    <h2 id="eras-title" class="label">Newcastle → Singapore</h2>
-    <span class="ml-auto font-mono text-[11px] text-ink-dim" data-chart-readout aria-hidden="true">
+    <h2 id="eras-title" class="label shrink-0 whitespace-nowrap">Newcastle → Singapore</h2>
+    <span class="ml-auto min-w-0 truncate font-mono text-[11px] text-ink-dim" data-chart-readout aria-hidden="true">
       {data?.move_month ? `moved ${monthLabel(data.move_month)}` : ""}
     </span>
   </div>
@@ -76,7 +76,7 @@ const groups = [
               {group.rows.map((row) => {
                 const lo = Math.min(row.before, row.after);
                 const hi = Math.max(row.before, row.after);
-                const tip = `${row.artist} · ${percent(row.before)} before → ${percent(row.after)} in Singapore`;
+                const tip = `${row.artist} · ${percent(row.before)} → ${percent(row.after)}`;
                 return (
                   <li class="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)_3.25rem] items-center gap-3" data-tip={tip}>
                     <span class="truncate text-[13px] text-ink">{row.artist}</span>
