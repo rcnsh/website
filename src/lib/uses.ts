@@ -13,19 +13,8 @@ export type UsesItem = {
 
 export type UsesGroup = { title: string; items: UsesItem[] };
 
-export type ArtKind = "hardware" | "mark" | "drawn";
-
 /** Art that sits on the desk wired or paired to the daily driver. */
 const PERIPHERAL_ART = new Set(["keyboard", "mouse", "airpods"]);
-
-export function artKind(
-  groupIndex: number,
-  art: string,
-  marks: Record<string, unknown>,
-): ArtKind {
-  if (art in marks) return "mark";
-  return groupIndex === 0 ? "hardware" : "drawn";
-}
 
 export function dailyDriver(groups: UsesGroup[]): UsesItem | undefined {
   return groups[0]?.items[0];

@@ -80,10 +80,6 @@ const irl = groups[0];
             data-in-href
           />
         </div>
-        <div class="flex w-full items-center gap-2" data-in-none hidden>
-          <span class="mr-auto">Not linked</span>
-          <span data-in-why />
-        </div>
       </div>
     </section>
   )
@@ -105,8 +101,6 @@ const irl = groups[0];
     const plugged = $("[data-in-plugged]");
     const linkRow = $("[data-in-link]");
     const href = $<HTMLAnchorElement>("[data-in-href]");
-    const none = $("[data-in-none]");
-    const why = $("[data-in-why]");
     const minis = root.querySelectorAll<HTMLElement>("[data-mini]");
 
     const byArt = new Map([...items].map((el) => [el.dataset.art!, el]));
@@ -139,12 +133,9 @@ const irl = groups[0];
       const onDesk = isDefault || deskArt.has(d.art!);
       plugged.hidden = !onDesk;
       linkRow.hidden = onDesk || !d.href;
-      none.hidden = onDesk || !!d.href;
       if (!onDesk && d.href) {
         href.href = d.href;
         href.textContent = `${d.host} ↗`;
-      } else if (!onDesk) {
-        why.textContent = d.kind === "hardware" ? "a thing on my desk" : "nothing to open";
       }
       for (const mini of minis) mini.classList.toggle("on", mini.dataset.mini === d.art);
 

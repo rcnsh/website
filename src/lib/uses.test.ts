@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  artKind,
   dailyDriver,
   driverFact,
   linkHost,
@@ -45,13 +44,6 @@ test("plugged in is the peripherals after the driver, in data order", () => {
 
 test("counts every item across groups", () => {
   assert.equal(thingCount(groups), 6);
-});
-
-test("kind: a mark wins, otherwise the first group is hardware", () => {
-  const marks = { typescript: {} };
-  assert.equal(artKind(1, "typescript", marks), "mark");
-  assert.equal(artKind(0, "macbook", marks), "hardware");
-  assert.equal(artKind(1, "terminal", marks), "drawn");
 });
 
 test("position and host formatting", () => {

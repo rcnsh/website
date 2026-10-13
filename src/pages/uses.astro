@@ -2,10 +2,8 @@
 import Layout from "@/layouts/Layout.astro";
 import UsesArt from "@/components/uses/UsesArt.astro";
 import UsesInspector from "@/components/uses/UsesInspector.astro";
-import { BRAND_MARKS } from "@/lib/brand-marks";
 import { pageOgHref, pages, uses } from "@/lib/site";
 import {
-  artKind,
   countLabel,
   dailyDriver,
   driverFact,
@@ -87,7 +85,6 @@ const delay = ["", "[animation-delay:30ms]", "[animation-delay:60ms]", "[animati
 
           <ul class="items">
             {group.items.map((item, ii) => {
-              const kind = artKind(gi, item.art, BRAND_MARKS);
               const data = {
                 "data-uses-item": "",
                 "data-art": item.art,
@@ -95,7 +92,6 @@ const delay = ["", "[animation-delay:30ms]", "[animation-delay:60ms]", "[animati
                 "data-detail": item.detail,
                 "data-group": group.title,
                 "data-pos": position(ii, group.items.length),
-                "data-kind": kind,
                 "data-href": item.url,
                 "data-host": item.url && linkHost(item.url),
               };
