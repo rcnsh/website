@@ -180,9 +180,6 @@ rediscover — why the CSP is shaped the way it is, which caches must stay
 non-personalised, and what will quietly break if they change. Worth reading
 before touching the middleware, `astro.config.ts` or `shared/security.ts`.
 
-`audit/` holds point-in-time reports. Every finding in them is closed; they are
-kept as a record, not a to-do list.
-
 ## Reuse
 
 MIT, see [`LICENSE`](LICENSE). It is built around my own accounts and content,

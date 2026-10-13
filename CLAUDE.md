@@ -171,12 +171,6 @@ rewrites files wholesale and buries real changes.
 the tab fronted, so scroll events never dispatch. Scroll-dependent logic cannot
 be verified there; extract the decision and unit-test it (see
 `src/lib/edge-fade.ts`).
-
-### Audits
-
-`audit/<date>/` holds point-in-time reports. Every finding in `2026-09-09/` is
-closed; the files describe the site as it stood at commit `6b55159` and are
-kept as a record, not a to-do list.
 <!-- /MAINTENANCE -->
 
 ---
