@@ -197,21 +197,25 @@ export async function cachedTree(): Promise<R2Tree | null> {
  * Flat search across the whole bucket; paths are full keys. Answered out of the
  * cached tree, not R2 — the endpoint is unauthenticated, so a live pass would
  * be a bucket scan anyone can start. Falls back to searchByListing when there
- * is no tree.
+ * is no tree. `include` filters before the limit, so hidden keys do not use it up.
  */
-export async function searchBucket(query: string, limit = 100): Promise<R2File[]> {
+export async function searchBucket(
+  query: string,
+  limit = 100,
+  include: (key: string) => boolean = () => true,
+): Promise<R2File[]> {
   const needle = query.trim().toLowerCase();
   if (!needle) return [];
 
   const tree = await cachedTree();
-  if (!tree) return searchByListing(needle, limit);
+  if (!tree) return searchByListing(needle, limit, include);
 
   const matches: R2File[] = [];
 
   for (const [prefix, listing] of Object.entries(tree)) {
     for (const [name, size, uploaded] of listing.files) {
       const key = `${prefix}${name}`;
-      if (!key.toLowerCase().includes(needle)) continue;
+      if (!key.toLowerCase().includes(needle) || !include(key)) continue;
 
       matches.push([key, size, uploaded]);
       if (matches.length >= limit) return matches;
@@ -223,7 +227,11 @@ export async function searchBucket(query: string, limit = 100): Promise<R2File[]
 
 /** A bounded walk over the bucket itself, for when it is too big to tree.
  * Expensive — the rate limit on /api/files/search is for this case. */
-async function searchByListing(needle: string, limit: number): Promise<R2File[]> {
+async function searchByListing(
+  needle: string,
+  limit: number,
+  include: (key: string) => boolean,
+): Promise<R2File[]> {
   const bucket = requireBucket();
 
   const matches: R2File[] = [];
@@ -235,7 +243,7 @@ async function searchByListing(needle: string, limit: number): Promise<R2File[]>
     for (const object of result.objects) {
       if (object.size === 0 || object.key.endsWith("/")) continue;
       if (isHiddenKey(object.key)) continue;
-      if (!object.key.toLowerCase().includes(needle)) continue;
+      if (!object.key.toLowerCase().includes(needle) || !include(object.key)) continue;
 
       matches.push([object.key, object.size, toEpochSeconds(object.uploaded)]);
       if (matches.length >= limit) break;

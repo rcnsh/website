@@ -151,6 +151,37 @@ property of the file. Every other failure must rethrow, per "loaders must
 throw". Thumbs presence is cached separately for an hour, and the upload route
 deletes that entry.
 
+### File visibility
+
+**Each folder is `listed`, `unlisted` or `private`** (`file_visibility` in D1,
+logic in `shared/visibility.ts`). A folder without a row inherits from its
+nearest ancestor; the root's row is the default, `unlisted`, so a new upload
+folder is never shown until chosen. The owner sets them from the /files
+browser.
+
+**upload.rcn.sh is a Worker (`workers/upload`), not R2 public access.** It is
+the only thing standing between a private key and the internet. Re-enabling
+the bucket's public domain or r2.dev URL bypasses every private folder at once.
+It refuses private keys, `.thumbs/` of private sources, and every other dot
+path. Deploy it with `npm run deploy:upload`; `npm run deploy` does not.
+
+**Private files download through `/api/files/download`, owner only.** That
+route still 404s public keys while `PUBLIC_BUCKET_URL` is set. The browser
+picks the route per file (`baseFor` in FileBrowser), so a private file has no
+stored thumbs and previews are generated in the browser.
+
+**Islands and the home tile render the visitor view only.** They are cached
+publicly (see Caching), so the owner's full tree comes from
+`/api/files/visibility` after hydration. Anything new that reads `cachedTree()`
+for a public response must go through `visitorTree()` instead.
+
+**Rules fail closed.** `loadRules()` throws rather than returning `{}`, and an
+unknown stored value reads as `private`. Both Workers trust their copy for 10s,
+so a change lands everywhere within that. The search edge cache is keyed on
+`rulesVersion()`, so it does not lag. The FilesRoot island can show a
+just-hidden folder's names until its edge copy expires (`s-maxage=300`), but
+private bytes are refused at once.
+
 ### Gotchas that cost time
 
 **`build.format: "file"` makes `Astro.url.pathname` `/index.html`** at

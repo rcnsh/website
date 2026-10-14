@@ -1,6 +1,9 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
+import { getSession, isOwner } from "@/lib/auth";
 import { isHiddenKey, publicBucketBase } from "@/lib/r2";
+import { loadRules } from "@/lib/visibility";
+import { visibilityOf } from "../../../../shared/visibility.ts";
 
 export const prerender = false;
 
@@ -29,16 +32,11 @@ function inlineSafe(type: string | undefined): boolean {
 }
 
 /**
- * Streams objects out of the R2 binding. Only reachable when PUBLIC_BUCKET_URL
- * is unset; the gate below enforces that.
+ * Streams objects out of the R2 binding. Two callers: the owner fetching a
+ * private file, which upload.rcn.sh refuses, and anyone at all when
+ * PUBLIC_BUCKET_URL is unset and there is no bucket domain to link to.
  */
-export const GET: APIRoute = async ({ url, request }) => {
-  // With a public domain every link points there, so this route has no caller
-  // — and bucket bytes on the site's own origin are strictly worse.
-  if (publicBucketBase()) {
-    return new Response("Not found", { status: 404 });
-  }
-
+export const GET: APIRoute = async ({ url, request, cookies }) => {
   const key = url.searchParams.get("key");
 
   if (!key || key.includes("..")) {
@@ -48,6 +46,22 @@ export const GET: APIRoute = async ({ url, request }) => {
   // Listings hide dot-prefixed entries; without this they stay downloadable by
   // name. 404 rather than 403, so this does not confirm what exists.
   if (isHiddenKey(key)) {
+    return new Response("Not found", { status: 404 });
+  }
+
+  let isPrivate: boolean;
+  try {
+    isPrivate = visibilityOf(await loadRules(), key) === "private";
+  } catch (error) {
+    console.error("[files] rules unavailable", error);
+    return new Response("Unavailable", { status: 503 });
+  }
+
+  if (isPrivate) {
+    if (!isOwner(await getSession(cookies))) return new Response("Not found", { status: 404 });
+  } else if (publicBucketBase()) {
+    // A public object is linked on the bucket's domain, so this route has no
+    // caller for it — and bucket bytes on the site's own origin are worse.
     return new Response("Not found", { status: 404 });
   }
 
@@ -65,7 +79,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set("etag", object.httpEtag);
-  headers.set("cache-control", "public, max-age=3600");
+  headers.set("cache-control", isPrivate ? "private, no-store" : "public, max-age=3600");
   headers.set("accept-ranges", "bytes");
 
   // An opaque origin regardless of type, so a rendered document cannot reach

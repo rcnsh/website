@@ -43,6 +43,13 @@
       "when": 1789037577818,
       "tag": "0005_guestbook_country_index",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1791991370927,
+      "tag": "0006_file_visibility",
+      "breakpoints": true
     }
   ]
 }

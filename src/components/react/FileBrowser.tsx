@@ -32,6 +32,12 @@ import { clampIndex, keyAction } from "@/lib/files-keys";
 import { isTextPreviewable } from "@/lib/text-preview";
 import { publicUrl } from "@/lib/thumbs";
 import { fileKind, formatBytes } from "@/lib/utils";
+import {
+  inheritedFrom,
+  type Visibility,
+  type VisibilityRules,
+  visibilityOf,
+} from "../../../shared/visibility.ts";
 import MediaPreview, {
   Backfill,
   DetailList,
@@ -100,6 +106,57 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
 
   const [copied, setCopied] = useState<string | null>(null);
 
+  /**
+   * Folder settings, present only for the owner. The island everyone shares
+   * holds listed folders alone, so the owner's full tree arrives with these.
+   */
+  const [rules, setRules] = useState<VisibilityRules | null>(null);
+  const [accessChecked, setAccessChecked] = useState(false);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount only
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/files/visibility", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = (await response.json()) as { owner?: boolean; rules?: VisibilityRules; tree?: R2Tree | null };
+        if (!live || data.owner !== true || !data.rules) return;
+        // Lazy mode starts over: what it fetched so far was the visitors' view.
+        if (complete) {
+          if (data.tree) setListings(data.tree);
+        } else {
+          setListings({});
+          setFailed(new Set());
+        }
+        setRules(data.rules);
+      } catch {
+        // Not signed in, or offline: the visitors' view stands.
+      } finally {
+        if (live) setAccessChecked(true);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  /** Where a file's bytes come from: the bucket's domain, or for a private one the owner-checked route. */
+  const baseFor = useCallback(
+    (key: string) => (rules && visibilityOf(rules, key) === "private" ? "" : bucketUrl),
+    [rules, bucketUrl],
+  );
+
+  /** A tag for anything a visitor would not see listed; owner only. */
+  const tagFor = useCallback(
+    (entry: Entry): Visibility | null => {
+      if (!rules) return null;
+      const visibility = visibilityOf(rules, entry.key);
+      return visibility === "listed" ? null : visibility;
+    },
+    [rules],
+  );
+
   const root = useRef<HTMLElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -147,7 +204,7 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
     if (!listings[cwd] && !failed.has(cwd)) void load(cwd);
     const parent = parentOf(cwd);
     if (cwd && !listings[parent] && !failed.has(parent)) void load(parent);
-  }, [cwd, complete]);
+  }, [cwd, complete, rules !== null]);
 
   /* ---- Search ---- */
 
@@ -265,9 +322,26 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
     (entry: Entry) =>
       entry.dir
         ? `${window.location.origin}${window.location.pathname}${hashFor(entry.key)}`
-        : new URL(publicUrl(bucketUrl, entry.key), window.location.href).href,
-    [bucketUrl],
+        : new URL(publicUrl(baseFor(entry.key), entry.key), window.location.href).href,
+    [baseFor],
   );
+
+  const [visError, setVisError] = useState<string | null>(null);
+  const changeVisibility = useCallback(async (prefix: string, visibility: Visibility | null) => {
+    setVisError(null);
+    try {
+      const response = await fetch("/api/files/visibility", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prefix, visibility }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { rules?: VisibilityRules };
+      if (!response.ok || !data.rules) throw new Error(String(response.status));
+      setRules(data.rules);
+    } catch {
+      setVisError(prefix);
+    }
+  }, []);
 
   const copyTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(copyTimer.current), []);
@@ -302,20 +376,33 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
     if (file) setPicked((prev) => ({ ...prev, [prefix]: file }));
   }, [complete, listings]);
 
+  // The listener outlives the listings it was made with; the owner's arrive later.
+  const applyHashRef = useRef(applyHash);
+  applyHashRef.current = applyHash;
+
   const hashApplied = useRef(false);
   // Layout effect so a deep link is in place before the first paint after
   // hydration, not one frame after it.
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount only
   useLayoutEffect(() => {
     applyHash();
-    hashApplied.current = true;
     const onHash = () => {
       clearSearch();
-      applyHash();
+      applyHashRef.current();
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+
+  // Until the owner check settles, a link into a folder visitors cannot see
+  // looks broken, and writing the selection back would erase it. The owner's
+  // tree lands in the same render as `accessChecked`, so the retry sees it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once, when the check settles
+  useLayoutEffect(() => {
+    if (!accessChecked) return;
+    if (rules) applyHashRef.current();
+    hashApplied.current = true;
+  }, [accessChecked]);
 
   // Search results are a view, not a place, so they leave the link alone.
   const linkPath = results ? null : selected && !selected.dir ? selected.key : cwd;
@@ -594,6 +681,17 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
             sort={sort}
             reverse={reverse}
             onGo={go}
+            tagFor={tagFor}
+            rootControl={
+              rules && (
+                <VisibilityControl
+                  prefix=""
+                  rules={rules}
+                  failed={visError === ""}
+                  onChange={changeVisibility}
+                />
+              )
+            }
           />
         </div>
 
@@ -653,10 +751,11 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
                       onClick={() => onPick(i)}
                       onDoubleClick={open}
                     >
-                      <CardThumb entry={entry} base={bucketUrl} />
+                      <CardThumb entry={entry} base={baseFor(entry.key)} />
                       <div className="meta">
                         <b title={entry.key}>
                           {entry.dir ? `${entry.name}/` : <Highlight text={entry.name} query={needle} />}
+                          <Tag visibility={tagFor(entry)} />
                         </b>
                         <span>
                           {entry.dir
@@ -675,6 +774,7 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
                       selected={i === index}
                       query={needle}
                       showFolder={results !== null}
+                      tag={tagFor(entry)}
                       onClick={() => onPick(i)}
                       onDoubleClick={open}
                     />
@@ -708,7 +808,7 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
                 <p title={selected.key}>{selected.dir ? `${selected.name}/` : selected.name}</p>
                 {!selected.dir && (
                   <a
-                    href={publicUrl(bucketUrl, selected.key)}
+                    href={publicUrl(baseFor(selected.key), selected.key)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="fb-icon-btn"
@@ -740,11 +840,22 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
                   stats={stats}
                   sort={sort}
                   reverse={reverse}
-                  bucketUrl={bucketUrl}
+                  bucketUrl={baseFor(selected.key)}
                   onGo={go}
+                  tagFor={tagFor}
+                  control={
+                    rules && (
+                      <VisibilityControl
+                        prefix={selected.key}
+                        rules={rules}
+                        failed={visError === selected.key}
+                        onChange={changeVisibility}
+                      />
+                    )
+                  }
                 />
               ) : (
-                <FilePreview key={selected.key} entry={selected} bucketUrl={bucketUrl} playback={playback} />
+                <FilePreview key={selected.key} entry={selected} bucketUrl={baseFor(selected.key)} playback={playback} />
               )}
             </div>
           )}
@@ -840,6 +951,7 @@ function Row({
   on,
   query = "",
   showFolder = false,
+  tag = null,
   onClick,
   onDoubleClick,
 }: {
@@ -851,6 +963,8 @@ function Row({
   on?: boolean;
   query?: string;
   showFolder?: boolean;
+  /** Owner only: how a visitor would see this, when not plainly listed. */
+  tag?: Visibility | null;
   onClick: () => void;
   onDoubleClick?: () => void;
 }) {
@@ -873,6 +987,7 @@ function Row({
           </span>
         )}
         {entry.dir ? `${entry.name}/` : <Highlight text={entry.name} query={query} />}
+        <Tag visibility={tag} />
       </span>
       <span className="m dt">{meta}</span>
       <span className="m">{entry.size !== null ? formatBytes(entry.size) : ""}</span>
@@ -907,6 +1022,8 @@ function ParentColumn({
   sort,
   reverse,
   onGo,
+  tagFor,
+  rootControl,
 }: {
   cwd: string;
   searching: boolean;
@@ -916,6 +1033,9 @@ function ParentColumn({
   sort: SortKey;
   reverse: boolean;
   onGo: (prefix: string, focusKey?: string) => void;
+  tagFor: (entry: Entry) => Visibility | null;
+  /** The bucket root's own visibility control, shown while at the root. */
+  rootControl: ReactNode;
 }) {
   if (searching) {
     return (
@@ -943,6 +1063,7 @@ function ParentColumn({
         <ul className="fb-rows">
           <Row entry={{ dir: true, name: host, key: "", folder: "", size: null, uploaded: null, count: null }} on onClick={() => onGo("")} />
         </ul>
+        {rootControl}
       </>
     );
   }
@@ -962,6 +1083,7 @@ function ParentColumn({
               key={entry.key}
               entry={entry}
               on={entry.key === cwd}
+              tag={tagFor(entry)}
               onClick={() => (entry.dir ? onGo(entry.key) : onGo(parent, entry.key))}
             />
           ))}
@@ -982,6 +1104,8 @@ function FolderPreview({
   reverse,
   bucketUrl,
   onGo,
+  tagFor,
+  control,
 }: {
   entry: Entry;
   listing: R2Listing | undefined;
@@ -991,6 +1115,8 @@ function FolderPreview({
   reverse: boolean;
   bucketUrl: string;
   onGo: (prefix: string, focusKey?: string) => void;
+  tagFor: (entry: Entry) => Visibility | null;
+  control: ReactNode;
 }) {
   const children = listing ? sortEntries(listingEntries(entry.key, listing, stats), sort, reverse) : null;
   const rows: [string, string][] = [];
@@ -1014,13 +1140,14 @@ function FolderPreview({
         <>
           <ul className="fb-rows">
             {children.slice(0, FOLDER_PEEK).map((child) => (
-              <Row key={child.key} entry={child} onClick={() => onGo(entry.key, child.key)} />
+              <Row key={child.key} entry={child} tag={tagFor(child)} onClick={() => onGo(entry.key, child.key)} />
             ))}
           </ul>
           {children.length > FOLDER_PEEK && <p className="more-k">and {count(children.length - FOLDER_PEEK)} more</p>}
         </>
       )}
       {rows.length > 0 && <DetailList rows={rows} />}
+      {control}
       {bucketUrl && hasMedia && <Backfill folder={entry.key} base={bucketUrl} />}
     </>
   );
@@ -1060,5 +1187,65 @@ function FilePreview({
       />
       <DetailList rows={[["Key", entry.key]]} />
     </>
+  );
+}
+
+function Tag({ visibility }: { visibility: Visibility | null | undefined }) {
+  if (!visibility || visibility === "listed") return null;
+  return <span className={`fb-tag ${visibility}`}>{visibility}</span>;
+}
+
+const VISIBILITY_HINT: Record<Visibility, string> = {
+  listed: "Shown here to everyone.",
+  unlisted: "Hidden here; anyone with a link can still download.",
+  private: "Only you can open these files, through this site.",
+};
+
+/**
+ * The owner's control over one folder's own setting. "inherit" clears it, so
+ * the folder follows its nearest ancestor with a setting, or the default.
+ */
+function VisibilityControl({
+  prefix,
+  rules,
+  failed,
+  onChange,
+}: {
+  prefix: string;
+  rules: VisibilityRules;
+  failed: boolean;
+  onChange: (prefix: string, visibility: Visibility | null) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const own = Object.hasOwn(rules, prefix) ? rules[prefix] : null;
+  const effective = visibilityOf(rules, prefix);
+  const from = inheritedFrom(rules, prefix);
+  const set = async (next: Visibility | null) => {
+    if (busy || next === own) return;
+    setBusy(true);
+    await onChange(prefix, next);
+    setBusy(false);
+  };
+
+  return (
+    <div className="fb-vis" aria-busy={busy}>
+      <span>Visibility of {prefix ? `${baseName(prefix)}/` : "the bucket root"}</span>
+      <fieldset className="fb-seg" disabled={busy}>
+        <legend className="sr-only">Visibility</legend>
+        {(["listed", "unlisted", "private"] as const).map((option) => (
+          <button key={option} type="button" aria-pressed={own === option} onClick={() => void set(option)}>
+            {option}
+          </button>
+        ))}
+        <button type="button" aria-pressed={own === null} onClick={() => void set(null)}>
+          {prefix ? "inherit" : "default"}
+        </button>
+      </fieldset>
+      <span>
+        {own === null && `${prefix ? `From ${from ? `${baseName(from)}/` : "the root"}` : "Default"}: ${effective}. `}
+        {VISIBILITY_HINT[effective]}
+      </span>
+      {failed && <span className="err">Couldn't save that — try again.</span>}
+    </div>
   );
 }
