@@ -10,8 +10,9 @@
   // The hostname R2 holds today. Deploying fails while the bucket's custom
   // domain still claims it: detach that first (see the cutover steps).
   "routes": [{ "pattern": "upload.rcn.sh", "custom_domain": true }],
-  // For testing before the cutover. Same rules as the real domain.
-  "workers_dev": true,
+  // upload.rcn.sh only: no second public address to keep track of.
+  "workers_dev": false,
+  "preview_urls": false,
 
   "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "rcn" }],
 
