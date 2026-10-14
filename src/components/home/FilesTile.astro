@@ -1,14 +1,15 @@
 ---
 import LinkTile from "./LinkTile.astro";
 import { bucketTotals } from "@/lib/bucket-totals";
-import { cachedTree } from "@/lib/r2";
+import { loadRules, visitorTree } from "@/lib/visibility";
 import { formatBytes } from "@/lib/utils";
 
 // Server island: the totals change on every upload, the page around it does
 // not. Public data only — see CLAUDE.md § Maintenance › Caching.
 let detail = "Public files on R2";
 try {
-  const tree = await cachedTree();
+  // Listed files only, or the totals would hint at what is hidden.
+  const tree = await visitorTree(await loadRules());
   // No tree means the bucket outgrew inlining; the generic line stands.
   if (tree) {
     const { objects, bytes } = bucketTotals(tree);

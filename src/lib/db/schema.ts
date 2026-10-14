@@ -46,5 +46,19 @@ export const sessions = sqliteTable(
   (table) => [index("sessions_expires_at_idx").on(table.expiresAt)],
 );
 
+/**
+ * A folder's own visibility in the file bucket; folders without a row inherit
+ * (shared/visibility.ts). The upload.rcn.sh Worker reads this table too, by
+ * raw SQL, so renaming a column breaks it as well.
+ */
+export const fileVisibility = sqliteTable("file_visibility", {
+  /** "" for the bucket root, otherwise a folder prefix ending in "/". */
+  prefix: text("prefix").primaryKey(),
+  visibility: text("visibility", { enum: ["listed", "unlisted", "private"] }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
 export type GuestbookEntry = typeof guestbook.$inferSelect;
 export type Session = typeof sessions.$inferSelect;

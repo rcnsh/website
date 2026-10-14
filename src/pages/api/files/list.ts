@@ -1,13 +1,16 @@
 import type { APIRoute } from "astro";
+import { getSession, isOwner } from "@/lib/auth";
 import { cachedDirectory, isHiddenKey, normalisePrefix } from "@/lib/r2";
+import { loadRules, visitorDirectory } from "@/lib/visibility";
 
 export const prerender = false;
 
 /**
  * One directory of the bucket, from the cached tree — the prefix is the
- * caller's, so a live LIST per request is a bucket scan on tap.
+ * caller's, so a live LIST per request is a bucket scan on tap. Visitors get
+ * listed folders only; the owner gets everything.
  */
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ url, cookies }) => {
   const prefix = normalisePrefix(url.searchParams.get("prefix"));
   // The live-LIST fallback past the cached tree's cap does not skip hidden
   // keys, so refuse them here as thumbs.ts does.
@@ -19,11 +22,14 @@ export const GET: APIRoute = async ({ url }) => {
   }
 
   try {
-    const listing = await cachedDirectory(prefix);
+    const owner = isOwner(await getSession(cookies));
+    const listing = owner ? await cachedDirectory(prefix) : await visitorDirectory(prefix, await loadRules());
     return new Response(JSON.stringify(listing), {
       headers: {
         "content-type": "application/json",
-        "cache-control": "public, max-age=60",
+        "cache-control": owner ? "private, no-store" : "public, max-age=60",
+        // Signing in changes the answer; without this the browser keeps serving the visitor copy.
+        vary: "cookie",
       },
     });
   } catch (error) {

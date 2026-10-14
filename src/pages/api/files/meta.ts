@@ -1,8 +1,11 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
+import { getSession, isOwner } from "@/lib/auth";
 import { cachedMediaMeta, cachedThumbs, uploadedSeconds } from "@/lib/media";
 import { isHiddenKey } from "@/lib/r2";
 import { NO_THUMBS, type ThumbSet } from "@/lib/thumbs";
+import { loadRules } from "@/lib/visibility";
+import { visibilityOf } from "../../../../shared/visibility.ts";
 
 export const prerender = false;
 
@@ -15,9 +18,10 @@ function json(body: unknown, status = 200, cache = "public, max-age=60"): Respon
 
 /**
  * Container, tracks and tags for one object, demuxed on the Worker from ranged
- * reads of its header and index. Public, like the bucket it describes.
+ * reads of its header and index. Public for whatever the bucket serves publicly;
+ * a private file's metadata is the owner's alone.
  */
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ url, cookies }) => {
   const key = url.searchParams.get("key");
 
   // Refused exactly as /api/files/download refuses them.
@@ -28,6 +32,10 @@ export const GET: APIRoute = async ({ url }) => {
   if (!bucket) return json({ error: "Bucket not configured" }, 503, "no-store");
 
   try {
+    if (visibilityOf(await loadRules(), key) === "private" && !isOwner(await getSession(cookies))) {
+      return json({ error: "Not found" }, 404, "no-store");
+    }
+
     const object = await bucket.head(key);
     if (!object) return json({ error: "Not found" }, 404, "no-store");
 

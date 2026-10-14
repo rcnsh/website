@@ -1,0 +1,32 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  // upload.rcn.sh. Replaces the R2 bucket's public custom domain so private
+  // folders can be refused; see CLAUDE.md § Maintenance › File visibility.
+  "name": "rcn-upload",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "observability": { "enabled": true },
+
+  // The hostname R2 holds today. Deploying fails while the bucket's custom
+  // domain still claims it: detach that first (see the cutover steps).
+  "routes": [{ "pattern": "upload.rcn.sh", "custom_domain": true }],
+  // upload.rcn.sh only: no second public address to keep track of.
+  "workers_dev": false,
+  "preview_urls": false,
+
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "rcn" }],
+
+  // The site's database: only file_visibility is read.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "rcnsh",
+      "database_id": "d1dadeb1-fb9f-4a36-aff3-fa129643839b"
+    }
+  ],
+
+  "vars": {
+    // Matches the CORS policy the bucket had: the site and nothing else.
+    "ALLOWED_ORIGINS": "https://rcn.sh"
+  }
+}

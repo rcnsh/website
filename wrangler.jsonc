@@ -47,8 +47,9 @@
     }
   ],
 
-  // Public file bucket. `remote: true` so local dev reads the real bucket
-  // rather than an empty simulated one; the contents are public anyway.
+  // File bucket. `remote: true` so local dev reads the real bucket rather than
+  // an empty simulated one. Not all of it is public: see CLAUDE.md § File
+  // visibility, and workers/upload, which serves it on upload.rcn.sh.
   "r2_buckets": [
     {
       "binding": "BUCKET",

@@ -4,18 +4,14 @@ import FilesHero from "@/components/files/FilesHero.astro";
 import FilesUsage from "@/components/files/FilesUsage.astro";
 import { bucketTotals } from "@/lib/bucket-totals";
 import { kindTotals } from "@/lib/files-nav";
-import {
-  cachedTree,
-  listDirectory,
-  publicBucketBase,
-  type R2Listing,
-  type R2Tree,
-} from "@/lib/r2";
+import { publicBucketBase, type R2Listing, type R2Tree } from "@/lib/r2";
+import { loadRules, visitorDirectory, visitorTree } from "@/lib/visibility";
 
 // Server island, and the whole page below the top bar: the title tile's
 // figures, the usage tile and the browser all come from one read of the tree.
 // It ships the whole directory tree with the page, or just the root once the
-// bucket outgrows that.
+// bucket outgrows that. Listed folders only, for everyone: the edge caches
+// this island for all readers, so the owner's full view loads client-side.
 interface Props {
   title: string;
   description: string;
@@ -27,8 +23,9 @@ let tree: R2Tree | null = null;
 let root: R2Listing | null = null;
 
 try {
-  tree = await cachedTree();
-  root = tree ? (tree[""] ?? null) : await listDirectory("");
+  const rules = await loadRules();
+  tree = await visitorTree(rules);
+  root = tree ? (tree[""] ?? null) : await visitorDirectory("", rules);
 } catch (error) {
   console.error("[files] listing failed", error);
 }

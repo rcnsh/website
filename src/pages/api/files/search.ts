@@ -1,6 +1,9 @@
 import type { APIRoute } from "astro";
 import { waitUntil } from "cloudflare:workers";
+import { getSession, isOwner } from "@/lib/auth";
 import { searchBucket } from "@/lib/r2";
+import { loadRules } from "@/lib/visibility";
+import { rulesVersion, visibilityOf } from "../../../../shared/visibility.ts";
 
 export const prerender = false;
 
@@ -13,11 +16,18 @@ const CACHE_SECONDS = 60;
  */
 const MAX_QUERY = 64;
 
+function json(body: unknown, cache: string): Response {
+  return new Response(JSON.stringify(body), {
+    headers: { "content-type": "application/json", "cache-control": cache, vary: "cookie" },
+  });
+}
+
 /**
  * Flat search over the bucket: reads the whole cached tree out of KV and walks
- * every key. Hence the tight rate-limit budget and the edge cache.
+ * every key. Hence the tight rate-limit budget and the edge cache. Visitors
+ * search listed folders only; the owner searches everything, uncached.
  */
-export const GET: APIRoute = async ({ url, request }) => {
+export const GET: APIRoute = async ({ url, request, cookies }) => {
   const query = (url.searchParams.get("q") ?? "").trim().slice(0, MAX_QUERY);
 
   if (query.length < 2) {
@@ -26,31 +36,41 @@ export const GET: APIRoute = async ({ url, request }) => {
     });
   }
 
-  // Keyed on the normalised query, so `?q=x&`, `?q=X` and a stray second
-  // parameter share one entry rather than minting three.
-  const cacheKey = new Request(
-    `${new URL(request.url).origin}/api/files/search?q=${encodeURIComponent(
-      query.toLowerCase(),
-    )}`,
-  );
-  const cache = await caches.open("files-search");
-
-  const hit = await cache.match(cacheKey);
-  // Rebuilt rather than returned: a cached Response has immutable headers, and
-  // the middleware throws setting security headers on one.
-  if (hit) return new Response(hit.body, hit);
-
   try {
-    const files = await searchBucket(query, 100);
+    if (isOwner(await getSession(cookies))) {
+      return json({ query, files: await searchBucket(query, 100) }, "private, no-store");
+    }
 
-    const response = new Response(JSON.stringify({ query, files }), {
-      headers: {
-        "content-type": "application/json",
-        "cache-control": `public, max-age=${CACHE_SECONDS}`,
-      },
-    });
+    const rules = await loadRules();
 
-    waitUntil(cache.put(cacheKey, response.clone()));
+    // Keyed on the normalised query, so `?q=x&`, `?q=X` and a stray second
+    // parameter share one entry rather than minting three. The rules' version
+    // is in the key so a folder made unlisted drops out at once, not after
+    // the cached answer expires.
+    const cacheKey = new Request(
+      `${new URL(request.url).origin}/api/files/search?q=${encodeURIComponent(
+        query.toLowerCase(),
+      )}&v=${rulesVersion(rules)}`,
+    );
+    const cache = await caches.open("files-search");
+
+    const hit = await cache.match(cacheKey);
+    // Rebuilt rather than returned: a cached Response has immutable headers, and
+    // the middleware throws setting security headers on one.
+    if (hit) {
+      const copy = new Response(hit.body, hit);
+      copy.headers.set("vary", "cookie");
+      return copy;
+    }
+
+    const files = await searchBucket(query, 100, (key) => visibilityOf(rules, key) === "listed");
+    const response = json({ query, files }, `public, max-age=${CACHE_SECONDS}`);
+
+    // Stored without `vary`, which is for the browser: the edge cache is
+    // anonymous by construction, since the owner never reaches it.
+    const stored = new Response(response.clone().body, response);
+    stored.headers.delete("vary");
+    waitUntil(cache.put(cacheKey, stored));
     return response;
   } catch (error) {
     console.error("[files] search failed", error);
