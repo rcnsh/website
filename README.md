@@ -149,7 +149,15 @@ Secrets are set once with `wrangler secret put`, above.
 The build needs Cloudflare credentials and a filled-in `.dev.vars`:
 prerendering reads the remote R2 bucket and the live integrations. That is why
 CI (`ci.yml`) stops at lint, tests and `astro check`, and the full build runs
-weekly in `build.yml`.
+weekly in `build.yml`. That workflow reads these repository secrets (Settings →
+Secrets and variables → Actions):
+
+| Name | For |
+| --- | --- |
+| `DEV_VARS` | the contents of a filled-in `.dev.vars` |
+| `CLOUDFLARE_API_TOKEN` | API token with Workers Scripts:Edit and R2:Read |
+| `CLOUDFLARE_ACCOUNT_ID` | the account that token belongs to |
+| `HC_BUILD_URL` | optional. healthchecks.io ping URL for the weekly run; a missed or failed build alerts. Unset skips the pings |
 
 The site bills per request and per CPU millisecond, with no spend cap behind
 either. [`docs/abuse.md`](docs/abuse.md) covers what that exposes, the CPU

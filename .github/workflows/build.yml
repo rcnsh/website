@@ -10,6 +10,13 @@ name: Build
 # provider that changed a response shape, a share card generator that stopped
 # producing cards — and drift does not arrive with a commit. Which is precisely
 # why finding out at `npm run deploy` is finding out too late.
+#
+# The same reasoning leaves a gap: a run that never happens reports nothing.
+# GitHub disables scheduled workflows after 60 days without repository
+# activity, silently, and a quiet repo is exactly when drift piles up. So the
+# job pings a healthchecks.io check (HC_BUILD_URL, the check's ping URL) on
+# start, success and failure; the check expects a ping every Sunday and alerts
+# when one does not come. A manual run pings too: it is a real build either way.
 
 on:
   workflow_dispatch:
@@ -29,6 +36,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # The heartbeat steps all share the same shape. The secret sits in the
+      # step's env rather than being interpolated into the script, and an unset
+      # one skips the ping rather than failing: the heartbeat is optional, so it
+      # is not in the check below. A step's own env is not visible to its `if:`,
+      # which is why the test is in the script. continue-on-error, because a
+      # healthchecks.io outage is not a reason to call the build broken.
+      - name: Heartbeat (start)
+        continue-on-error: true
+        env:
+          HC_URL: ${{ secrets.HC_BUILD_URL }}
+        run: |
+          [ -n "$HC_URL" ] || exit 0
+          curl -fsS -m 10 --retry 5 -o /dev/null "$HC_URL/start"
+
       # Every step below is useless without these, and the way they fail
       # without them is a hundred lines of wrangler stack trace whose actual
       # cause — "the secret is not set" — is one clause in the middle of it.
@@ -75,3 +96,23 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # Last, so it only fires once everything above has passed.
+      - name: Heartbeat (success)
+        continue-on-error: true
+        env:
+          HC_URL: ${{ secrets.HC_BUILD_URL }}
+        run: |
+          [ -n "$HC_URL" ] || exit 0
+          curl -fsS -m 10 --retry 5 -o /dev/null "$HC_URL"
+
+      # A failed build alerts now, rather than three hours later when the check
+      # gives up waiting for the success ping.
+      - name: Heartbeat (failure)
+        if: failure()
+        continue-on-error: true
+        env:
+          HC_URL: ${{ secrets.HC_BUILD_URL }}
+        run: |
+          [ -n "$HC_URL" ] || exit 0
+          curl -fsS -m 10 --retry 5 -o /dev/null "$HC_URL/fail"
