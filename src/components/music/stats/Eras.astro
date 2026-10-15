@@ -52,7 +52,7 @@ const groups = [
     ) : (
       <>
         <p class="text-[14px] leading-relaxed text-ink-dim">
-          Comparing {range(data.singapore)} in Singapore with {range(data.before)} before I left,{" "}
+          Comparing {range(data.latest)} in Singapore with {range(data.before)} before I left,{" "}
           {percent(1 - s.change)} of my listening stayed with the same artists. That's {verdict}.{" "}
           <span class="text-ink">{percent(s.known_artist_share)}</span> of plays since have gone to artists I'd already heard
           in Newcastle.
@@ -65,7 +65,7 @@ const groups = [
           </li>
           <li class="flex items-center gap-1.5">
             <span class="inline-block h-2 w-2 rounded-full" style={`background:${AFTER}`} aria-hidden="true" />
-            {data.singapore ? range(data.singapore) : "Singapore"}
+            {data.latest ? range(data.latest) : "Singapore"}
           </li>
         </ul>
 

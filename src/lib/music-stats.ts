@@ -127,7 +127,9 @@ const erasSchema = z.object({
   as_of: z.string(),
   move_month: month.nullable(),
   window_months: z.number().int(),
-  singapore: z.object({ from: month, to: month }).nullable(),
+  latest_era: z.object({ key: z.string(), label: z.string() }).nullable(),
+  previous_era: z.object({ key: z.string(), label: z.string() }).nullable(),
+  latest: z.object({ from: month, to: month }).nullable(),
   before: z.object({ from: month, to: month }).nullable(),
   ready: z.boolean(),
   summary: z
@@ -145,7 +147,7 @@ const erasSchema = z.object({
       }),
     })
     .nullable(),
-  top: z.object({ newcastle: z.array(artistShare), before: z.array(artistShare), singapore: z.array(artistShare) }),
+  top: z.object({ earlier: z.array(artistShare), before: z.array(artistShare), latest: z.array(artistShare) }),
   risers: z.array(shift),
   fallers: z.array(shift),
 });
