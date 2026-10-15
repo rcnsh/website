@@ -47,7 +47,7 @@
     },
     "files": {
       "title": "Files",
-      "description": "Browse and search the public files hosted on Cloudflare R2."
+      "description": "My files on my personal Cloudflare R2 bucket"
     },
     "notFound": {
       "title": "Nothing here",
