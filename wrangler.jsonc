@@ -5,6 +5,9 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
 
+  // Served on rcn.sh only. Unset, every deploy turns the workers.dev URL back on.
+  "workers_dev": false,
+
   // A ceiling on what one request can spend, against a route that can be made
   // to loop. The default is 30s and there is no account spend cap behind it.
   // Startup CPU is accounted separately, so cold starts are unaffected.
