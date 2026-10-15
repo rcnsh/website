@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { slugify } from "@/lib/post-slug";
 
@@ -24,6 +24,15 @@ const field =
   "w-full rounded-[6px] border border-line-soft bg-base px-3 py-2 text-[0.9375rem] text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-brand";
 const label = "label mb-1.5 block";
 
+type View = "write" | "split" | "preview";
+const VIEWS: { id: View; name: string }[] = [
+  { id: "write", name: "Write" },
+  { id: "split", name: "Split" },
+  { id: "preview", name: "Preview" },
+];
+
+type Render = (markdown: string) => string;
+
 export default function PostEditor({ initial }: { initial: Post }) {
   const [post, setPost] = useState(initial);
   const [slugTouched, setSlugTouched] = useState(initial.sha !== null);
@@ -31,6 +40,20 @@ export default function PostEditor({ initial }: { initial: Post }) {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const form = useRef<HTMLFormElement>(null);
   const isNew = post.sha === null;
+  const [view, setView] = useState<View>("split");
+  const [render, setRender] = useState<Render | null>(null);
+  const [renderFailed, setRenderFailed] = useState(false);
+  // Typing stays responsive on a long post; the preview catches up.
+  const deferredBody = useDeferredValue(post.body);
+  const previewHtml = useMemo(() => render?.(deferredBody) ?? "", [render, deferredBody]);
+  const showsPreview = view !== "write";
+
+  useEffect(() => {
+    if (!showsPreview || render) return;
+    import("@/lib/markdown-preview")
+      .then((module) => setRender(() => module.renderPreview))
+      .catch(() => setRenderFailed(true));
+  }, [showsPreview, render]);
 
   const update = (patch: Partial<Post>) => {
     setPost((current) => {
@@ -175,15 +198,75 @@ export default function PostEditor({ initial }: { initial: Post }) {
       </div>
 
       <div>
-        <label className={label} htmlFor="pe-body">Markdown</label>
-        <textarea
-          id="pe-body"
-          value={post.body}
-          onChange={(e) => update({ body: e.target.value })}
-          spellCheck
-          rows={28}
-          className={cn(field, "min-h-[60vh] resize-y font-mono text-[0.8125rem] leading-[1.7]")}
-        />
+        <div className="mb-1.5 flex items-center gap-3">
+          <label className="label" htmlFor="pe-body">Markdown</label>
+          <fieldset className="ml-auto flex rounded-[6px] border border-line-soft p-0.5">
+            <legend className="sr-only">Editor layout</legend>
+            {VIEWS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={view === option.id}
+                onClick={() => setView(option.id)}
+                className={cn(
+                  "rounded-[4px] px-2.5 py-1 font-mono text-[11px] transition-colors",
+                  view === option.id ? "bg-raised text-ink" : "text-ink-faint hover:text-ink-dim",
+                )}
+              >
+                {option.name}
+              </button>
+            ))}
+          </fieldset>
+        </div>
+
+        {/* Split puts the panes side by side when there is room, stacked otherwise. */}
+        <div className={cn("grid gap-4", view === "split" && "min-[1021px]:grid-cols-2")}>
+          <textarea
+            id="pe-body"
+            value={post.body}
+            onChange={(e) => update({ body: e.target.value })}
+            spellCheck
+            rows={28}
+            hidden={view === "preview"}
+            className={cn(
+              field,
+              "h-[70vh] min-h-[320px] resize-y font-mono text-[0.8125rem] leading-[1.7]",
+            )}
+          />
+
+          {showsPreview && (
+            <section
+              className={cn(
+                "post-preview h-[70vh] min-h-[320px] overflow-y-auto rounded-[6px] border border-line-soft px-8 py-7 max-sm:px-5",
+                view === "preview" && "h-auto min-h-[70vh] overflow-visible",
+              )}
+              aria-label="Preview"
+            >
+              <h1 className="display-face max-w-[20ch] text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.05] text-ink">
+                {post.title || "Untitled"}
+              </h1>
+              {post.description && (
+                <p className="mt-3 max-w-[54ch] text-[1rem] leading-relaxed text-ink-dim">{post.description}</p>
+              )}
+              <div className="mt-6 border-t border-line-soft pt-6">
+                {renderFailed ? (
+                  <p className="text-[0.84375rem] text-bad">The preview failed to load.</p>
+                ) : render ? (
+                  <div
+                    className="prose max-w-[68ch]"
+                    // The owner's own Markdown, rendered as the build would: raw
+                    // HTML included. The route's hashed script-src is what keeps
+                    // a pasted <script> or onerror from running.
+                    // biome-ignore lint/security/noDangerouslySetInnerHtml: see above
+                    dangerouslySetInnerHTML={{ __html: previewHtml }}
+                  />
+                ) : (
+                  <p className="font-mono text-[11px] text-ink-faint">Loading preview…</p>
+                )}
+              </div>
+            </section>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3.5">

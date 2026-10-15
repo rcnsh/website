@@ -156,3 +156,30 @@ const heading = initial ? (initial.sha ? "Edit post" : "New post") : "Posts";
   const hint = document.querySelector<HTMLElement>("[data-owner-hint]");
   if (hint) setOwnerHint(hint.dataset.ownerHint === "1");
 </script>
+
+<style>
+  /* Stand-ins for what the post page gets from Expressive Code and its own
+     styles, so the preview's rhythm matches. Highlighting is not attempted. */
+  :global(.post-preview pre) {
+    overflow-x: auto;
+    padding: 1em 1.25em;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    background: var(--color-base);
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    color: var(--color-ink);
+  }
+  :global(.post-preview section.footnotes) {
+    margin-top: 3em;
+    padding-top: 1.5em;
+    border-top: 1px solid var(--color-line);
+    font-size: 0.90625rem;
+  }
+  :global(.post-preview .data-footnote-backref) {
+    text-decoration: none;
+    color: var(--color-brand);
+    font-family: var(--font-mono);
+  }
+</style>

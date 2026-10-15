@@ -43,6 +43,8 @@
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "mediabunny": "^1.61.3",
+    "micromark": "^4.0.3",
+    "micromark-extension-gfm": "^3.0.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "satori": "^0.33.4",
