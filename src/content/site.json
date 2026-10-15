@@ -118,12 +118,6 @@
       "keywords": "code repos source projects"
     },
     {
-      "href": "https://go.rcn.sh/valorant",
-      "label": "Valorant",
-      "icon": "crosshair",
-      "keywords": "games stats rank tracker"
-    },
-    {
       "href": "/pgp_key.asc.txt",
       "label": "PGP key",
       "icon": "key",
