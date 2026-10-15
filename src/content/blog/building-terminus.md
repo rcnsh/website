@@ -1,8 +1,8 @@
-
 ---
 title: "Building terminus"
 description: "How I built a shuttle bus planner for NUS students on one Cloudflare Worker"
 pubDate: 2026-10-10
+updatedDate: 2026-10-15
 ---
 
 I'm on exchange at NUS this year, and getting to lectures without arriving soaked in sweat means taking the internal shuttle buses. There are decent trackers for them already (bar the official uNivUS app), but the trouble is that a question that should take three seconds (which bus, from where, and when do I leave?) takes about six taps: open the app, find the stop, pick the right side of the road, read the table, then work out which service goes where you're going.
@@ -67,7 +67,14 @@ Every string a user reads exists in English and Simplified Chinese, and the test
 
 ## The domain
 
-terminus started out at `terminus.rcn.sh` and moved to `terminus.run` on 8 October. The next day I found that NUS Wi-Fi resets connections to the new domain, most likely because it's so new. Until that clears, the emails terminus sends link to `terminus.rcn.sh`, and the old address keeps working in full instead of redirecting. I like my `rcn.sh` domain too much to get rid of it, so the API will hopefully never go down, even if it hurts to be paying £50 a year for it. :/
+terminus started out at `terminus.rcn.sh` and moved to `terminus.run` on 8 October. The next day I found that NUS Wi-Fi resets connections to the new domain, most likely because it's so new. 
+
+*Update 15/10/26: This was actually because the domain was previously used by a malicious site serving ad redirects, I contacted all the popular firewall companies like Fortinet and Palo Alto Networks and got the domain recategorised.*
+
+Until that clears, the emails terminus sends link to `terminus.rcn.sh`, and the old address keeps working in full instead of redirecting. I like my `rcn.sh` domain too much to get rid of it, so the API will hopefully never go down, even if it hurts to be paying £50 a year for it. :/
+
+*Update 15/10/26: I decided to move the primary api over to* `terminus.run` *due to potentially having to hand the project off to someone else after I leave NUS.*
+
 
 ## Polish
 
@@ -86,4 +93,4 @@ Most of the rest is stuff you'd only notice if it was wrong. Countdowns round th
 
 I'm at NUS for about a year, so terminus has to be something another student can pick up after I leave. That's why the repo has a long `internals.md` that records the reasons behind each rule, from the cache times to the side-of-the-road tracking.
 
-You can use it at [terminus.run](https://terminus.run), or [terminus.rcn.sh](https://terminus.rcn.sh) on campus Wi-Fi. The Android and Mac apps are on the download page, and the API is documented at [/docs](https://terminus.run/docs).
+You can use it at [terminus.run](https://terminus.run). The Android and Mac apps are on the download page, and the API is documented at [/docs](https://terminus.run/docs).
