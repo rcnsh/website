@@ -1,0 +1,65 @@
+name: Deploy
+
+# Publishes posts committed from the on-site editor (/blog/edit), which writes
+# to main and nothing else. Scoped to the blog directory: every other change is
+# still deployed by hand with `npm run deploy`, so this cannot ship a half-done
+# feature that happened to land on main. It does deploy whatever else is on
+# main at the time, the same as a manual deploy would.
+#
+# Never runs migrations — see CLAUDE.md.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["src/content/blog/**"]
+
+permissions:
+  contents: read
+
+# Two quick saves should deploy in order, and the second must not be dropped.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository == 'rcnsh/website'
+    runs-on: ubuntu-latest
+
+    steps:
+      # Same secrets as build.yml, whose comments say why they are checked first.
+      # The Cloudflare token needs Workers Scripts:Edit to deploy.
+      - name: Check the secrets exist
+        env:
+          DEV_VARS: ${{ secrets.DEV_VARS }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=()
+          for name in DEV_VARS CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]}."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Write .dev.vars
+        run: printf '%s\n' "$DEV_VARS" > .dev.vars
+        env:
+          DEV_VARS: ${{ secrets.DEV_VARS }}
+
+      - run: npm run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

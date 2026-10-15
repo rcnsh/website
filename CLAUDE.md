@@ -182,6 +182,31 @@ so a change lands everywhere within that. The search edge cache is keyed on
 just-hidden folder's names until its edge copy expires (`s-maxage=300`), but
 private bytes are refused at once.
 
+### Blog editor
+
+**`/blog/edit` commits to `main`; it does not write to the site.** Saves go
+through the GitHub Contents API (`src/lib/blog-repo.ts`) with the
+`BLOG_REPO_TOKEN` secret, a fine-grained PAT that should hold Contents: write on
+this repo and nothing else. The owner check (`isOwner`) is the only thing
+gating who can use it, so it must stay on both the page and
+`/api/blog/post`. Posts go live through `.github/workflows/deploy.yml`, which
+deploys on pushes under `src/content/blog/` only. It deploys whatever is on
+`main` at the time, so unfinished work on `main` ships with the next post.
+
+**The frontmatter schema lives in `src/lib/post-source.ts`**, shared by
+`content.config.ts` and the editor, so the editor refuses what the build
+would. A field added to one place only means a commit that breaks the deploy.
+`post-slug.ts` stays dependency-free because the editor bundles it.
+
+**Edit links on prerendered pages come from a `localStorage` flag**
+(`src/lib/owner-hint.ts`) that `/blog/edit` sets for the owner. That way
+visitors don't each pay for a Worker call. It is a hint, not a permission:
+the links lead to pages that check the session.
+
+**Sign-in's `?next=` goes through `returnPath()`** on the way in and again on
+the way out, since the cookie comes back from the browser. Loosening it turns
+`/api/auth/login` into an open redirect.
+
 ### Gotchas that cost time
 
 **`build.format: "file"` makes `Astro.url.pathname` `/index.html`** at

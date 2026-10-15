@@ -96,6 +96,14 @@ const details = [
           )
         }
         {post.data.draft && <span class="text-brand">draft</span>}
+        <a
+          href={`/blog/edit?post=${post.id}`}
+          data-owner-only
+          hidden
+          class="ml-auto transition-colors hover:text-ink-dim"
+        >
+          Edit
+        </a>
       </div>
     </header>
 
@@ -177,6 +185,12 @@ const details = [
     )
   }
 </Layout>
+
+<script>
+  import { revealOwnerLinks } from "@/lib/owner-hint";
+
+  revealOwnerLinks();
+</script>
 
 <style>
   /* Code frames sit a step darker than the tile they're in, as they would on

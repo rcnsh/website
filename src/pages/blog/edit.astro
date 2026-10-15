@@ -1,0 +1,158 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import PostEditor from "@/components/react/PostEditor";
+import { GithubIcon } from "@/components/react/BrandIcons";
+import { getSession, isOwner, type SessionUser } from "@/lib/auth";
+import { getPosts } from "@/lib/blog";
+import { listPostSlugs, readPostFile } from "@/lib/blog-repo";
+import { isSlug } from "@/lib/post-slug";
+import { parsePost } from "@/lib/post-source";
+
+// Reads the session and the live repository, so never prerendered.
+export const prerender = false;
+
+let session: SessionUser | null = null;
+try {
+  session = await getSession(Astro.cookies);
+} catch (error) {
+  console.error("[blog] session lookup failed", error);
+}
+
+const owner = isOwner(session);
+
+// Someone else's session learns nothing about the page existing.
+if (session && !owner) {
+  return new Response("Not found", { status: 404 });
+}
+
+const requested = Astro.url.searchParams.get("post");
+const creating = Astro.url.searchParams.has("new");
+
+type Initial = Parameters<typeof PostEditor>[0]["initial"];
+let initial: Initial | null = null;
+let list: { slug: string; title: string; deployed: boolean }[] = [];
+let failure: string | null = null;
+
+if (owner) {
+  try {
+    if (creating) {
+      initial = {
+        slug: "",
+        sha: null,
+        title: "",
+        description: "",
+        pubDate: new Date().toISOString().slice(0, 10),
+        updatedDate: null,
+        draft: true,
+        body: "",
+      };
+    } else if (requested !== null) {
+      const file = isSlug(requested) ? await readPostFile(requested) : null;
+      if (!file) failure = `No post called “${requested}” on main.`;
+      else initial = { slug: requested, sha: file.sha, ...parsePost(file.source) };
+    } else {
+      const [slugs, deployed] = await Promise.all([listPostSlugs(), getPosts()]);
+      const titles = new Map(deployed.map((post) => [post.id, post.data.title]));
+      list = slugs
+        .map((slug) => ({ slug, title: titles.get(slug) ?? slug, deployed: titles.has(slug) }))
+        .sort((a, b) => a.slug.localeCompare(b.slug));
+    }
+  } catch (error) {
+    console.error("[blog] editor load failed", error);
+    failure = error instanceof Error && error.message.includes("BLOG_REPO_TOKEN")
+      ? "BLOG_REPO_TOKEN is not set, so the editor cannot reach GitHub."
+      : "Could not read the post from GitHub.";
+  }
+}
+
+const heading = initial ? (initial.sha ? "Edit post" : "New post") : "Posts";
+---
+
+<Layout title={heading} description="Post editor.">
+  <div class="bento pb-6" data-owner-hint={owner ? "1" : "0"}>
+    <section class="tile page-hero col-span-12 px-8 pb-[26px] pt-7 max-sm:px-5" aria-labelledby="edit-title">
+      <nav class="flex items-center gap-1.5 font-mono text-[0.71875rem] text-ink-faint" aria-label="Breadcrumb">
+        <a href="/blog" class="transition-colors hover:text-ink">writing</a>
+        <span class="text-line-strong" aria-hidden="true">/</span>
+        {initial || failure ? (
+          <a href="/blog/edit" class="transition-colors hover:text-ink">edit</a>
+        ) : (
+          <span aria-current="page">edit</span>
+        )}
+      </nav>
+      <h1 id="edit-title" class="display-face mt-[26px] text-[clamp(2rem,3.6vw,2.75rem)] leading-none text-ink">
+        {heading}
+      </h1>
+    </section>
+
+    {
+      !session && (
+        <section class="tile col-span-12 flex flex-col gap-3.5">
+          <a
+            href="/api/auth/login?next=/blog/edit"
+            class="inline-flex h-10 items-center gap-2 self-start rounded-[6px] border border-ink bg-ink px-4 text-[0.90625rem] font-medium text-(color:--color-base) transition-colors hover:bg-white"
+          >
+            <GithubIcon className="h-4 w-4 shrink-0" />
+            Sign in with GitHub
+          </a>
+          <p class="text-[0.8125rem] text-ink-faint">Only the site owner can edit posts.</p>
+        </section>
+      )
+    }
+
+    {
+      failure && (
+        <p class="tile col-span-12 border-warn/30 bg-warn/5 text-sm text-warn">{failure}</p>
+      )
+    }
+
+    {
+      initial && (
+        <section class="tile col-span-12" aria-label="Editor">
+          <PostEditor client:load initial={initial} />
+        </section>
+      )
+    }
+
+    {
+      owner && !initial && !failure && (
+        <section class="tile col-span-12" aria-labelledby="edit-list">
+          <div class="mb-4 flex items-center gap-2.5">
+            <h2 id="edit-list" class="label">On main</h2>
+            <a
+              href="/blog/edit?new"
+              class="ml-auto inline-flex h-[30px] items-center rounded-[6px] border border-ink bg-ink px-3 text-[0.8125rem] font-medium text-(color:--color-base) transition-colors hover:bg-white"
+            >
+              New post
+            </a>
+          </div>
+          <ul class="divide-y divide-line-soft">
+            {list.map((item) => (
+              <li>
+                <a
+                  href={`/blog/edit?post=${item.slug}`}
+                  class="group flex items-baseline gap-3 py-3 transition-colors"
+                >
+                  <span class="text-[0.9375rem] text-ink transition-colors group-hover:text-brand-alt">
+                    {item.title}
+                  </span>
+                  <span class="ml-auto font-mono text-[11px] text-ink-faint">
+                    {item.slug}
+                    {!item.deployed && " · not live"}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+  </div>
+</Layout>
+
+<script>
+  import { setOwnerHint } from "@/lib/owner-hint";
+
+  const hint = document.querySelector<HTMLElement>("[data-owner-hint]");
+  if (hint) setOwnerHint(hint.dataset.ownerHint === "1");
+</script>

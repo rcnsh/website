@@ -50,6 +50,9 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
         <a href="/" class="transition-colors hover:text-ink">rcn.sh</a>
         <span class="text-line-strong" aria-hidden="true">/</span>
         <span aria-current="page">writing</span>
+        <a href="/blog/edit" data-owner-only hidden class="ml-auto transition-colors hover:text-ink">
+          edit posts
+        </a>
       </nav>
       <h1
         id="writing-title"
@@ -154,3 +157,9 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
     }
   </div>
 </Layout>
+
+<script>
+  import { revealOwnerLinks } from "@/lib/owner-hint";
+
+  revealOwnerLinks();
+</script>

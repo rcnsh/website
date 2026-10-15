@@ -20,6 +20,7 @@ export const COOKIE_SECURE = !import.meta.env.DEV;
 const COOKIE_PREFIX = COOKIE_SECURE ? "__Host-" : "";
 export const SESSION_COOKIE = `${COOKIE_PREFIX}rcnsh_session`;
 export const OAUTH_STATE_COOKIE = `${COOKIE_PREFIX}rcnsh_oauth_state`;
+export const OAUTH_RETURN_COOKIE = `${COOKIE_PREFIX}rcnsh_oauth_return`;
 
 const USER_AGENT = "rcn.sh";
 
