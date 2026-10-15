@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { parsePost, postInput, serialisePost } from "./post-source.ts";
 import { isSlug, slugify } from "./post-slug.ts";
 
@@ -17,14 +17,19 @@ describe("post source", () => {
     assert.deepEqual(parsePost(serialisePost(post)), post);
   });
 
-  test("reads the existing posts unchanged", () => {
-    const url = new URL("../content/blog/building-terminus.md", import.meta.url);
-    const source = readFileSync(url, "utf8");
-    const post = parsePost(source);
-    assert.equal(post.pubDate, "2026-10-10");
-    assert.equal(post.updatedDate, null);
-    assert.deepEqual(parsePost(serialisePost(post)), post);
-    assert.ok(source.endsWith(post.body));
+  // Every post on disk, not pinned values: the editor rewrites these files.
+  test("round-trips every existing post", () => {
+    const dir = new URL("../content/blog/", import.meta.url);
+    const files = readdirSync(dir).filter((name) => name.endsWith(".md"));
+    assert.ok(files.length > 0);
+
+    for (const name of files) {
+      const source = readFileSync(new URL(name, dir), "utf8");
+      const post = parsePost(source);
+      assert.match(post.pubDate, /^\d{4}-\d{2}-\d{2}$/, name);
+      assert.deepEqual(parsePost(serialisePost(post)), post, name);
+      assert.ok(source.endsWith(post.body), name);
+    }
   });
 
   test("refuses frontmatter the build would", () => {
