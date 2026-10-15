@@ -161,6 +161,30 @@ export async function getNowPlaying(): Promise<NowPlaying> {
   };
 }
 
+/**
+ * Live, like `getNowPlaying()`. Stored plays only arrive on the warehouse's
+ * ingest cron, so `getRecentTracks()` can be half an hour behind.
+ */
+export async function getLastPlayed(): Promise<RecentTrack | null> {
+  const parsed = z
+    .object({
+      items: z
+        .array(z.object({ played_at: z.string(), track: trackSchema }))
+        .default([]),
+    })
+    .safeParse(await warehouse("/api/recently-played?limit=1"));
+
+  if (!parsed.success) {
+    throw new Error(
+      `warehouse /api/recently-played returned an unexpected shape: ${parsed.error.message}`,
+    );
+  }
+
+  const [last] = parsed.data.items;
+  if (!last) return null;
+  return { ...normaliseTrack(last.track), playedAt: new Date(last.played_at).toISOString() };
+}
+
 const topSchema = z.object({
   tracks: z.object({ items: z.array(trackSchema).default([]) }).nullable(),
   artists: z

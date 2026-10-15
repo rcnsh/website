@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { waitUntil } from "cloudflare:workers";
-import { getNowPlaying, getRecentTracks } from "@/lib/spotify";
+import { getLastPlayed, getNowPlaying, getRecentTracks } from "@/lib/spotify";
 
 export const prerender = false;
 
@@ -87,7 +87,12 @@ export const GET: APIRoute = async ({ request }) => {
       });
     }
 
-    const [recent] = await getRecentTracks(1);
+    // Stored plays are the fallback, not the source: they lag the ingest cron.
+    const recent = await getLastPlayed().catch(async (error) => {
+      console.error("[music] live last-played failed, using stored", error);
+      const [stored] = await getRecentTracks(1);
+      return stored ?? null;
+    });
     if (recent) {
       return json({
         state: "recent",
