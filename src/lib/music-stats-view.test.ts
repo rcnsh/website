@@ -7,11 +7,13 @@ import {
   monthLabel,
   monthRange,
   niceShareMax,
+  ordinal,
   peakHour,
   percent,
   quarterLabel,
   statsYears,
   shareBetween,
+  spotifyUrl,
 } from "./music-stats-view.ts";
 
 describe("music stats formatting", () => {
@@ -76,4 +78,19 @@ describe("year switch", () => {
     assert.deepEqual(statsYears(new Date("2026-10-11T00:00:00Z")), ["2020", "2021", "2022", "2023", "2024", "2025", "2026"]);
   });
 
+});
+
+describe("song and artist links", () => {
+  test("ordinals read as words do", () => {
+    assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22, 101, 111, 1002].map(ordinal), [
+      "1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd", "101st", "111th", "1,002nd",
+    ]);
+  });
+
+  test("only real ids become Spotify links", () => {
+    assert.equal(spotifyUrl("track", "6PCUP3dWmTjcTtXY02oFdT"), "https://open.spotify.com/track/6PCUP3dWmTjcTtXY02oFdT");
+    assert.equal(spotifyUrl("artist", "name:Some Export Artist"), null);
+    assert.equal(spotifyUrl("artist", null), null);
+    assert.equal(spotifyUrl("track", undefined), null);
+  });
 });

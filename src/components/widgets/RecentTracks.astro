@@ -1,6 +1,7 @@
 ---
 import { getRecentTracks } from "@/lib/spotify";
 import { RECENT_WINDOW } from "@/lib/listening";
+import { ordinal } from "@/lib/music-stats-view";
 import { relativeTime } from "@/lib/utils";
 
 const RECENT_SHOWN = 15;
@@ -14,6 +15,12 @@ try {
   failed = true;
   console.error("[music] recent tracks island failed", error);
 }
+
+/** "first listen", "17th play", or nothing for a play the warehouse can't number. */
+function playLabel(track: (typeof tracks)[number]): string | null {
+  if (track.firstPlay) return "first listen";
+  return track.playNumber && track.playNumber > 1 ? `${ordinal(track.playNumber)} play` : null;
+}
 ---
 
 {
@@ -23,14 +30,12 @@ try {
     <p class="py-6 text-sm text-ink-faint">Nothing to show yet.</p>
   ) : (
     <ol class="divide-y divide-line-soft border-t border-line-soft">
-      {tracks.map((track) => (
-        <li>
-          <a
-            href={track.url ?? "#"}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="group flex items-center gap-3.5 py-[9px]"
-          >
+      {tracks.map((track) => {
+        const label = playLabel(track);
+        return (
+          // The title's link stretches over the row, so the whole row opens the
+          // song, while each artist links on its own above it.
+          <li class="group relative flex items-center gap-3.5 py-[9px]">
             {track.image ? (
               <img
                 src={track.image}
@@ -45,23 +50,47 @@ try {
             )}
 
             <span class="min-w-0 flex-1">
-              <span class="block truncate text-[14.5px] text-ink transition-colors group-hover:text-brand-alt">
+              <a
+                href={track.url ?? "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="block truncate text-[14.5px] text-ink transition-colors after:absolute after:inset-0 group-hover:text-brand-alt"
+              >
                 {track.title}
-              </span>
+              </a>
               <span class="mt-px block truncate text-[12.5px] text-ink-dim">
-                {track.artists}
+                {track.credits.length
+                  ? track.credits.map((credit, i) => (
+                      <>
+                        {i > 0 && ", "}
+                        {credit.url ? (
+                          <a
+                            href={credit.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="relative z-10 transition-colors hover:text-ink"
+                          >
+                            {credit.name}
+                          </a>
+                        ) : (
+                          credit.name
+                        )}
+                      </>
+                    ))
+                  : track.artists}
+                {track.context && <span class="text-ink-faint"> · from {track.context}</span>}
               </span>
             </span>
 
-            <time
-              datetime={track.playedAt}
-              class="shrink-0 font-mono text-[11px] text-ink-faint"
-            >
-              {relativeTime(track.playedAt)}
-            </time>
-          </a>
-        </li>
-      ))}
+            <span class="shrink-0 text-right font-mono text-[11px] leading-tight text-ink-faint">
+              {label && (
+                <span class:list={["block", track.firstPlay ? "text-brand-alt" : "text-ink-dim"]}>{label}</span>
+              )}
+              <time datetime={track.playedAt}>{relativeTime(track.playedAt)}</time>
+            </span>
+          </li>
+        );
+      })}
     </ol>
   )
 }

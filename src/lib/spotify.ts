@@ -2,6 +2,7 @@ import { deadline } from "./upstream";
 import { env } from "cloudflare:workers";
 import { z } from "zod";
 import { cached } from "./cache";
+import { spotifyUrl } from "./music-stats-view";
 
 /**
  * Listening data, read from the music-warehouse Worker, which holds the only
@@ -237,12 +238,34 @@ const playRowSchema = z.object({
   image_url: z.string().nullish(),
   // Credited artists arrive pre-joined, comma-separated, in credit order.
   artists: z.string().nullish(),
+  // The same artists one by one, so a name containing ", " stays whole.
+  artist_list: z
+    .array(z.object({ id: z.string().nullish(), name: z.string() }))
+    .nullish()
+    .transform((list) => list ?? []),
+  // Which play of its song this was, counting every edition.
+  play_number: z.number().int().nullish(),
+  first_play: z.boolean().nullish(),
+  // The album, artist or playlist it was started from, when known.
+  context_name: z.string().nullish(),
 });
 
+export type Credit = { id: string | null; name: string; url: string | null };
+
+/** A stored play, with what only the warehouse knows about it. */
+export type StoredPlay = RecentTrack & {
+  credits: Credit[];
+  playNumber: number | null;
+  firstPlay: boolean;
+  context: string | null;
+};
+
 /** Stored, not live: these rows survive a dead Spotify grant. */
-export async function getRecentTracks(limit = 20): Promise<RecentTrack[]> {
+export async function getRecentTracks(limit = 20): Promise<StoredPlay[]> {
   return cached(
-    `warehouse:recent:${limit}`,
+    // Versioned: a value cached before credits were read lacks them, and
+    // stale-while-revalidate would serve it to code that expects them.
+    `warehouse:recent:v2:${limit}`,
     60 * 5,
     async () => {
       const parsed = z
@@ -264,6 +287,14 @@ export async function getRecentTracks(limit = 20): Promise<RecentTrack[]> {
         url: `https://open.spotify.com/track/${row.track_id}`,
         durationMs: row.duration_ms ?? null,
         playedAt: new Date(row.played_at_ms).toISOString(),
+        credits: row.artist_list.map((artist) => ({
+          id: artist.id ?? null,
+          name: artist.name,
+          url: spotifyUrl("artist", artist.id),
+        })),
+        playNumber: row.play_number ?? null,
+        firstPlay: row.first_play ?? false,
+        context: row.context_name ?? null,
       }));
     },
     // Every row renders as "played 3 hours ago", so week-old stale reads as broken.

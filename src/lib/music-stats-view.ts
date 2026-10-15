@@ -41,6 +41,22 @@ export function plural(n: number, word: string): string {
   return `${n.toLocaleString("en-GB")} ${word}${n === 1 ? "" : "s"}`;
 }
 
+/** 1st, 2nd, 3rd, 11th, 22nd. */
+export function ordinal(n: number): string {
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
+  return `${n.toLocaleString("en-GB")}${suffix}`;
+}
+
+/**
+ * A Spotify link for a warehouse id. Artists known only from the imported
+ * export carry a `name:` placeholder instead of an id, which Spotify can't open.
+ */
+export function spotifyUrl(kind: "track" | "artist", id: string | null | undefined): string | null {
+  if (!id || id.startsWith("name:")) return null;
+  return `https://open.spotify.com/${kind}/${id}`;
+}
+
 /**
  * Spotify album art comes from the warehouse at 640px. The CDN serves the
  * same image at 300px and 64px under a different prefix, so swap rather than

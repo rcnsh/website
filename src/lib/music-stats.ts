@@ -109,7 +109,14 @@ const periodSchema = z.object({
   plays: z.number().int(),
   artists: z.array(z.object({ name: z.string(), plays: z.number().int(), share })),
   tracks: z.array(
-    z.object({ name: z.string(), artist: z.string(), plays: z.number().int(), image: z.string().nullable() }),
+    z.object({
+      // The song's most-played edition in the period.
+      track_id: z.string().nullish(),
+      name: z.string(),
+      artist: z.string(),
+      plays: z.number().int(),
+      image: z.string().nullable(),
+    }),
   ),
 });
 
