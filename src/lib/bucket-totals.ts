@@ -21,3 +21,12 @@ export function bucketTotals(tree: R2Tree): BucketTotals {
 
   return { objects, bytes, lastUploaded };
 }
+
+export type HiddenTotals = { objects: number; bytes: number };
+
+/** What the whole bucket holds beyond the tree visitors are shown. */
+export function hiddenTotals(full: R2Tree, visible: R2Tree): HiddenTotals {
+  const all = bucketTotals(full);
+  const seen = bucketTotals(visible);
+  return { objects: all.objects - seen.objects, bytes: all.bytes - seen.bytes };
+}

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bucketTotals } from "./bucket-totals.ts";
+import { bucketTotals, hiddenTotals } from "./bucket-totals.ts";
 
 test("sums every directory's files once", () => {
   const tree = {
@@ -16,4 +16,15 @@ test("an empty bucket has no last upload", () => {
     bytes: 0,
     lastUploaded: null,
   });
+});
+
+test("hidden totals are what the visitors' tree leaves out", () => {
+  const file = (name: string, size: number) => [name, size, 0] as [string, number, number];
+  const full = {
+    "": { folders: ["a/", "b/"], files: [] },
+    "a/": { folders: [], files: [file("one.png", 5)] },
+    "b/": { folders: [], files: [file("two.zip", 7), file("three.mp3", 11)] },
+  };
+  const visible = { "": { folders: ["a/"], files: [] }, "a/": full["a/"] };
+  assert.deepEqual(hiddenTotals(full, visible), { objects: 2, bytes: 18 });
 });

@@ -44,6 +44,7 @@ import MediaPreview, {
   Fallback,
   previewKind,
 } from "@/components/react/MediaPreview";
+import { publishOwnerTree } from "@/components/files/owner-tree";
 import { CardThumb, EntryIcon, ImagePreview, TextPreview } from "@/components/files/Previews";
 import {
   ArrowDownIcon,
@@ -124,7 +125,10 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
         if (!live || data.owner !== true || !data.rules) return;
         // Lazy mode starts over: what it fetched so far was the visitors' view.
         if (complete) {
-          if (data.tree) setListings(data.tree);
+          if (data.tree) {
+            setListings(data.tree);
+            publishOwnerTree(data.tree);
+          }
         } else {
           setListings({});
           setFailed(new Set());

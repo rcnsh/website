@@ -16,6 +16,12 @@ export const KIND_COLOUR: Record<FileKind, string> = {
   file: "var(--color-line-strong)",
 };
 
+/** Hidden folders' share of the bar for visitors: grey, striped so it never reads as a kind. */
+export const PRIVATE_COLOUR =
+  "repeating-linear-gradient(135deg, var(--color-line-strong) 0 3px, var(--color-line) 3px 6px)";
+
+export const PRIVATE_LABEL = "Private";
+
 export const KIND_LABEL: Record<FileKind, string> = {
   image: "Images",
   video: "Video",
