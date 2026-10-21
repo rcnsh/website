@@ -22,6 +22,7 @@ const { title, description } = Astro.props;
 let tree: R2Tree | null = null;
 let root: R2Listing | null = null;
 let hidden: HiddenTotals | null = null;
+let ownerSlots = 0;
 
 try {
   const rules = await loadRules();
@@ -29,7 +30,10 @@ try {
   root = tree ? (tree[""] ?? null) : await visitorDirectory("", rules);
   // Sizes only, never names: the bar shows visitors how much is private.
   const full = tree ? await cachedTree() : null;
-  if (tree && full) hidden = hiddenTotals(full, tree);
+  if (tree && full) {
+    hidden = hiddenTotals(full, tree);
+    ownerSlots = kindTotals(full).length;
+  }
 } catch (error) {
   console.error("[files] listing failed", error);
 }
@@ -40,6 +44,6 @@ const kinds = tree ? kindTotals(tree) : null;
 
 <div class="bento">
   <FilesHero title={title} description={description} totals={totals} wide={!kinds?.length} />
-  {kinds && kinds.length > 0 && <FilesUsage kinds={kinds} hidden={hidden} />}
+  {kinds && kinds.length > 0 && <FilesUsage kinds={kinds} hidden={hidden} ownerSlots={ownerSlots} />}
   <FileBrowser client:idle tree={tree} initial={root} bucketUrl={publicBucketBase()} />
 </div>

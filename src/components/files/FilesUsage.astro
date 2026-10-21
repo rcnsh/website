@@ -8,9 +8,11 @@ interface Props {
   kinds?: KindTotal[];
   /** What visitors are not shown, as one private share of the bar. */
   hidden?: HiddenTotals | null;
+  /** How many keys the owner's view has; see UsageBar. */
+  ownerSlots?: number;
 }
 
-const { kinds, hidden } = Astro.props;
+const { kinds, hidden, ownerSlots } = Astro.props;
 ---
 
 <section
@@ -24,7 +26,7 @@ const { kinds, hidden } = Astro.props;
 
   {
     kinds ? (
-      <UsageBar client:idle kinds={kinds} hidden={hidden} />
+      <UsageBar client:idle kinds={kinds} hidden={hidden} ownerSlots={ownerSlots} />
     ) : (
       <div aria-hidden="true" class="flex flex-1 flex-col">
         <div class="placeholder-block mt-1 h-3 rounded-[3px]" />

@@ -1,11 +1,14 @@
 import type { APIRoute } from "astro";
-import { getSession, isOwner } from "@/lib/auth";
+import { clearOwnerHint, getSession, isOwner, OWNER_HINT_COOKIE, setOwnerHint } from "@/lib/auth";
 import { forbidden, sameOrigin } from "@/lib/csrf";
 import { cachedTree, isHiddenKey, normalisePrefix } from "@/lib/r2";
 import { loadRules, setRule } from "@/lib/visibility";
 import { isVisibility } from "../../../../shared/visibility.ts";
 
 export const prerender = false;
+
+/** As long as a session; refreshed on every owner visit. */
+const OWNER_HINT_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -19,7 +22,12 @@ function json(body: unknown, status = 200): Response {
  * public island leaves out. Anyone else learns only `{ owner: false }`.
  */
 export const GET: APIRoute = async ({ cookies }) => {
-  if (!isOwner(await getSession(cookies))) return json({ owner: false });
+  // The page's hint follows the answer, so a stale one costs a single held load.
+  if (!isOwner(await getSession(cookies))) {
+    if (cookies.has(OWNER_HINT_COOKIE)) clearOwnerHint(cookies);
+    return json({ owner: false });
+  }
+  setOwnerHint(cookies, new Date(Date.now() + OWNER_HINT_TTL_MS));
 
   try {
     const [rules, tree] = await Promise.all([loadRules(), cachedTree()]);

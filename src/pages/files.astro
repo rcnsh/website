@@ -33,3 +33,10 @@ const page = pages.files;
     </FilesRoot>
   </div>
 </Layout>
+
+<script>
+  import { startOwnerHold } from "@/components/files/owner-tree";
+
+  // Before the island lands, so its visitors' view never shows to the owner.
+  startOwnerHold();
+</script>

@@ -18,3 +18,20 @@ export function subscribeOwnerTree(listener: (tree: R2Tree) => void): () => void
     listeners.delete(listener);
   };
 }
+
+// While the owner hint is present, anything still showing the visitors' view
+// is kept hidden (browser.css), so the owner's view replaces it in place
+// instead of after it. Lifted when the check says otherwise, or on a timer.
+
+const HOLD = "ownerHold";
+const HOLD_LIMIT_MS = 5000;
+
+export function startOwnerHold(): void {
+  if (!/(?:^|;\s*)(?:__Host-)?rcnsh_owner=1(?:;|$)/.test(document.cookie)) return;
+  document.documentElement.dataset[HOLD] = "";
+  setTimeout(releaseOwnerHold, HOLD_LIMIT_MS);
+}
+
+export function releaseOwnerHold(): void {
+  delete document.documentElement.dataset[HOLD];
+}

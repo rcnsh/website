@@ -44,7 +44,7 @@ import MediaPreview, {
   Fallback,
   previewKind,
 } from "@/components/react/MediaPreview";
-import { publishOwnerTree } from "@/components/files/owner-tree";
+import { publishOwnerTree, releaseOwnerHold } from "@/components/files/owner-tree";
 import { CardThumb, EntryIcon, ImagePreview, TextPreview } from "@/components/files/Previews";
 import {
   ArrowDownIcon,
@@ -120,9 +120,15 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
     void (async () => {
       try {
         const response = await fetch("/api/files/visibility", { cache: "no-store" });
-        if (!response.ok) return;
+        if (!response.ok) {
+          releaseOwnerHold();
+          return;
+        }
         const data = (await response.json()) as { owner?: boolean; rules?: VisibilityRules; tree?: R2Tree | null };
-        if (!live || data.owner !== true || !data.rules) return;
+        if (!live || data.owner !== true || !data.rules) {
+          releaseOwnerHold();
+          return;
+        }
         // Lazy mode starts over: what it fetched so far was the visitors' view.
         if (complete) {
           if (data.tree) {
@@ -132,10 +138,13 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
         } else {
           setListings({});
           setFailed(new Set());
+          // No tree to publish, so the usage tile keeps the visitors' view.
+          releaseOwnerHold();
         }
         setRules(data.rules);
       } catch {
         // Not signed in, or offline: the visitors' view stands.
+        releaseOwnerHold();
       } finally {
         if (live) setAccessChecked(true);
       }
@@ -569,7 +578,13 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   const footSegments = footPath.split("/").filter(Boolean);
 
   return (
-    <section ref={root} className="fb tile animate-rise col-span-12 [animation-delay:.06s]" aria-label="File browser" onKeyDown={onKeyDown}>
+    <section
+      ref={root}
+      className="fb tile animate-rise col-span-12 [animation-delay:.06s]"
+      aria-label="File browser"
+      data-owner-view={rules ? "owner" : "visitor"}
+      onKeyDown={onKeyDown}
+    >
       <div className="fb-tb">
         <nav className="fb-crumbs" aria-label="Folder">
           {searchActive && query.trim().length >= SEARCH_MIN ? (

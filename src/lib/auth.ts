@@ -21,6 +21,12 @@ const COOKIE_PREFIX = COOKIE_SECURE ? "__Host-" : "";
 export const SESSION_COOKIE = `${COOKIE_PREFIX}rcnsh_session`;
 export const OAUTH_STATE_COOKIE = `${COOKIE_PREFIX}rcnsh_oauth_state`;
 export const OAUTH_RETURN_COOKIE = `${COOKIE_PREFIX}rcnsh_oauth_return`;
+/**
+ * Readable by the page, and only a hint: it lets /files hold the visitors'
+ * view back until the owner's arrives. Nothing is granted on it; every owner
+ * check reads the session.
+ */
+export const OWNER_HINT_COOKIE = `${COOKIE_PREFIX}rcnsh_owner`;
 
 const USER_AGENT = "rcn.sh";
 
@@ -168,6 +174,20 @@ export async function createSession(
   await db.insert(schema.sessions).values({ id, expiresAt, ...user });
 
   setSessionCookie(cookies, token, expiresAt);
+  if (isOwner(user)) setOwnerHint(cookies, expiresAt);
+}
+
+export function setOwnerHint(cookies: AstroCookies, expiresAt: Date): void {
+  cookies.set(OWNER_HINT_COOKIE, "1", {
+    path: "/",
+    secure: COOKIE_SECURE,
+    sameSite: "lax",
+    expires: expiresAt,
+  });
+}
+
+export function clearOwnerHint(cookies: AstroCookies): void {
+  cookies.delete(OWNER_HINT_COOKIE, { path: "/", secure: COOKIE_SECURE });
 }
 
 function setSessionCookie(
@@ -252,6 +272,7 @@ export async function destroySession(cookies: AstroCookies): Promise<void> {
     await getDb().delete(schema.sessions).where(eq(schema.sessions.id, id));
   }
   cookies.delete(SESSION_COOKIE, { path: "/", secure: COOKIE_SECURE });
+  clearOwnerHint(cookies);
 }
 
 // --- GitHub profile ---
