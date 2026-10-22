@@ -1,4 +1,5 @@
 import type { R2Tree } from "@/lib/r2";
+import { hasOwnerCookie } from "@/lib/owner-hint";
 
 // The owner's full tree, handed from the browser to the other islands on the
 // page. Either may hydrate first, so a late subscriber is given the tree at once.
@@ -27,7 +28,7 @@ const HOLD = "ownerHold";
 const HOLD_LIMIT_MS = 5000;
 
 export function startOwnerHold(): void {
-  if (!/(?:^|;\s*)(?:__Host-)?rcnsh_owner=1(?:;|$)/.test(document.cookie)) return;
+  if (!hasOwnerCookie(document.cookie)) return;
   document.documentElement.dataset[HOLD] = "";
   setTimeout(releaseOwnerHold, HOLD_LIMIT_MS);
 }

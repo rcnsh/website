@@ -6,6 +6,11 @@
  */
 const KEY = "rcnsh:owner";
 
+/** The sign-in cookie's counterpart: set for the owner's session, readable by scripts. */
+export function hasOwnerCookie(cookie: string): boolean {
+  return /(?:^|;\s*)(?:__Host-)?rcnsh_owner=1(?:;|$)/.test(cookie);
+}
+
 export function setOwnerHint(owner: boolean): void {
   try {
     if (owner) localStorage.setItem(KEY, "1");

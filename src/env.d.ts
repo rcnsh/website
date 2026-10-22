@@ -12,6 +12,9 @@ interface Secrets {
 	// Worker's /api/* routes and nothing else — it cannot poll or write.
 	// Spotify's own credentials live in the warehouse, not here.
 	MUSIC_WAREHOUSE_TOKEN: string;
+	// The warehouse's CONTROL_TOKEN: starts playback and reaches nothing else.
+	// Used only by the owner-gated /api/music/play.
+	MUSIC_WAREHOUSE_CONTROL_TOKEN: string;
 }
 
 // Merged into both spellings: `Cloudflare.Env` backs the `env` import from

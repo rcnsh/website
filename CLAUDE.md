@@ -207,6 +207,18 @@ the links lead to pages that check the session.
 the way out, since the cookie comes back from the browser. Loosening it turns
 `/api/auth/login` into an open redirect.
 
+### Owner playback
+
+**Clicking a track plays it for the owner; it is still a link.**
+`PlayOnSpotify` (in `Layout`) intercepts plain clicks on
+`open.spotify.com/track/…` links when the owner cookie is set, and posts to
+`/api/music/play`, which checks `isOwner` and calls the warehouse's
+`/control/play` with `MUSIC_WAREHOUSE_CONTROL_TOKEN`. That token can start
+playback and nothing else; never use it for reads, and never give the read
+token control. Any failure (no active device, Premium, a grant missing
+`user-modify-playback-state`) opens the link instead, so render track links
+as plain `open.spotify.com` URLs and the feature follows.
+
 ### Gotchas that cost time
 
 **`build.format: "file"` makes `Astro.url.pathname` `/index.html`** at

@@ -11,6 +11,7 @@ import "@/styles/global.css";
 import TopBar from "@/components/TopBar.astro";
 import CommandPalette from "@/components/CommandPalette.astro";
 import Footer from "@/components/Footer.astro";
+import PlayOnSpotify from "@/components/music/PlayOnSpotify.astro";
 import { site } from "@/lib/site";
 
 interface Props {
@@ -135,6 +136,7 @@ const ogImage = new URL(image, site.url).toString();
 
     {/* Outside the header: its backdrop-blur would trap a fixed overlay. */}
     <CommandPalette />
+    <PlayOnSpotify />
   </body>
 </html>
 
