@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { SpotifyIcon } from "./BrandIcons";
 import { liveUpdates, onPrefChange } from "@/lib/prefs";
 import { cn, formatDuration, relativeTime } from "@/lib/utils";
+import { trackIdFromHref } from "@/lib/track-play";
 import "@/components/music/now-playing.css";
 
 type Payload =
@@ -279,6 +280,7 @@ export default function NowPlaying({
             ) : (
               data.title
             )}
+            <PlayButton trackId={data.url ? trackIdFromHref(data.url) : null} title={data.title} />
           </p>
           <p className={cn("truncate text-ink-dim", size.artist)}>{data.artists}</p>
           {data.album && (
@@ -501,5 +503,32 @@ function Artwork({
       {/* A hairline inside the cover's edge, so a dark sleeve still has one. */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-card shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]" />
     </div>
+  );
+}
+
+/** PlayButton.astro's counterpart: shown to the owner only, played by PlayOnSpotify. */
+function PlayButton({ trackId, title }: { trackId: string | null; title: string }) {
+  if (!trackId) return null;
+  return (
+    <button
+      type="button"
+      className="play-track ml-1.5 align-middle"
+      data-play-track={trackId}
+      aria-label={`Play ${title} on Spotify`}
+      title="Play on Spotify"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        className="h-2.5 w-2.5 fill-current"
+      >
+        {/* icons.ts `play`. */}
+        <path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" />
+      </svg>
+    </button>
   );
 }

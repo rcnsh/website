@@ -209,15 +209,17 @@ the way out, since the cookie comes back from the browser. Loosening it turns
 
 ### Owner playback
 
-**Clicking a track plays it for the owner; it is still a link.**
-`PlayOnSpotify` (in `Layout`) intercepts plain clicks on
-`open.spotify.com/track/…` links when the owner cookie is set, and posts to
-`/api/music/play`, which checks `isOwner` and calls the warehouse's
-`/control/play` with `MUSIC_WAREHOUSE_CONTROL_TOKEN`. That token can start
+**Track links stay links for everyone; the owner also gets a play button.**
+`PlayButton` (and its twin in `NowPlaying`) is rendered for every visitor,
+because pages and islands are cached publicly, and hidden by `.play-track` in
+`global.css`. `PlayOnSpotify` (in `Layout`) sets `data-owner` on `<html>` when
+the owner cookie is present, which reveals them, and posts their clicks to
+`/api/music/play`. That route checks `isOwner` and calls the warehouse's
+`/control/play` with `MUSIC_WAREHOUSE_CONTROL_TOKEN`, a token that can start
 playback and nothing else; never use it for reads, and never give the read
-token control. Any failure (no active device, Premium, a grant missing
-`user-modify-playback-state`) opens the link instead, so render track links
-as plain `open.spotify.com` URLs and the feature follows.
+token control. The button sits beside the title, never inside a link: rows
+use a stretched link (`after:absolute after:inset-0`) so the button can be a
+sibling.
 
 ### Gotchas that cost time
 

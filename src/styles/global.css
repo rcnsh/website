@@ -442,3 +442,36 @@
     animation: none !important;
   }
 }
+
+/* Owner-only play buttons (PlayButton.astro, NowPlaying). Every page and
+   island carries them, since those are cached for everyone; PlayOnSpotify
+   marks the document for the owner, and only then do they show. */
+.play-track {
+  display: none;
+}
+html[data-owner] .play-track {
+  position: relative;
+  z-index: 10;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 9999px;
+  color: var(--color-ink-dim);
+  transition: color 150ms, background-color 150ms, opacity 150ms;
+}
+html[data-owner] .play-track:hover {
+  color: var(--color-brand-alt);
+  background-color: var(--color-raised);
+}
+html[data-owner] .play-track[data-state="pending"] {
+  opacity: 0.5;
+}
+html[data-owner] .play-track[data-state="played"] {
+  color: var(--color-ok);
+}
+html[data-owner] .play-track[data-state="failed"] {
+  color: var(--color-bad);
+}

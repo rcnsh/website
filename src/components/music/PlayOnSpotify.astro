@@ -1,25 +1,31 @@
 <script>
   import { hasOwnerCookie } from "@/lib/owner-hint";
-  import { isPlainClick, trackIdFromHref } from "@/lib/track-play";
+  import { isTrackId } from "@/lib/track-play";
 
-  // Track links stay links for everyone; for the owner a plain click starts
-  // the song on whatever Spotify is playing on, and opens the link only if
-  // that fails. Delegated, so islands and live widgets are covered too.
+  // Marks the document so the owner's play buttons show (global.css), and
+  // plays from any of them, islands and live widgets included.
   if (hasOwnerCookie(document.cookie)) {
+    document.documentElement.dataset.owner = "";
     document.addEventListener("click", async (event) => {
-      if (!isPlainClick(event)) return;
-      const link = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]");
-      const trackId = link && trackIdFromHref(link.href);
-      if (!trackId) return;
+      const button = (event.target as Element | null)?.closest<HTMLButtonElement>("button[data-play-track]");
+      const trackId = button?.dataset.playTrack;
+      if (!button || !isTrackId(trackId) || button.dataset.state === "pending") return;
       event.preventDefault();
 
+      button.dataset.state = "pending";
       const response = await fetch("/api/music/play", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ track_id: trackId }),
       }).catch(() => null);
-      // Safari refuses a window opened this long after the click.
-      if (!response?.ok && !window.open(link.href, "_blank", "noopener")) location.assign(link.href);
+      const body = response && !response.ok ? ((await response.json().catch(() => null)) as { error?: string } | null) : null;
+      const failure = response?.ok ? null : (body?.error ?? (response ? `Failed (${response.status})` : "Couldn't reach the site"));
+      button.dataset.state = failure ? "failed" : "played";
+      button.title = failure ?? "Playing";
+      setTimeout(() => {
+        delete button.dataset.state;
+        button.title = "Play on Spotify";
+      }, failure ? 4000 : 1500);
     });
   }
 </script>
