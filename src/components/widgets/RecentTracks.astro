@@ -3,6 +3,8 @@ import { getRecentTracks } from "@/lib/spotify";
 import { RECENT_WINDOW } from "@/lib/listening";
 import { ordinal } from "@/lib/music-stats-view";
 import { relativeTime } from "@/lib/utils";
+import { trackIdFromHref } from "@/lib/track-play";
+import PlayButton from "@/components/music/PlayButton.astro";
 
 const RECENT_SHOWN = 15;
 
@@ -50,14 +52,17 @@ function playLabel(track: (typeof tracks)[number]): string | null {
             )}
 
             <span class="min-w-0 flex-1">
-              <a
-                href={track.url ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="block truncate text-[14.5px] text-ink transition-colors after:absolute after:inset-0 group-hover:text-brand-alt"
-              >
-                {track.title}
-              </a>
+              <span class="flex items-center gap-1.5">
+                <a
+                  href={track.url ?? "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="truncate text-[14.5px] text-ink transition-colors after:absolute after:inset-0 group-hover:text-brand-alt"
+                >
+                  {track.title}
+                </a>
+                <PlayButton trackId={track.url && trackIdFromHref(track.url)} title={track.title} />
+              </span>
               <span class="mt-px block truncate text-[12.5px] text-ink-dim">
                 {track.credits.length
                   ? track.credits.map((credit, i) => (
