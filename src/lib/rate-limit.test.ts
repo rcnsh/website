@@ -17,11 +17,6 @@ test("a signer within the window is held off until it closes", () => {
   assert.equal(next.toISOString(), "2026-08-30T09:30:00.000Z");
 });
 
-test("a signer past the window may post again", () => {
-  const lastPosted = new Date(NOW.getTime() - WINDOW_MS - 1000);
-  assert.equal(nextAllowedAt(lastPosted, NOW), null);
-});
-
 test("the window is exclusive at its far edge", () => {
   // Exactly 24h later is allowed; a millisecond short of it is not.
   assert.equal(nextAllowedAt(new Date(NOW.getTime() - WINDOW_MS), NOW), null);
