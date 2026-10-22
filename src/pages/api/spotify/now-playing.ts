@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { waitUntil } from "cloudflare:workers";
+import { nowPlayingCache } from "@/lib/now-playing-cache";
 import { getLastPlayed, getNowPlaying, getRecentTracks } from "@/lib/spotify";
 
 export const prerender = false;
@@ -51,10 +52,7 @@ async function fromCache(hit: Response): Promise<Response> {
 
 export const GET: APIRoute = async ({ request }) => {
   // Keyed on the path alone — the response is the same for every visitor.
-  const cacheKey = new Request(
-    `${new URL(request.url).origin}/api/spotify/now-playing`,
-  );
-  const cache = await caches.open("now-playing");
+  const { cache, key: cacheKey } = await nowPlayingCache(new URL(request.url).origin);
 
   const hit = await cache.match(cacheKey);
   if (hit) return fromCache(hit);

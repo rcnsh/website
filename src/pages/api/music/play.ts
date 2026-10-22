@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro";
-import { env } from "cloudflare:workers";
+import { env, waitUntil } from "cloudflare:workers";
 import { getSession, isOwner } from "@/lib/auth";
 import { forbidden, sameOrigin } from "@/lib/csrf";
+import { nowPlayingCache } from "@/lib/now-playing-cache";
 import { isTrackId } from "@/lib/track-play";
 import { deadline } from "@/lib/upstream";
 
@@ -45,6 +46,14 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
     });
   } catch {
     return json({ error: "music-warehouse unreachable" }, 502);
+  }
+  if (response.ok) {
+    // Ours still names the old track for up to 10s. Dropped again after the
+    // warehouse has refetched (PLAY_SETTLE_MS there), in case a poll in
+    // between cached what Spotify had not yet caught up on.
+    const { cache, key } = await nowPlayingCache(url.origin);
+    await cache.delete(key);
+    waitUntil(new Promise((resolve) => setTimeout(resolve, 3_000)).then(() => cache.delete(key)));
   }
   return json(await response.json().catch(() => ({})), response.status);
 };

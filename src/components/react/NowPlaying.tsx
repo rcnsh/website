@@ -16,6 +16,9 @@ type Payload =
 // directly below.
 const POLL_MS = 30_000;
 
+/** After a play from the site: past the server's own re-fetch of Spotify (/api/music/play). */
+const PLAYED_REFRESH_MS = 3_500;
+
 // A poll must not outlive its own interval, or requests stack.
 const REQUEST_TIMEOUT_MS = 8_000;
 
@@ -136,12 +139,22 @@ export default function NowPlaying({
     };
     document.addEventListener("visibilitychange", onVisible);
 
+    // The owner started a track from the site (PlayOnSpotify). Asked once the
+    // server has fetched Spotify's new answer, not sooner, or the poll would
+    // only get the old track back.
+    const onPlayed = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(restart, PLAYED_REFRESH_MS);
+    };
+    document.addEventListener("music:played", onPlayed);
+
     return () => {
       alive = false;
       refreshRef.current = null;
       inFlight?.abort();
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener("music:played", onPlayed);
     };
   }, [live]);
 
