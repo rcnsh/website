@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Artist, TimeRange, Track } from "@/lib/spotify";
 import { cn, formatDuration } from "@/lib/utils";
+import { PlayButton } from "./PlayButton";
 
 const RANGES: { id: TimeRange; label: string }[] = [
   { id: "short_term", label: "4 weeks" },
@@ -150,13 +151,7 @@ export default function MusicExplorer({
               disambiguates repeated titles. Switching range replaces the whole
               list, so rows never reorder in place. */}
             {(items as Track[]).map((track, i) => (
-              <li key={`${track.title}-${i}`}>
-                <a
-                  href={track.url ?? "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group flex items-center gap-3.5 py-2.5"
-                >
+              <li key={`${track.title}-${i}`} className="group relative flex items-center gap-3.5 py-2.5">
                   <span className="w-5 shrink-0 font-mono text-[11px] tabular-nums text-ink-faint">
                     {String(i + 1).padStart(2, "0")}
                   </span>
@@ -173,8 +168,16 @@ export default function MusicExplorer({
                     <div className="h-9 w-9 shrink-0 rounded-xs bg-raised" />
                   )}
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[0.9375rem] text-ink transition-colors group-hover:text-brand-alt">
-                      {track.title}
+                    <span className="flex items-center gap-1.5">
+                      <a
+                        href={track.url ?? "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="truncate text-[0.9375rem] text-ink transition-colors after:absolute after:inset-0 group-hover:text-brand-alt"
+                      >
+                        {track.title}
+                      </a>
+                      <PlayButton url={track.url} title={track.title} />
                     </span>
                     <span className="mt-px block truncate text-[12.5px] text-ink-dim">
                       {track.artists}
@@ -185,7 +188,6 @@ export default function MusicExplorer({
                       {formatDuration(track.durationMs)}
                     </span>
                   )}
-                </a>
               </li>
             ))}
             {/* biome-ignore-end lint/suspicious/noArrayIndexKey: see above */}

@@ -210,7 +210,7 @@ the way out, since the cookie comes back from the browser. Loosening it turns
 ### Owner playback
 
 **Track links stay links for everyone; the owner also gets a play button.**
-`PlayButton` (and its twin in `NowPlaying`) is rendered for every visitor,
+`PlayButton` (`.astro`, and `.tsx` for React lists) is rendered for every visitor,
 because pages and islands are cached publicly, and hidden by `.play-track` in
 `global.css`. `PlayOnSpotify` (in `Layout`) sets `data-owner` on `<html>` when
 the owner cookie is present, which reveals them, and posts their clicks to
