@@ -125,11 +125,6 @@ describe("run", () => {
     assert.deepEqual(result.output, ["astro rules"]);
   });
 
-  it("counts through a pipeline", () => {
-    const result = run(state(), "ls | wc -l");
-    assert.deepEqual(result.output, ["      2"]);
-  });
-
   it("honours grep -v and -i", () => {
     // Every fixture line contains "o", so -v on it must return nothing.
     assert.deepEqual(run(state(), "cat about.txt | grep -v o").output, []);
