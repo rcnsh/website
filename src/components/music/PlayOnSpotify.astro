@@ -1,0 +1,25 @@
+<script>
+  import { hasOwnerCookie } from "@/lib/owner-hint";
+  import { isPlainClick, trackIdFromHref } from "@/lib/track-play";
+
+  // Track links stay links for everyone; for the owner a plain click starts
+  // the song on whatever Spotify is playing on, and opens the link only if
+  // that fails. Delegated, so islands and live widgets are covered too.
+  if (hasOwnerCookie(document.cookie)) {
+    document.addEventListener("click", async (event) => {
+      if (!isPlainClick(event)) return;
+      const link = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]");
+      const trackId = link && trackIdFromHref(link.href);
+      if (!trackId) return;
+      event.preventDefault();
+
+      const response = await fetch("/api/music/play", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ track_id: trackId }),
+      }).catch(() => null);
+      // Safari refuses a window opened this long after the click.
+      if (!response?.ok && !window.open(link.href, "_blank", "noopener")) location.assign(link.href);
+    });
+  }
+</script>
