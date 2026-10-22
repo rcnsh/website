@@ -248,7 +248,11 @@ const playRowSchema = z.object({
   first_play: z.boolean().nullish(),
   // The album, artist or playlist it was started from, when known.
   context_name: z.string().nullish(),
+  context_type: z.string().nullish(),
 });
+
+/** Context types whose name the site shows as "from …". */
+const PUBLIC_CONTEXTS = new Set(["album", "artist"]);
 
 export type Credit = { id: string | null; name: string; url: string | null };
 
@@ -264,8 +268,9 @@ export type StoredPlay = RecentTrack & {
 export async function getRecentTracks(limit = 20): Promise<StoredPlay[]> {
   return cached(
     // Versioned: a value cached before credits were read lacks them, and
-    // stale-while-revalidate would serve it to code that expects them.
-    `warehouse:recent:v2:${limit}`,
+    // stale-while-revalidate would serve it to code that expects them. v3
+    // drops the playlist names v2 cached.
+    `warehouse:recent:v3:${limit}`,
     60 * 5,
     async () => {
       const parsed = z
@@ -294,7 +299,9 @@ export async function getRecentTracks(limit = 20): Promise<StoredPlay[]> {
         })),
         playNumber: row.play_number ?? null,
         firstPlay: row.first_play ?? false,
-        context: row.context_name ?? null,
+        // Albums and artists only: playlist names stay private, and autoplay
+        // after a playlist ends is still reported as that playlist.
+        context: PUBLIC_CONTEXTS.has(row.context_type ?? "") ? (row.context_name ?? null) : null,
       }));
     },
     // Every row renders as "played 3 hours ago", so week-old stale reads as broken.
