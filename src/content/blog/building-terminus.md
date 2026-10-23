@@ -5,9 +5,9 @@ pubDate: 2026-10-10
 updatedDate: 2026-10-15
 ---
 
-I'm on exchange at NUS this year, and getting to lectures without arriving soaked in sweat means taking the internal shuttle buses. There are decent trackers for them already (bar the official uNivUS app), but the trouble is that a question that should take three seconds (which bus, from where, and when do I leave?) takes about six taps: open the app, find the stop, pick the right side of the road, read the table, then work out which service goes where you're going.
+I'm on exchange at NUS this year, and getting to lectures on time means taking the internal shuttle buses. There are decent trackers for them already (bar the official uNivUS app), but the trouble is that a question that should take three seconds (which bus, from where, and when do I leave?) takes about six taps: open the app, find the stop, pick the right side of the road, read the table, then work out which service goes where you're going.
 
-[terminus](https://terminus.run) answers that question for you. It reads your [NUSMods](https://nusmods.com) timetable, the live shuttle feed, the NUS academic calendar and the campus footpaths, then tells you which bus to catch, from which stop, and when to set off. If walking would get you there sooner, it says that too.
+So thats why I built [terminus](https://terminus.run). It reads your [NUSMods](https://nusmods.com) timetable, the live shuttle feed, the NUS academic calendar and the campus footpaths, then tells you which bus to catch, from which stop, and when to set off. If walking would get you there sooner, it says that too.
 
 ## One answer, four screens
 
