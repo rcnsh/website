@@ -10,6 +10,23 @@ export type NowLine =
   | { state: "repeat"; title: string; artists: string | null }
   | { state: "none" };
 
+/**
+ * What /now.svg stores: the live track with when it ends, and the line to fall
+ * back to. A stale snapshot is served without waiting, so `endsAt` is what
+ * keeps an old one from claiming a finished song is still playing.
+ */
+export type NowSnapshot = {
+  live: { title: string; artists: string; endsAt: number } | null;
+  fallback: NowLine;
+};
+
+export function pickLine(snapshot: NowSnapshot, now: number): NowLine {
+  const { live, fallback } = snapshot;
+  return live && now < live.endsAt
+    ? { state: "playing", title: live.title, artists: live.artists }
+    : fallback;
+}
+
 // GitHub's own text colours, so the line reads as part of the README.
 const COLOURS: Record<Theme, { fg: string; muted: string }> = {
   light: { fg: "#1f2328", muted: "#59636e" },

@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { renderNowCard } from "./now-card.ts";
+import { pickLine, renderNowCard } from "./now-card.ts";
 
 describe("now card", () => {
   test("a live track gets the pulsing dot", () => {
@@ -26,5 +26,14 @@ describe("now card", () => {
     const svg = renderNowCard({ state: "playing", title: "a".repeat(200), artists: "b" }, "light");
     assert.doesNotMatch(svg, /a{60}/);
     assert.match(svg, /…/);
+  });
+
+  test("a stored live track is shown only until it would have ended", () => {
+    const snapshot = {
+      live: { title: "Alright", artists: "Kendrick Lamar", endsAt: 1_000 },
+      fallback: { state: "repeat" as const, title: "DNA.", artists: "Kendrick Lamar" },
+    };
+    assert.equal(pickLine(snapshot, 999).state, "playing");
+    assert.deepEqual(pickLine(snapshot, 1_000), snapshot.fallback);
   });
 });
