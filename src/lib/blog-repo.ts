@@ -3,8 +3,8 @@ import { deadline } from "./upstream";
 
 /**
  * Posts read and written straight on the repository's default branch, through
- * the Contents API. A commit there is what publishes: .github/workflows/deploy.yml
- * builds and deploys on any push under src/content/blog.
+ * the Contents API. A commit there is what publishes: Workers Builds deploys
+ * every push to main.
  */
 
 const REPO = "rcnsh/website";

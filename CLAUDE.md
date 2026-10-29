@@ -189,9 +189,8 @@ through the GitHub Contents API (`src/lib/blog-repo.ts`) with the
 `BLOG_REPO_TOKEN` secret, a fine-grained PAT that should hold Contents: write on
 this repo and nothing else. The owner check (`isOwner`) is the only thing
 gating who can use it, so it must stay on both the page and
-`/api/blog/post`. Posts go live through `.github/workflows/deploy.yml`, which
-deploys on pushes under `src/content/blog/` only. It deploys whatever is on
-`main` at the time, so unfinished work on `main` ships with the next post.
+`/api/blog/post`. Posts go live through Workers Builds, which deploys every
+push to `main`, so a saved post ships whatever else is on `main` with it.
 
 **The frontmatter schema lives in `src/lib/post-source.ts`**, shared by
 `content.config.ts` and the editor, so the editor refuses what the build
