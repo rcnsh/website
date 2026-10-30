@@ -83,8 +83,8 @@ that file exports.
 ### Caching
 
 **Server islands must stay non-personalised.** `src/middleware.ts` gives
-everything under `/_server-islands/*` a public `Cache-Control` as a class,
-because every island today renders public data. Add one that reads the session
+everything under `/_server-islands/*` the public `serverIslands` policy as a
+class, because every island today renders public data. Add one that reads the session
 and the edge will serve one reader's fragment to another. Nothing enforces
 this.
 
@@ -93,6 +93,34 @@ differently for the signer, and Cloudflare's default cache key ignores cookies
 — an anonymous copy at the edge would be served to signed-in readers, showing a
 sign-in prompt to someone holding a valid session. Fixing that properly needs a
 cookie-varying cache key, which is zone config, not code.
+
+**Every `Cache-Control` is a named policy; never type one in a route.** The
+builders (`publicFor`, `noStore`, `uncachedError`, `privateNoStore`,
+`serverIslands`, `staticAssets`) are in `shared/cache-policy.ts`, so the
+`_headers` generator can use them. Each public route's policy is in the
+`policies` table in `src/lib/http.ts`, which `http.test.ts` pins string by
+string. Where a route sits in front of a KV window its max-age is derived
+from the loader's constant (`FRESH_SECONDS` in `guestbook-cache.ts`,
+`TOP_FRESHNESS` in `spotify-reads.ts`, `CACHE_SECONDS` in `now-playing.ts`),
+so the two layers cannot drift. `/api/spotify/top` follows its range's
+freshness: 1h, 6h or 24h.
+
+**Edge copies go through `src/lib/edge-cache.ts`** (`edgeCached`,
+`invalidateEdge`; bound to the Worker in `edge.ts`). Cloudflare does not
+CDN-cache a Worker's responses on `cache-control` alone, so the routes that
+need it (files search, guestbook list, now-playing) keep one copy per colo in
+the Cache API. It rebuilds a hit, because a cached Response's headers are
+immutable and the middleware writes to them, and never stores a rejection or
+a non-2xx. Keep cache names and key URLs stable: changing either orphans every
+copy until it expires. The Cache API is per colo, so `invalidateEdge` clears
+only the colo the write ran in; elsewhere a copy lives out its max-age.
+
+**A guestbook write drops both layers.** `invalidate(origin, removed?)` in
+`src/lib/guestbook.ts` clears page 1 and the totals in KV, and this colo's
+edge copy of page 1 and of the deep page a deleted entry sat on (found with
+one count in D1). Later pages need nothing: their cursors move with the rows,
+so their keys change. Other colos can show a deleted entry for up to
+`FRESH_SECONDS`.
 
 **Server-island props are encrypted into the `?e=` query parameter**, so they
 are part of the cache key. Passing volatile data in makes the island URL change

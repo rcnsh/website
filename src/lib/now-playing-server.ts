@@ -4,7 +4,7 @@ import { getLastPlayed, getNowPlaying, getRecentTracks } from "./spotify";
 
 /** The now-playing freshness logic bound to the colo cache and the warehouse. */
 export const nowPlaying = createNowPlaying({
-  cache: () => caches.open("now-playing"),
+  cache: (name) => caches.open(name),
   reads: {
     live: getNowPlaying,
     lastPlayed: getLastPlayed,

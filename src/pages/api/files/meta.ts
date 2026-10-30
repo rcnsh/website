@@ -1,18 +1,12 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
+import { json, policies, uncachedError } from "@/lib/http";
 import { cachedMediaMeta, cachedThumbs, uploadedSeconds } from "@/lib/media";
 import { bucket } from "@/lib/bucket";
 import { requireOwner } from "@/lib/owner";
 import { NO_THUMBS, type ThumbSet } from "@/lib/thumbs";
 
 export const prerender = false;
-
-function json(body: unknown, status = 200, cache = "public, max-age=60"): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json", "cache-control": cache },
-  });
-}
 
 /**
  * Container, tracks and tags for one object, demuxed on the Worker from ranged
@@ -26,22 +20,22 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   if (!decision.ok) {
     switch (decision.refusal) {
       case "bad-request":
-        return json({ error: "Bad request" }, 400, "no-store");
+        return json({ error: "Bad request" }, { status: 400, policy: uncachedError });
       case "not-found":
-        return json({ error: "Not found" }, 404, "no-store");
+        return json({ error: "Not found" }, { status: 404, policy: uncachedError });
       case "unavailable":
         console.error("[files] meta failed", url.searchParams.get("key"), decision.error);
-        return json({ error: "Metadata unavailable" }, 502, "no-store");
+        return json({ error: "Metadata unavailable" }, { status: 502, policy: uncachedError });
     }
   }
   const { key } = decision;
 
   const r2 = env.BUCKET;
-  if (!r2) return json({ error: "Bucket not configured" }, 503, "no-store");
+  if (!r2) return json({ error: "Bucket not configured" }, { status: 503, policy: uncachedError });
 
   try {
     const object = await r2.head(key);
-    if (!object) return json({ error: "Not found" }, 404, "no-store");
+    if (!object) return json({ error: "Not found" }, { status: 404, policy: uncachedError });
 
     const meta = await cachedMediaMeta(r2, key, object);
 
@@ -54,9 +48,9 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
       });
     }
 
-    return json({ ...meta, size: object.size, uploaded: uploadedSeconds(object), thumbs });
+    return json({ ...meta, size: object.size, uploaded: uploadedSeconds(object), thumbs }, { policy: policies.files });
   } catch (error) {
     console.error("[files] meta failed", key, error);
-    return json({ error: "Metadata unavailable" }, 502, "no-store");
+    return json({ error: "Metadata unavailable" }, { status: 502, policy: uncachedError });
   }
 };

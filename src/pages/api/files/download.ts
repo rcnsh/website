@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { bucket } from "@/lib/bucket";
+import { policies, privateNoStore } from "@/lib/http";
 import { requireOwner } from "@/lib/owner";
 import { publicBucketBase } from "@/lib/r2";
 
@@ -73,7 +74,7 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set("etag", object.httpEtag);
-  headers.set("cache-control", isPrivate ? "private, no-store" : "public, max-age=3600");
+  headers.set("cache-control", isPrivate ? privateNoStore : policies.download);
   headers.set("accept-ranges", "bytes");
 
   // An opaque origin regardless of type, so a rendered document cannot reach

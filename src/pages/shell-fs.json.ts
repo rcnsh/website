@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { json, policies } from "@/lib/http";
 import { buildFs } from "@/lib/shell-fs";
 
 /**
@@ -8,9 +9,4 @@ import { buildFs } from "@/lib/shell-fs";
 export const prerender = true;
 
 export const GET: APIRoute = async () =>
-  new Response(JSON.stringify(await buildFs()), {
-    headers: {
-      "Content-Type": "application/json",
-      "Cache-Control": "public, max-age=3600",
-    },
-  });
+  json(await buildFs(), { policy: policies.shellFs });

@@ -1,6 +1,8 @@
 import type { AstroCookies } from "astro";
 import type { SessionUser } from "./auth";
+import { noStore, privateNoStore } from "../../shared/cache-policy.ts";
 import { forbidden, sameOrigin } from "./csrf.ts";
+import { json } from "./http.ts";
 import { writeOwnerHint } from "./owner-hint.ts";
 
 export type Viewer = { session: SessionUser | null; owner: boolean };
@@ -30,14 +32,7 @@ export type OwnerContext = {
 
 /** For the middleware: an owner's response is nobody else's to cache. */
 export function ownerCacheControl(locals: OwnerLocals): string | null {
-  return locals.owner ? "private, no-store" : null;
-}
-
-function json(body: unknown, status: number, cache: string): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json", "cache-control": cache },
-  });
+  return locals.owner ? privateNoStore : null;
 }
 
 /** The session lookup is injected so the decisions can be tested off the Worker. */
@@ -58,9 +53,9 @@ export function ownerGuard(lookup: (cookies: AstroCookies) => Promise<Viewer>) {
       case "not-found":
         return new Response("Not found", { status: 404 });
       case "not-found-json":
-        return json({ error: "Not found" }, 404, "no-store");
+        return json({ error: "Not found" }, { status: 404, policy: noStore });
       case "visitor":
-        return json({ owner: false }, 200, "private, no-store");
+        return json({ owner: false }, { policy: privateNoStore });
     }
   }
 

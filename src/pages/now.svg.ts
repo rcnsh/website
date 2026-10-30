@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { z } from "zod";
 import { cached } from "@/lib/cache";
+import { policies } from "@/lib/http";
 import { pickLine, renderNowCard, type NowLine, type NowSnapshot, type Theme } from "@/lib/now-card";
 import { clock } from "@/lib/site";
 import { getNowPlaying } from "@/lib/spotify";
@@ -66,7 +67,7 @@ export const GET: APIRoute = async ({ url }) => {
   return new Response(renderNowCard(line, theme), {
     headers: {
       "content-type": "image/svg+xml; charset=utf-8",
-      "cache-control": "public, max-age=30, stale-while-revalidate=60",
+      "cache-control": policies.nowSvg,
     },
   });
 };

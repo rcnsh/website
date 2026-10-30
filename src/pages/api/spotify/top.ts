@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { json, policies } from "@/lib/http";
 import { getTop, type TimeRange } from "@/lib/spotify";
 
 export const prerender = false;
@@ -13,18 +14,9 @@ export const GET: APIRoute = async ({ url }) => {
   try {
     const { tracks, artists } = await getTop(range, 12);
 
-    return new Response(JSON.stringify({ range, tracks, artists }), {
-      headers: {
-        "content-type": "application/json",
-        // Matches the KV TTL in lib/spotify.
-        "cache-control": "public, max-age=900",
-      },
-    });
+    return json({ range, tracks, artists }, { policy: policies.top(range) });
   } catch (error) {
     console.error("[music] top failed", error);
-    return new Response(
-      JSON.stringify({ range, tracks: [], artists: [], error: true }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    );
+    return json({ range, tracks: [], artists: [], error: true });
   }
 };
