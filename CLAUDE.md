@@ -111,6 +111,13 @@ holds. A loader that swallows its own error returns a value that looks like
 success, gets written to KV, and replaces good data for the whole freshness
 window.
 
+**`cached()` and `invalidate()` are the only way into the CACHE namespace.**
+`src/lib/cache.ts` binds them to KV; the logic is `createCache` in
+`src/lib/swr.ts`, which takes the store, clock and `waitUntil` so its tests run
+under `node --test`. Drop an entry with `invalidate(key)` rather than
+`env.CACHE.delete`, so each key format lives only beside the loader that writes
+it.
+
 **Every outbound `fetch` needs `deadline()`** from `src/lib/upstream.ts`.
 `fetch` has no timeout of its own.
 
