@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createHandler, type Env } from "./index.ts";
+import { createHandler, type Env } from "./handler.ts";
 
 const ROWS = [
   { prefix: "", visibility: "unlisted" },

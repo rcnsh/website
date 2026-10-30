@@ -24,7 +24,7 @@ export type Cache = <T>(
   options?: { maxStaleSeconds?: number },
 ) => Promise<T>;
 
-export type CachePolicy = {
+export type ReadCache = {
   /** Namespaced under `warehouse:` by the client. */
   key: string;
   freshForSeconds: number;
@@ -38,7 +38,7 @@ export type CachePolicy = {
 export type Read<T> = {
   path: string;
   schema: z.ZodType<T>;
-  cache?: CachePolicy;
+  cache?: ReadCache;
 };
 
 export class WarehouseNotConfigured extends Error {

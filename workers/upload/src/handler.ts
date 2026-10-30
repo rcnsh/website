@@ -5,6 +5,7 @@ import {
   parseOrigins,
   unsatisfiable,
 } from "../../../shared/bucket-http.ts";
+import { uncachedError } from "../../../shared/cache-policy.ts";
 import { decideRead, type RuleRow, rulesLoader } from "../../../shared/visibility.ts";
 
 /**
@@ -76,7 +77,7 @@ export function createHandler() {
       // Nobody is the owner here: a private file goes through the site's download route.
       const decision = await decideRead(key, rules.load, async () => false);
       if (!decision.ok) {
-        headers.set("cache-control", "no-store");
+        headers.set("cache-control", uncachedError);
         if (decision.refusal !== "unavailable") return text("Not found", 404, headers);
         console.error("[upload] rules unavailable", decision.error);
         return text("Unavailable", 503, headers);
@@ -127,5 +128,3 @@ export function createHandler() {
     },
   } satisfies ExportedHandler<Env>;
 }
-
-export default createHandler();

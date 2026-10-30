@@ -2,7 +2,7 @@ import type { AstroCookies } from "astro";
 import type { SessionUser } from "./auth";
 import { noStore, privateNoStore } from "../../shared/cache-policy.ts";
 import { forbidden, sameOrigin } from "./csrf.ts";
-import { json } from "./http.ts";
+import { json } from "./json.ts";
 import { writeOwnerHint } from "./owner-hint.ts";
 
 export type Viewer = { session: SessionUser | null; owner: boolean };
