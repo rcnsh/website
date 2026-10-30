@@ -118,6 +118,16 @@ window.
 rejected promise replays one upstream failure to every later caller for the
 isolate's lifetime.
 
+**Every music-warehouse call goes through `warehouse` (`src/lib/warehouse.ts`).**
+`read()` throws on a failed response or a schema mismatch, applies
+`deadline()`, and namespaces cache keys under `warehouse:`. A read's cached
+value is its schema's *output*, transforms included, so changing what a
+schema transforms to means bumping its key (`recent:v3`), or stale entries
+in the old shape reach new code. The read definitions live in
+`src/lib/spotify-reads.ts`, free of `cloudflare:workers`, so tests drive them
+through `createWarehouse` with a fake `fetch`. `getNowPlaying()` throws on a
+bad shape too; the now-playing route alone turns that into "not playing".
+
 **Do not renumber `migrations/0002`.** `d1_migrations` records applied
 migrations by *name*, so its body was rewritten in place to be replay-safe
 while staying skipped everywhere it has already run. Renumbering would re-run
@@ -213,12 +223,14 @@ the way out, since the cookie comes back from the browser. Loosening it turns
 because pages and islands are cached publicly, and hidden by `.play-track` in
 `global.css`. `PlayOnSpotify` (in `Layout`) sets `data-owner` on `<html>` when
 the owner cookie is present, which reveals them, and posts their clicks to
-`/api/music/play`. That route checks `isOwner` and calls the warehouse's
-`/control/play` with `MUSIC_WAREHOUSE_CONTROL_TOKEN`, a token that can start
-playback and nothing else; never use it for reads, and never give the read
-token control. The button sits beside the title, never inside a link: rows
-use a stretched link (`after:absolute after:inset-0`) so the button can be a
-sibling.
+`/api/music/play`. That route checks `isOwner` and calls `warehouse.play()`,
+which sends `MUSIC_WAREHOUSE_CONTROL_TOKEN` to the warehouse's
+`/control/play`, a token that can start playback and nothing else; never use
+it for reads, and never give the read token control. Both tokens are read only
+in `src/lib/warehouse-client.ts`, where `read` sends the read token and `play`
+the control token, so keep any new warehouse call inside that client. The
+button sits beside the title, never inside a link: rows use a stretched link
+(`after:absolute after:inset-0`) so the button can be a sibling.
 
 ### Gotchas that cost time
 

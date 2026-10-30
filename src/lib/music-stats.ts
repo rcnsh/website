@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { cached } from "./cache";
-import { warehouse } from "./spotify";
+import { warehouse } from "./warehouse";
 
 /**
  * Aggregate listening stats for /music/stats, from the warehouse's
@@ -168,25 +167,8 @@ export type TopAlbums = z.infer<typeof albumsSchema>;
 export type TopOverTime = z.infer<typeof topSchema>;
 export type Eras = z.infer<typeof erasSchema>;
 
-async function load<T>(
-  name: string,
-  schema: z.ZodType<T>,
-  freshForSeconds: number,
-  maxStaleSeconds: number,
-): Promise<T> {
-  return cached(
-    `warehouse:stats:${name}`,
-    freshForSeconds,
-    async () => {
-      const parsed = schema.safeParse(await warehouse(`/api/stats/${name}`));
-      if (!parsed.success) {
-        throw new Error(`warehouse /api/stats/${name} returned an unexpected shape: ${parsed.error.message}`);
-      }
-      return parsed.data;
-    },
-    { maxStaleSeconds },
-  );
-}
+const load = <T>(name: string, schema: z.ZodType<T>, freshForSeconds: number, maxStaleSeconds: number) =>
+  warehouse.read({ path: `/api/stats/${name}`, schema, cache: { key: `stats:${name}`, freshForSeconds, maxStaleSeconds } });
 
 const HOUR = 60 * 60;
 const DAY = 24 * HOUR;
