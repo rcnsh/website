@@ -330,12 +330,13 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   // A folder's preview lists its children, which may be a fetch, so it waits
   // until the selection settles.
   const peek = selected?.dir ? selected.key : null;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the folder
+  // The owner upgrade drops lazy listings, so a folder already selected must load again.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the folder and the viewer
   useEffect(() => {
     if (!peek || files.listing(peek)) return;
     const timer = setTimeout(() => void source.load(peek), PEEK_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [peek]);
+  }, [peek, files.owner]);
 
   /* ---- Keys ---- */
 

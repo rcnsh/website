@@ -163,14 +163,12 @@ describe("the hold settles, once, whatever the answer", () => {
     });
   }
 
-  test("after unmount too", async () => {
-    const { fetch } = fakeFetch({ "/api/files/visibility": () => json({ owner: false }) });
+  test("however often it is asked, as a remount does", async () => {
+    const { fetch, calls } = fakeFetch({ "/api/files/visibility": () => json({ owner: false }) });
     const { files, settled } = source({ fetch, tree: VISITOR_TREE });
-    const check = files.checkAccess();
-    files.dispose();
-    await check;
+    await Promise.all([files.checkAccess(), files.checkAccess()]);
     assert.deepEqual(settled, [false]);
-    assert.equal(files.getSnapshot().accessChecked, false);
+    assert.equal(calls.length, 1);
   });
 });
 

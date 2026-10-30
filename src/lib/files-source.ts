@@ -47,7 +47,6 @@ export type FilesSource = {
   /** Owner only. Throws when the change was not saved. */
   setVisibility(prefix: string, visibility: Visibility | null): Promise<void>;
   /** Stops state updates; the access check still settles. */
-  dispose(): void;
 };
 
 export type FilesSourceOptions = {
@@ -116,7 +115,6 @@ export function createFilesSource(options: FilesSourceOptions): FilesSource {
   // Bumped when the owner's view replaces the visitors', so a folder fetched
   // for the visitor and landing after the swap is dropped.
   let generation = 0;
-  let disposed = false;
   let access: Promise<void> | null = null;
   const listeners = new Set<() => void>();
 
@@ -153,7 +151,6 @@ export function createFilesSource(options: FilesSourceOptions): FilesSource {
   let view = viewOf(state);
 
   const update = (change: (s: State) => Partial<State>) => {
-    if (disposed) return;
     state = { ...state, ...change(state) };
     view = viewOf(state);
     for (const listener of listeners) listener();
@@ -251,8 +248,5 @@ export function createFilesSource(options: FilesSourceOptions): FilesSource {
     search,
     checkAccess,
     setVisibility,
-    dispose() {
-      disposed = true;
-    },
   };
 }
