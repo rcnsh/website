@@ -1,9 +1,7 @@
 import type { APIRoute } from "astro";
 import { waitUntil } from "cloudflare:workers";
+import { bucket } from "@/lib/bucket";
 import { identify } from "@/lib/owner";
-import { searchBucket } from "@/lib/r2";
-import { loadRules } from "@/lib/visibility";
-import { rulesVersion, visibilityOf } from "../../../../shared/visibility.ts";
 
 export const prerender = false;
 
@@ -38,10 +36,8 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
 
   try {
     if ((await identify({ cookies, locals })).owner) {
-      return json({ query, files: await searchBucket(query, 100) }, "private, no-store");
+      return json({ query, files: await bucket.view(true).search(query) }, "private, no-store");
     }
-
-    const rules = await loadRules();
 
     // Keyed on the normalised query, so `?q=x&`, `?q=X` and a stray second
     // parameter share one entry rather than minting three. The rules' version
@@ -50,7 +46,7 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
     const cacheKey = new Request(
       `${new URL(request.url).origin}/api/files/search?q=${encodeURIComponent(
         query.toLowerCase(),
-      )}&v=${rulesVersion(rules)}`,
+      )}&v=${await bucket.version()}`,
     );
     const cache = await caches.open("files-search");
 
@@ -63,7 +59,7 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
       return copy;
     }
 
-    const files = await searchBucket(query, 100, (key) => visibilityOf(rules, key) === "listed");
+    const files = await bucket.view(false).search(query);
     const response = json({ query, files }, `public, max-age=${CACHE_SECONDS}`);
 
     // Stored without `vary`, which is for the browser: the edge cache is

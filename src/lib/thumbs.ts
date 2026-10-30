@@ -1,24 +1,11 @@
-// Bucket key rules and the `.thumbs/` layout, shared by the Worker routes and
-// the browser. Dependency-free so `node --test` can load it.
+// The `.thumbs/` layout, shared by the Worker routes and the browser.
+// Dependency-free so `node --test` can load it.
 
-/** Dot-prefixed entries stay hidden, the same way `ls` hides them. */
-export function isHidden(name: string): boolean {
-  return name.startsWith(".");
-}
-
-/**
- * Hidden anywhere along the path, so `.thumbs/x.png` counts. /api/files/download
- * applies it too, so a hidden key cannot be requested by name.
- */
-export function isHiddenKey(key: string): boolean {
-  return key.split("/").some(isHidden);
-}
-
-export const THUMBS_PREFIX = ".thumbs/";
+import { isHiddenKey, objectKey, THUMBS_PREFIX } from "../../shared/bucket-keys.ts";
 
 /**
  * The public URL for a key: on the bucket's own domain when it has one,
- * otherwise through /api/files/download, which refuses hidden keys.
+ * otherwise through /api/files/download.
  */
 export function publicUrl(base: string, key: string): string {
   const encoded = key.split("/").map(encodeURIComponent).join("/");
@@ -34,16 +21,17 @@ export function publicUrl(base: string, key: string): string {
 const MAX_SOURCE_KEY_BYTES = 1024 - THUMBS_PREFIX.length - ".strip.webp".length - 8;
 
 /**
- * A key that names a visible object and nothing else: no traversal, no empty
- * or hidden segments, no leading slash, no control characters.
+ * A key that names a visible object and nothing else: stricter than
+ * `objectKey`, adding no empty or hidden segments, no leading slash, no
+ * control characters, and room for the thumb suffix.
  */
 export function isVisibleKey(key: string): boolean {
-  if (!key || key.startsWith("/") || key.endsWith("/")) return false;
+  if (objectKey(key) === null || key.startsWith("/")) return false;
   if (new TextEncoder().encode(key).byteLength > MAX_SOURCE_KEY_BYTES) return false;
   // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting them is the point
   if (/[\u0000-\u001f\u007f]/.test(key)) return false;
   const segments = key.split("/");
-  if (segments.some((s) => s === "" || s === "." || s === "..")) return false;
+  if (segments.some((s) => s === "" || s === ".")) return false;
   return !isHiddenKey(key);
 }
 

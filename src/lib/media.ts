@@ -9,11 +9,11 @@ import {
 import {
   SOURCE_UPLOADED_FIELD,
   THUMB_KINDS,
-  THUMBS_PREFIX,
   thumbSet,
   type ThumbKind,
   type ThumbSet,
 } from "@/lib/thumbs";
+import { THUMBS_PREFIX } from "../../shared/bucket-keys.ts";
 
 /**
  * KV-backed lookups for /files previews. Metadata is keyed on the object key

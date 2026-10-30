@@ -1,6 +1,8 @@
 // HTTP details of serving the bucket on its own domain (workers/upload),
 // matching what R2's public custom domain did before the Worker replaced it.
 
+import { objectKey } from "./bucket-keys.ts";
+
 /** The object key a request path names, or null when it names none. */
 export function keyFromPath(pathname: string): string | null {
   let key: string;
@@ -9,8 +11,7 @@ export function keyFromPath(pathname: string): string | null {
   } catch {
     return null;
   }
-  if (!key || key.endsWith("/") || key.split("/").includes("..")) return null;
-  return key;
+  return objectKey(key);
 }
 
 /** Comma-separated config, as a wrangler var can hold it. */

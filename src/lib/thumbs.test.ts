@@ -1,7 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
-  isHiddenKey,
   publicUrl,
   isThumbKind,
   isVisibleKey,
@@ -59,8 +58,6 @@ describe("thumbs route key validation", () => {
   test("dots inside a name are fine; only a leading dot hides", () => {
     assert.ok(isVisibleKey("v1.2/clip.final.mp4"));
     assert.ok(isVisibleKey("music/Artist - Song (Live).flac"));
-    assert.ok(isHiddenKey(".thumbs/x.png"));
-    assert.ok(!isHiddenKey("x.thumbs/png"));
   });
 
   test("only the four preview files are kinds", () => {

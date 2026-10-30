@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro";
+import { bucket } from "@/lib/bucket";
 import { requireOwner } from "@/lib/owner";
-import { cachedTree, isHiddenKey, normalisePrefix } from "@/lib/r2";
 import { loadRules, setRule } from "@/lib/visibility";
+import { folderPrefix } from "../../../../shared/bucket-keys.ts";
 import { isVisibility } from "../../../../shared/visibility.ts";
 
 export const prerender = false;
@@ -23,7 +24,7 @@ export const GET: APIRoute = async ({ request, url, cookies, locals }) => {
   if (refused) return refused;
 
   try {
-    const [rules, tree] = await Promise.all([loadRules(), cachedTree()]);
+    const [rules, tree] = await Promise.all([loadRules(), bucket.view(true).tree()]);
     return json({ owner: true, rules, tree });
   } catch (error) {
     console.error("[files] visibility read failed", error);
@@ -50,12 +51,8 @@ export const POST: APIRoute = async ({ request, cookies, url, locals }) => {
   if (typeof raw !== "string") return json({ error: "Missing prefix" }, 400);
   if (visibility !== null && !isVisibility(visibility)) return json({ error: "Bad visibility" }, 400);
 
-  // normalisePrefix maps anything unsafe to "", which here would silently
-  // retarget the root; only an empty request may mean the root.
-  const prefix = normalisePrefix(raw);
-  if ((prefix === "" && raw.replace(/\/+/g, "") !== "") || isHiddenKey(prefix)) {
-    return json({ error: "Bad prefix" }, 400);
-  }
+  const prefix = folderPrefix(raw);
+  if (prefix === null) return json({ error: "Bad prefix" }, 400);
 
   try {
     await setRule(prefix, visibility);

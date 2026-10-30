@@ -1,11 +1,9 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { cachedMediaMeta, cachedThumbs, uploadedSeconds } from "@/lib/media";
+import { bucket } from "@/lib/bucket";
 import { requireOwner } from "@/lib/owner";
-import { isHiddenKey } from "@/lib/r2";
 import { NO_THUMBS, type ThumbSet } from "@/lib/thumbs";
-import { loadRules } from "@/lib/visibility";
-import { visibilityOf } from "../../../../shared/visibility.ts";
 
 export const prerender = false;
 
@@ -22,30 +20,35 @@ function json(body: unknown, status = 200, cache = "public, max-age=60"): Respon
  * a private file's metadata is the owner's alone.
  */
 export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
-  const key = url.searchParams.get("key");
-
   // Refused exactly as /api/files/download refuses them.
-  if (!key || key.includes("..")) return json({ error: "Bad request" }, 400, "no-store");
-  if (isHiddenKey(key)) return json({ error: "Not found" }, 404, "no-store");
+  const owner = async () => !(await requireOwner({ request, cookies, url, locals }, { refuse: "not-found-json" }));
+  const decision = await bucket.view(owner).canRead(url.searchParams.get("key"));
+  if (!decision.ok) {
+    switch (decision.refusal) {
+      case "bad-request":
+        return json({ error: "Bad request" }, 400, "no-store");
+      case "not-found":
+        return json({ error: "Not found" }, 404, "no-store");
+      case "unavailable":
+        console.error("[files] meta failed", url.searchParams.get("key"), decision.error);
+        return json({ error: "Metadata unavailable" }, 502, "no-store");
+    }
+  }
+  const { key } = decision;
 
-  const bucket = env.BUCKET;
-  if (!bucket) return json({ error: "Bucket not configured" }, 503, "no-store");
+  const r2 = env.BUCKET;
+  if (!r2) return json({ error: "Bucket not configured" }, 503, "no-store");
 
   try {
-    if (visibilityOf(await loadRules(), key) === "private") {
-      const refused = await requireOwner({ request, cookies, url, locals }, { refuse: "not-found-json" });
-      if (refused) return refused;
-    }
-
-    const object = await bucket.head(key);
+    const object = await r2.head(key);
     if (!object) return json({ error: "Not found" }, 404, "no-store");
 
-    const meta = await cachedMediaMeta(bucket, key, object);
+    const meta = await cachedMediaMeta(r2, key, object);
 
     // Secondary: a failed thumbs lookup only means the browser draws its own.
     let thumbs: ThumbSet = NO_THUMBS;
     if (meta.supported) {
-      thumbs = await cachedThumbs(bucket, key, uploadedSeconds(object)).catch((error) => {
+      thumbs = await cachedThumbs(r2, key, uploadedSeconds(object)).catch((error) => {
         console.error("[files] thumbs lookup failed", error);
         return NO_THUMBS;
       });
