@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { getSession, isOwner } from "@/lib/auth";
+import { requireOwner } from "@/lib/owner";
 import { isHiddenKey, publicBucketBase } from "@/lib/r2";
 import { loadRules } from "@/lib/visibility";
 import { visibilityOf } from "../../../../shared/visibility.ts";
@@ -36,7 +36,7 @@ function inlineSafe(type: string | undefined): boolean {
  * private file, which upload.rcn.sh refuses, and anyone at all when
  * PUBLIC_BUCKET_URL is unset and there is no bucket domain to link to.
  */
-export const GET: APIRoute = async ({ url, request, cookies }) => {
+export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   const key = url.searchParams.get("key");
 
   if (!key || key.includes("..")) {
@@ -58,7 +58,8 @@ export const GET: APIRoute = async ({ url, request, cookies }) => {
   }
 
   if (isPrivate) {
-    if (!isOwner(await getSession(cookies))) return new Response("Not found", { status: 404 });
+    const refused = await requireOwner({ request, cookies, url, locals }, { refuse: "not-found" });
+    if (refused) return refused;
   } else if (publicBucketBase()) {
     // A public object is linked on the bucket's domain, so this route has no
     // caller for it — and bucket bytes on the site's own origin are worse.

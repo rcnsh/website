@@ -1,7 +1,6 @@
 import type { APIRoute } from "astro";
-import { getSession, isOwner } from "@/lib/auth";
 import { PostConflictError, writePostFile } from "@/lib/blog-repo";
-import { forbidden, sameOrigin } from "@/lib/csrf";
+import { requireOwner } from "@/lib/owner";
 import { isSlug } from "@/lib/post-slug";
 import { postInput, serialisePost } from "@/lib/post-source";
 
@@ -19,9 +18,9 @@ function json(body: unknown, status = 200): Response {
  * file and is refused if it already exists; otherwise `sha` must be the
  * revision the editor loaded.
  */
-export const POST: APIRoute = async ({ request, cookies, url }) => {
-  if (!sameOrigin(request, url.origin)) return forbidden();
-  if (!isOwner(await getSession(cookies))) return forbidden();
+export const POST: APIRoute = async ({ request, cookies, url, locals }) => {
+  const refused = await requireOwner({ request, cookies, url, locals }, { refuse: "forbidden", sameOrigin: true });
+  if (refused) return refused;
 
   let body: unknown;
   try {

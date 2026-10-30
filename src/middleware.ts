@@ -1,6 +1,7 @@
 import { defineMiddleware } from "astro:middleware";
 import { completePolicy, securityHeaders } from "../shared/security.ts";
 import { SESSION_COOKIE } from "@/lib/auth";
+import { ownerCacheControl } from "@/lib/owner-guard";
 import { throttle } from "@/lib/throttle";
 
 /** For anything the Worker renders; public/_headers covers the rest. */
@@ -69,9 +70,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   // A signed-in render is nobody else's to see. The anonymous branch gets no
   // public Cache-Control either — see CLAUDE.md § Maintenance › Caching.
-  const store = personalised(context.cookies)
-    ? "private, no-store"
-    : null;
+  const store =
+    ownerCacheControl(context.locals) ??
+    (personalised(context.cookies) ? "private, no-store" : null);
 
   return finish(response, store);
 });

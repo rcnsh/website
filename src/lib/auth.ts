@@ -3,30 +3,15 @@ import { eq, lt } from "drizzle-orm";
 import { env, waitUntil } from "cloudflare:workers";
 import type { AstroCookies } from "astro";
 import { getDb, schema } from "./db";
+import { COOKIE_PREFIX } from "./cookies";
+import { OWNER_HINT_COOKIE, writeOwnerHint } from "./owner-hint";
+import { deleteSessionCookie, SESSION_COOKIE, writeSessionCookie } from "./session-cookie";
 
-/**
- * Unconditional outside dev, not derived from the request scheme: a first-ever
- * visitor landing on http:// would otherwise get a cookie without `Secure` and
- * send it in the clear. HSTS cannot help that first navigation.
- */
-export const COOKIE_SECURE = !import.meta.env.DEV;
+export { COOKIE_SECURE } from "./cookies";
+export { SESSION_COOKIE } from "./session-cookie";
 
-/**
- * `__Host-` stops any other *.rcn.sh host from setting these for rcn.sh: a
- * planted state cookie would sign a visitor in as the planter. Browsers refuse
- * the prefix without `Secure`, so dev keeps the bare names — and a deletion
- * must carry `secure` too, or it is ignored.
- */
-const COOKIE_PREFIX = COOKIE_SECURE ? "__Host-" : "";
-export const SESSION_COOKIE = `${COOKIE_PREFIX}rcnsh_session`;
 export const OAUTH_STATE_COOKIE = `${COOKIE_PREFIX}rcnsh_oauth_state`;
 export const OAUTH_RETURN_COOKIE = `${COOKIE_PREFIX}rcnsh_oauth_return`;
-/**
- * Readable by the page, and only a hint: it lets /files hold the visitors'
- * view back until the owner's arrives. Nothing is granted on it; every owner
- * check reads the session.
- */
-export const OWNER_HINT_COOKIE = `${COOKIE_PREFIX}rcnsh_owner`;
 
 const USER_AGENT = "rcn.sh";
 
@@ -173,35 +158,7 @@ export async function createSession(
   const db = getDb();
   await db.insert(schema.sessions).values({ id, expiresAt, ...user });
 
-  setSessionCookie(cookies, token, expiresAt);
-  if (isOwner(user)) setOwnerHint(cookies, expiresAt);
-}
-
-export function setOwnerHint(cookies: AstroCookies, expiresAt: Date): void {
-  cookies.set(OWNER_HINT_COOKIE, "1", {
-    path: "/",
-    secure: COOKIE_SECURE,
-    sameSite: "lax",
-    expires: expiresAt,
-  });
-}
-
-export function clearOwnerHint(cookies: AstroCookies): void {
-  cookies.delete(OWNER_HINT_COOKIE, { path: "/", secure: COOKIE_SECURE });
-}
-
-function setSessionCookie(
-  cookies: AstroCookies,
-  token: string,
-  expiresAt: Date,
-): void {
-  cookies.set(SESSION_COOKIE, token, {
-    path: "/",
-    httpOnly: true,
-    secure: COOKIE_SECURE,
-    sameSite: "lax",
-    expires: expiresAt,
-  });
+  writeSessionCookie(cookies, token, expiresAt, isOwner(user));
 }
 
 export async function getSession(
@@ -222,10 +179,11 @@ export async function getSession(
 
   if (row.expiresAt.getTime() <= Date.now()) {
     await db.delete(schema.sessions).where(eq(schema.sessions.id, id));
-    cookies.delete(SESSION_COOKIE, { path: "/", secure: COOKIE_SECURE });
+    deleteSessionCookie(cookies);
     return null;
   }
 
+  const owner = isOwner(row);
   if (row.expiresAt.getTime() - Date.now() < SESSION_REFRESH_MS) {
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
     await db
@@ -234,7 +192,10 @@ export async function getSession(
       .where(eq(schema.sessions.id, id));
 
     // Without this the browser still drops the cookie at its original expiry.
-    setSessionCookie(cookies, token, expiresAt);
+    writeSessionCookie(cookies, token, expiresAt, owner);
+  } else if (owner && !cookies.has(OWNER_HINT_COOKIE)) {
+    // A hint cleared or lost while the session lives comes back on next use.
+    writeOwnerHint(cookies, row.expiresAt);
   }
 
   // Nobody waits on the sweep, and nothing depends on it having run: an
@@ -271,8 +232,7 @@ export async function destroySession(cookies: AstroCookies): Promise<void> {
     const id = await hashToken(token);
     await getDb().delete(schema.sessions).where(eq(schema.sessions.id, id));
   }
-  cookies.delete(SESSION_COOKIE, { path: "/", secure: COOKIE_SECURE });
-  clearOwnerHint(cookies);
+  deleteSessionCookie(cookies);
 }
 
 // --- GitHub profile ---

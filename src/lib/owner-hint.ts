@@ -1,33 +1,29 @@
-/**
- * Prerendered pages cannot know who is reading, and asking the Worker on every
- * view would bill every visitor for the owner's convenience. So /blog/edit
- * leaves this flag behind for the owner, and static pages reveal their edit
- * links from it. Forging it only shows a link to a page that refuses you.
- */
-const KEY = "rcnsh:owner";
+import type { AstroCookies } from "astro";
+import { COOKIE_PREFIX, COOKIE_SECURE } from "./cookies.ts";
 
-/** The sign-in cookie's counterpart: set for the owner's session, readable by scripts. */
-export function hasOwnerCookie(cookie: string): boolean {
-  return /(?:^|;\s*)(?:__Host-)?rcnsh_owner=1(?:;|$)/.test(cookie);
+/**
+ * Readable by scripts, and only a hint: prerendered pages and publicly cached
+ * islands cannot ask who is reading, so they show the owner's controls from
+ * this. Nothing is granted on it; every owner check reads the session. Forging
+ * it only shows controls the server then refuses.
+ */
+export const OWNER_HINT_COOKIE = `${COOKIE_PREFIX}rcnsh_owner`;
+
+/** Server side. Follows the session cookie: the same expiry, or gone. */
+export function writeOwnerHint(cookies: AstroCookies, expiresAt: Date | null): void {
+  if (expiresAt) {
+    cookies.set(OWNER_HINT_COOKIE, "1", { path: "/", secure: COOKIE_SECURE, sameSite: "lax", expires: expiresAt });
+  } else if (cookies.has(OWNER_HINT_COOKIE)) {
+    cookies.delete(OWNER_HINT_COOKIE, { path: "/", secure: COOKIE_SECURE });
+  }
 }
 
-export function setOwnerHint(owner: boolean): void {
-  try {
-    if (owner) localStorage.setItem(KEY, "1");
-    else localStorage.removeItem(KEY);
-  } catch {
-    // Storage disabled; the links stay hidden.
-  }
+export function hasOwnerHint(cookie: string = document.cookie): boolean {
+  return cookie.split(/;\s*/).includes(`${OWNER_HINT_COOKIE}=1`);
 }
 
 export function revealOwnerLinks(): void {
-  let owner = false;
-  try {
-    owner = localStorage.getItem(KEY) === "1";
-  } catch {
-    return;
-  }
-  if (!owner) return;
+  if (!hasOwnerHint()) return;
   for (const link of document.querySelectorAll<HTMLElement>("[data-owner-only]")) {
     link.hidden = false;
   }

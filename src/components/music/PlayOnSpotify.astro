@@ -1,10 +1,10 @@
 <script>
-  import { hasOwnerCookie } from "@/lib/owner-hint";
+  import { hasOwnerHint } from "@/lib/owner-hint";
   import { isTrackId } from "@/lib/track-play";
 
   // Marks the document so the owner's play buttons show (global.css), and
   // plays from any of them, islands and live widgets included.
-  if (hasOwnerCookie(document.cookie)) {
+  if (hasOwnerHint()) {
     document.documentElement.dataset.owner = "";
     document.addEventListener("click", async (event) => {
       const button = (event.target as Element | null)?.closest<HTMLButtonElement>("button[data-play-track]");

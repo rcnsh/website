@@ -1,7 +1,6 @@
 import type { APIRoute } from "astro";
 import { env, waitUntil } from "cloudflare:workers";
-import { getSession, isOwner } from "@/lib/auth";
-import { forbidden, sameOrigin } from "@/lib/csrf";
+import { requireOwner } from "@/lib/owner";
 import { nowPlayingCache } from "@/lib/now-playing-cache";
 import { isTrackId } from "@/lib/track-play";
 import { deadline } from "@/lib/upstream";
@@ -20,9 +19,9 @@ function json(body: unknown, status = 200): Response {
  * 200 tells the page to open the link instead, so failures are passed through
  * rather than retried.
  */
-export const POST: APIRoute = async ({ request, cookies, url }) => {
-  if (!sameOrigin(request, url.origin)) return forbidden();
-  if (!isOwner(await getSession(cookies))) return forbidden();
+export const POST: APIRoute = async ({ request, cookies, url, locals }) => {
+  const refused = await requireOwner({ request, cookies, url, locals }, { refuse: "forbidden", sameOrigin: true });
+  if (refused) return refused;
 
   let body: unknown;
   try {

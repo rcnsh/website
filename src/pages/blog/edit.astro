@@ -2,7 +2,7 @@
 import Layout from "@/layouts/Layout.astro";
 import PostEditor from "@/components/react/PostEditor";
 import { GithubIcon } from "@/components/react/BrandIcons";
-import { getSession, isOwner, type SessionUser } from "@/lib/auth";
+import { identify, refuse, type Viewer } from "@/lib/owner";
 import { getPosts } from "@/lib/blog";
 import { listPostSlugs, readPostFile } from "@/lib/blog-repo";
 import { isSlug } from "@/lib/post-slug";
@@ -11,19 +11,17 @@ import { parsePost } from "@/lib/post-source";
 // Reads the session and the live repository, so never prerendered.
 export const prerender = false;
 
-let session: SessionUser | null = null;
+let viewer: Viewer = { session: null, owner: false };
 try {
-  session = await getSession(Astro.cookies);
+  viewer = await identify(Astro);
 } catch (error) {
   console.error("[blog] session lookup failed", error);
 }
 
-const owner = isOwner(session);
+const { session, owner } = viewer;
 
 // Someone else's session learns nothing about the page existing.
-if (session && !owner) {
-  return new Response("Not found", { status: 404 });
-}
+if (session && !owner) return refuse(Astro, "not-found");
 
 const requested = Astro.url.searchParams.get("post");
 const creating = Astro.url.searchParams.has("new");
@@ -69,7 +67,7 @@ const heading = initial ? (initial.sha ? "Edit post" : "New post") : "Posts";
 ---
 
 <Layout title={heading} description="Post editor.">
-  <div class="bento pb-6" data-owner-hint={owner ? "1" : "0"}>
+  <div class="bento pb-6">
     <section class="tile page-hero col-span-12 px-8 pb-[26px] pt-7 max-sm:px-5" aria-labelledby="edit-title">
       <nav class="flex items-center gap-1.5 font-mono text-[0.71875rem] text-ink-faint" aria-label="Breadcrumb">
         <a href="/blog" class="transition-colors hover:text-ink">writing</a>
@@ -149,13 +147,6 @@ const heading = initial ? (initial.sha ? "Edit post" : "New post") : "Posts";
     }
   </div>
 </Layout>
-
-<script>
-  import { setOwnerHint } from "@/lib/owner-hint";
-
-  const hint = document.querySelector<HTMLElement>("[data-owner-hint]");
-  if (hint) setOwnerHint(hint.dataset.ownerHint === "1");
-</script>
 
 <style>
   /* Stand-ins for what the post page gets from Expressive Code and its own

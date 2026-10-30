@@ -1,14 +1,10 @@
 import type { APIRoute } from "astro";
-import { clearOwnerHint, getSession, isOwner, OWNER_HINT_COOKIE, setOwnerHint } from "@/lib/auth";
-import { forbidden, sameOrigin } from "@/lib/csrf";
+import { requireOwner } from "@/lib/owner";
 import { cachedTree, isHiddenKey, normalisePrefix } from "@/lib/r2";
 import { loadRules, setRule } from "@/lib/visibility";
 import { isVisibility } from "../../../../shared/visibility.ts";
 
 export const prerender = false;
-
-/** As long as a session; refreshed on every owner visit. */
-const OWNER_HINT_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -21,13 +17,10 @@ function json(body: unknown, status = 200): Response {
  * For the owner: every folder's own setting, and the whole bucket tree the
  * public island leaves out. Anyone else learns only `{ owner: false }`.
  */
-export const GET: APIRoute = async ({ cookies }) => {
-  // The page's hint follows the answer, so a stale one costs a single held load.
-  if (!isOwner(await getSession(cookies))) {
-    if (cookies.has(OWNER_HINT_COOKIE)) clearOwnerHint(cookies);
-    return json({ owner: false });
-  }
-  setOwnerHint(cookies, new Date(Date.now() + OWNER_HINT_TTL_MS));
+export const GET: APIRoute = async ({ request, url, cookies, locals }) => {
+  // Refusing drops a stale hint, so it costs the page a single held load.
+  const refused = await requireOwner({ request, cookies, url, locals }, { refuse: "visitor" });
+  if (refused) return refused;
 
   try {
     const [rules, tree] = await Promise.all([loadRules(), cachedTree()]);
@@ -42,9 +35,9 @@ export const GET: APIRoute = async ({ cookies }) => {
  * Sets one folder's visibility: `{ prefix, visibility }`, where a null
  * visibility removes the folder's own setting so it inherits again.
  */
-export const POST: APIRoute = async ({ request, cookies, url }) => {
-  if (!sameOrigin(request, url.origin)) return forbidden();
-  if (!isOwner(await getSession(cookies))) return forbidden();
+export const POST: APIRoute = async ({ request, cookies, url, locals }) => {
+  const refused = await requireOwner({ request, cookies, url, locals }, { refuse: "forbidden", sameOrigin: true });
+  if (refused) return refused;
 
   let body: unknown;
   try {

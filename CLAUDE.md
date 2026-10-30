@@ -182,14 +182,36 @@ so a change lands everywhere within that. The search edge cache is keyed on
 just-hidden folder's names until its edge copy expires (`s-maxage=300`), but
 private bytes are refused at once.
 
+### Owner
+
+**Every owner check goes through `src/lib/owner.ts`.** `requireOwner(context,
+{ refuse, sameOrigin })` returns the refusal, or null for the owner;
+`identify(context)` answers without refusing, for routes that serve both.
+Never call `getSession`/`isOwner` from a route. The refusal styles keep
+existence private: `not-found`/`not-found-json` match the route's own 404, so
+download and meta never confirm a private key exists. Writes pass
+`sameOrigin: true` (see `src/lib/csrf.ts`). The decisions live in
+`owner-guard.ts` with the session lookup injected, so they test under node.
+
+**An owner response is `private, no-store` whatever the route sets.** The
+guard marks `locals.owner` and the middleware stamps the header from it.
+
+**The owner hint cookie lives and dies with the session cookie.**
+`writeSessionCookie` (`src/lib/session-cookie.ts`) is the session cookie's
+only writer and sets or clears the hint with the same expiry, so a session
+extended in `getSession` extends the hint too. `getSession` also restores a
+missing hint for the owner, and any refusal deletes a stale one. Scripts read
+it through `hasOwnerHint()` (`src/lib/owner-hint.ts`), which holds the one
+name: `PlayOnSpotify`, the /files hold (`owner-tree.ts`) and the blog edit
+links. It is a hint, not a permission: nothing is granted on it.
+
 ### Blog editor
 
 **`/blog/edit` commits to `main`; it does not write to the site.** Saves go
 through the GitHub Contents API (`src/lib/blog-repo.ts`) with the
 `BLOG_REPO_TOKEN` secret, a fine-grained PAT that should hold Contents: write on
-this repo and nothing else. The owner check (`isOwner`) is the only thing
-gating who can use it, so it must stay on both the page and
-`/api/blog/post`. Posts go live through Workers Builds, which deploys every
+this repo and nothing else. The owner guard is the only thing gating who can
+use it, so it must stay on both the page and `/api/blog/post`. Posts go live through Workers Builds, which deploys every
 push to `main`, so a saved post ships whatever else is on `main` with it.
 
 **The frontmatter schema lives in `src/lib/post-source.ts`**, shared by
@@ -197,10 +219,9 @@ push to `main`, so a saved post ships whatever else is on `main` with it.
 would. A field added to one place only means a commit that breaks the deploy.
 `post-slug.ts` stays dependency-free because the editor bundles it.
 
-**Edit links on prerendered pages come from a `localStorage` flag**
-(`src/lib/owner-hint.ts`) that `/blog/edit` sets for the owner. That way
-visitors don't each pay for a Worker call. It is a hint, not a permission:
-the links lead to pages that check the session.
+**Edit links on prerendered pages come from the owner hint cookie** (see
+Owner), so visitors don't each pay for a Worker call. The links lead to pages
+that check the session.
 
 **Sign-in's `?next=` goes through `returnPath()`** on the way in and again on
 the way out, since the cookie comes back from the browser. Loosening it turns
@@ -212,8 +233,8 @@ the way out, since the cookie comes back from the browser. Loosening it turns
 `PlayButton` (`.astro`, and `.tsx` for React lists) is rendered for every visitor,
 because pages and islands are cached publicly, and hidden by `.play-track` in
 `global.css`. `PlayOnSpotify` (in `Layout`) sets `data-owner` on `<html>` when
-the owner cookie is present, which reveals them, and posts their clicks to
-`/api/music/play`. That route checks `isOwner` and calls the warehouse's
+the owner hint cookie is present, which reveals them, and posts their clicks to
+`/api/music/play`. That route runs the owner guard and calls the warehouse's
 `/control/play` with `MUSIC_WAREHOUSE_CONTROL_TOKEN`, a token that can start
 playback and nothing else; never use it for reads, and never give the read
 token control. The button sits beside the title, never inside a link: rows
