@@ -22,19 +22,25 @@ export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
   const db = getDb();
 
   // Scoped to the signer's own githubId, not the row id alone.
-  const result = await db
+  const [removed] = await db
     .delete(schema.guestbook)
     .where(
       and(
         eq(schema.guestbook.id, id),
         eq(schema.guestbook.githubId, session.githubId),
       ),
-    );
+    )
+    .returning({ id: schema.guestbook.id, createdAt: schema.guestbook.createdAt });
 
   // Conditional: a delete that removed nothing cannot have made anything
   // stale, and invalidating unconditionally would let a signed-in caller drop
   // the two keys guarding getStats()'s full scan as fast as they like.
-  if (result.meta.changes > 0) await invalidate();
+  if (removed) {
+    await invalidate(url.origin, {
+      createdAt: Math.floor(removed.createdAt.getTime() / 1000),
+      id: removed.id,
+    });
+  }
 
   return redirect("/guestbook", 302);
 };

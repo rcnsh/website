@@ -115,6 +115,13 @@ a non-2xx. Keep cache names and key URLs stable: changing either orphans every
 copy until it expires. The Cache API is per colo, so `invalidateEdge` clears
 only the colo the write ran in; elsewhere a copy lives out its max-age.
 
+**A guestbook write drops both layers.** `invalidate(origin, removed?)` in
+`src/lib/guestbook.ts` clears page 1 and the totals in KV, and this colo's
+edge copy of page 1 and of the deep page a deleted entry sat on (found with
+one count in D1). Later pages need nothing: their cursors move with the rows,
+so their keys change. Other colos can show a deleted entry for up to
+`FRESH_SECONDS`.
+
 **Server-island props are encrypted into the `?e=` query parameter**, so they
 are part of the cache key. Passing volatile data in makes the island URL change
 with the data and defeats caching. `GuestbookMapIsland` fetches its own stats

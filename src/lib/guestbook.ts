@@ -1,10 +1,12 @@
-import { and, count, desc, eq, lt, or } from "drizzle-orm";
+import { and, count, desc, eq, gt, lt, or } from "drizzle-orm";
 import { cached, invalidate as invalidateCache } from "./cache";
 import { getDb, schema } from "./db";
+import { invalidateEdge } from "./edge";
 import {
   type Cursor,
   FIRST_PAGE_KEY,
   FRESH_SECONDS,
+  guestbookInvalidation,
   STATS_KEY,
 } from "./guestbook-cache.ts";
 
@@ -141,12 +143,54 @@ export async function getStats(): Promise<GuestbookStats> {
   });
 }
 
+const drop = guestbookInvalidation({ kv: invalidateCache, edge: invalidateEdge });
+
+/**
+ * The cursor `/api/guestbook/list` was asked with for the page that holds
+ * `entry`, or null for page 1. Rows newer than it keep their positions after
+ * it is deleted, so this still answers once it is gone.
+ */
+async function pageHolding(entry: Cursor): Promise<Cursor | null> {
+  const db = getDb();
+  const at = new Date(entry.createdAt * 1000);
+  const [{ newer }] = await db
+    .select({ newer: count() })
+    .from(schema.guestbook)
+    .where(
+      or(
+        gt(schema.guestbook.createdAt, at),
+        and(eq(schema.guestbook.createdAt, at), gt(schema.guestbook.id, entry.id)),
+      ),
+    );
+
+  const page = Math.floor(newer / PAGE_SIZE);
+  if (page === 0) return null;
+
+  const [row] = await db
+    .select({ createdAt: schema.guestbook.createdAt, id: schema.guestbook.id })
+    .from(schema.guestbook)
+    .orderBy(desc(schema.guestbook.createdAt), desc(schema.guestbook.id))
+    .limit(1)
+    .offset(page * PAGE_SIZE - 1);
+
+  return row ? { createdAt: Math.floor(row.createdAt.getTime() / 1000), id: row.id } : null;
+}
+
 /**
  * Drops the cached first page and totals, so a writer sees their own change on
- * the redirect. Failures are swallowed: the write is already committed.
+ * the redirect, and this colo's edge copy of every page the change touched:
+ * page 1 for a new entry, and the page `removed` sat on. Later pages need
+ * nothing, since their cursors moved with the rows. Failures are swallowed:
+ * the write is already committed.
  */
-export function invalidate(): Promise<void> {
-  return invalidateCache(FIRST_PAGE_KEY, STATS_KEY);
+export async function invalidate(origin: string, removed?: Cursor): Promise<void> {
+  const page = removed
+    ? await pageHolding(removed).catch((error) => {
+        console.error("[guestbook] locating the changed page failed", error);
+        return null;
+      })
+    : null;
+  await drop(origin, page);
 }
 
 /** When this signer last posted, for the rate limit. Indexed; reads one row. */

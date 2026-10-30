@@ -1,6 +1,6 @@
 /**
- * Where the guestbook is cached. Free of D1 and `cloudflare:workers` so it
- * runs under `node --test`.
+ * Where the guestbook is cached and how a write drops it. Free of D1 and
+ * `cloudflare:workers` so the invalidation runs under `node --test`.
  */
 
 /** How long the first page and the totals are served before a refresh runs. */
@@ -44,4 +44,24 @@ export function decodeCursor(raw: string | null): Cursor | null {
  */
 export function listUrl(origin: string, after: Cursor | null): string {
   return `${origin}/api/guestbook/list${after ? `?after=${encodeURIComponent(encodeCursor(after))}` : ""}`;
+}
+
+export type InvalidationDeps = {
+  kv: (...keys: string[]) => Promise<void>;
+  edge: (name: string, url: string) => Promise<unknown>;
+};
+
+/**
+ * Drops KV's first page and totals and this colo's edge copy of page 1 and of
+ * `page`, the deep page a write changed, if any. Both droppers swallow their
+ * own failures.
+ */
+export function guestbookInvalidation({ kv, edge }: InvalidationDeps) {
+  return async (origin: string, page: Cursor | null = null): Promise<void> => {
+    await Promise.all([
+      kv(FIRST_PAGE_KEY, STATS_KEY),
+      edge(LIST_CACHE, listUrl(origin, null)),
+      page ? edge(LIST_CACHE, listUrl(origin, page)) : null,
+    ]);
+  };
 }
