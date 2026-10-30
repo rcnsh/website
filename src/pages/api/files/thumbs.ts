@@ -2,9 +2,7 @@ import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { folderThumbs, forgetThumbs, uploadedSeconds } from "@/lib/media";
 import { requireOwner } from "@/lib/owner";
-import { normalisePrefix } from "@/lib/r2";
 import {
-  isHiddenKey,
   isThumbKind,
   MAX_THUMBS_REQUEST_BYTES,
   SOURCE_UPLOADED_FIELD,
@@ -13,6 +11,7 @@ import {
   thumbPartProblem,
   type ThumbKind,
 } from "@/lib/thumbs";
+import { folderPrefix } from "../../../../shared/bucket-keys.ts";
 
 export const prerender = false;
 
@@ -34,8 +33,8 @@ export const GET: APIRoute = async ({ request, url, cookies, locals }) => {
   const bucket = env.BUCKET;
   if (!bucket) return json({ error: "Bucket not configured" }, 503);
 
-  const prefix = normalisePrefix(url.searchParams.get("prefix"));
-  if (isHiddenKey(prefix)) return json({ error: "Bad request" }, 400);
+  const prefix = folderPrefix(url.searchParams.get("prefix"));
+  if (prefix === null) return json({ error: "Bad request" }, 400);
 
   try {
     return json({ owner: true, thumbs: await folderThumbs(bucket, prefix) });

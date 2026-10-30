@@ -1,7 +1,6 @@
 import type { APIRoute } from "astro";
+import { bucket } from "@/lib/bucket";
 import { identify } from "@/lib/owner";
-import { cachedDirectory, isHiddenKey, normalisePrefix } from "@/lib/r2";
-import { loadRules, visitorDirectory } from "@/lib/visibility";
 
 export const prerender = false;
 
@@ -11,19 +10,17 @@ export const prerender = false;
  * listed folders only; the owner gets everything.
  */
 export const GET: APIRoute = async ({ url, cookies, locals }) => {
-  const prefix = normalisePrefix(url.searchParams.get("prefix"));
-  // The live-LIST fallback past the cached tree's cap does not skip hidden
-  // keys, so refuse them here as thumbs.ts does.
-  if (isHiddenKey(prefix)) {
-    return new Response(JSON.stringify({ error: "Bad request" }), {
-      status: 400,
-      headers: { "content-type": "application/json" },
-    });
-  }
-
   try {
     const { owner } = await identify({ cookies, locals });
-    const listing = owner ? await cachedDirectory(prefix) : await visitorDirectory(prefix, await loadRules());
+    const listing = await bucket.view(owner).listing(url.searchParams.get("prefix"));
+    // Hidden folders are refused rather than listed: the live-LIST fallback
+    // past the cached tree's cap would otherwise walk into `.thumbs/`.
+    if (!listing) {
+      return new Response(JSON.stringify({ error: "Bad request" }), {
+        status: 400,
+        headers: { "content-type": "application/json" },
+      });
+    }
     return new Response(JSON.stringify(listing), {
       headers: {
         "content-type": "application/json",

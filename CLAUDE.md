@@ -182,19 +182,41 @@ the bucket's public domain or r2.dev URL bypasses every private folder at once.
 It refuses private keys, `.thumbs/` of private sources, and every other dot
 path. Deploy it with `npm run deploy:upload`; `npm run deploy` does not.
 
+**Who may read a key is decided once, by `decideRead` (`shared/visibility.ts`).**
+upload.rcn.sh, `/api/files/download` and `/api/files/meta` all call it, so
+they refuse the same keys in the same order: no object named (400), a dot path
+(404), unreadable rules (503), then a private file for anyone but the owner
+(404, as missing, so existence is never confirmed). A thumb answers to its
+source. The site reaches it as `canRead` on a bucket view; a new route that
+serves bucket bytes must too. Key and prefix shapes (`objectKey`,
+`folderPrefix`, the hidden-segment rule, `THUMBS_PREFIX`) live in
+`shared/bucket-keys.ts` and nowhere else.
+
 **Private files download through `/api/files/download`, owner only.** That
-route still 404s public keys while `PUBLIC_BUCKET_URL` is set. The browser
-picks the route per file (`baseFor` in FileBrowser), so a private file has no
-stored thumbs and previews are generated in the browser.
+route still 404s public keys while `PUBLIC_BUCKET_URL` is set; that rule is the
+route's own, not access policy. The browser picks the route per file
+(`baseFor` in FileBrowser), so a private file has no stored thumbs and
+previews are generated in the browser.
+
+**The site reads the bucket only through `bucket.view(reader)`**
+(`src/lib/bucket.ts`): `tree()`, `listing(prefix)`, `search(q)`, `canRead(key)`,
+each filtered to what that reader may see. The unfiltered tree is private to
+`src/lib/bucket-view.ts` and comes out only for `view(true)`. A reader can be a
+function, asked only when a decision needs it, so a public download costs no
+session lookup. The logic lives in `bucket-view.ts` with the R2 listing, tree
+cache and rules injected, so it tests under node.
 
 **Islands and the home tile render the visitor view only.** They are cached
 publicly (see Caching), so the owner's full tree comes from
-`/api/files/visibility` after hydration. Anything new that reads `cachedTree()`
-for a public response must go through `visitorTree()` instead.
+`/api/files/visibility` after hydration. They use `view(false)`, or
+`publicSummary()` where the usage bar needs hidden totals: sizes, never names.
+Never pass `view(true)` or an owner check into anything served publicly.
 
-**Rules fail closed.** `loadRules()` throws rather than returning `{}`, and an
-unknown stored value reads as `private`. Both Workers trust their copy for 10s,
-so a change lands everywhere within that. The search edge cache is keyed on
+**Rules fail closed.** `rulesLoader` (`shared/visibility.ts`) throws rather
+than returning `{}`, and an unknown stored value reads as `private`. Both
+Workers build their loader from it (drizzle in the site, raw D1 in
+upload.rcn.sh), so both trust their copy for `RULES_FRESH_MS` (10s) and a
+change lands everywhere within that. The search edge cache is keyed on
 `rulesVersion()`, so it does not lag. The FilesRoot island can show a
 just-hidden folder's names until its edge copy expires (`s-maxage=300`), but
 private bytes are refused at once.
