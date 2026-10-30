@@ -101,9 +101,9 @@ builders (`publicFor`, `noStore`, `uncachedError`, `privateNoStore`,
 `policies` table in `src/lib/http.ts`, which `http.test.ts` pins string by
 string. Where a route sits in front of a KV window its max-age is derived
 from the loader's constant (`FRESH_SECONDS` in `guestbook-cache.ts`,
-`TOP_FRESHNESS` in `spotify-reads.ts`, `CACHE_SECONDS` in `now-playing.ts`),
-so the two layers cannot drift. `/api/spotify/top` follows its range's
-freshness: 1h, 6h or 24h.
+`CACHE_SECONDS` in `now-playing.ts`), so the two layers cannot drift.
+`/api/spotify/top` is the exception: its KV windows run to 24h and `cached()`
+serves stale past them, so the browser gets a 15-minute ceiling instead.
 
 **Edge copies go through `src/lib/edge-cache.ts`** (`edgeCached`,
 `invalidateEdge`; bound to the Worker in `edge.ts`). Cloudflare does not
@@ -119,8 +119,9 @@ only the colo the write ran in; elsewhere a copy lives out its max-age.
 `src/lib/guestbook.ts` clears page 1 and the totals in KV, and this colo's
 edge copy of page 1 and of the deep page a deleted entry sat on (found with
 one count in D1). Later pages need nothing: their cursors move with the rows,
-so their keys change. Other colos can show a deleted entry for up to
-`FRESH_SECONDS`.
+so their keys change. A copy keyed by a cursor from before an earlier write is
+missed, and other colos aren't reached at all, so a deleted entry can still
+show for up to `FRESH_SECONDS`.
 
 **Server-island props are encrypted into the `?e=` query parameter**, so they
 are part of the cache key. Passing volatile data in makes the island URL change
@@ -275,7 +276,7 @@ private bytes are refused at once.
 **Every owner check goes through `src/lib/owner.ts`.** `requireOwner(context,
 { refuse, sameOrigin })` returns the refusal, or null for the owner;
 `identify(context)` answers without refusing, for routes that serve both.
-Never call `getSession`/`isOwner` from a route. The refusal styles keep
+Never check `isOwner` in a route. The guestbook's signer session is not an owner check, so `guestbook.astro` and `api/guestbook/delete.ts` call `getSession` directly. The refusal styles keep
 existence private: `not-found`/`not-found-json` match the route's own 404, so
 download and meta never confirm a private key exists. Writes pass
 `sameOrigin: true` (see `src/lib/csrf.ts`). The decisions live in
