@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { noStore } from "../../shared/cache-policy.ts";
 
 /**
  * Per-client budgets against denial-of-wallet, not a security control — the
@@ -85,7 +86,7 @@ export async function throttle(
     headers: {
       "retry-after": String(WINDOW_SECONDS),
       // Never let a 429 be cached and served to someone else.
-      "cache-control": "no-store",
+      "cache-control": noStore,
       "content-type": "text/plain; charset=utf-8",
     },
   });

@@ -1,6 +1,14 @@
 import { and, count, desc, eq, lt, or } from "drizzle-orm";
 import { cached, invalidate as invalidateCache } from "./cache";
 import { getDb, schema } from "./db";
+import {
+  type Cursor,
+  FIRST_PAGE_KEY,
+  FRESH_SECONDS,
+  STATS_KEY,
+} from "./guestbook-cache.ts";
+
+export { type Cursor, decodeCursor, encodeCursor } from "./guestbook-cache.ts";
 
 /**
  * Reading the guestbook. The first page is cached because D1 bills rows read
@@ -9,12 +17,6 @@ import { getDb, schema } from "./db";
 
 /** Rows per page. Roughly two screens on a phone. */
 export const PAGE_SIZE = 25;
-
-/** How long the first page and the totals are served before a refresh runs. */
-const FRESH_SECONDS = 60;
-
-const FIRST_PAGE_KEY = "guestbook:page:1";
-const STATS_KEY = "guestbook:stats";
 
 /** One entry. `createdAt` is epoch seconds, since a Date survives neither KV nor fetch. */
 export type GuestbookEntry = {
@@ -26,13 +28,6 @@ export type GuestbookEntry = {
   message: string;
   createdAt: number;
 };
-
-/**
- * Sort key of the last row handed out: newest first, id breaking ties. Not the
- * id alone — migration 0002 backdated the imported entries, so id order and
- * time order differ and paginating on the wrong one strands them.
- */
-export type Cursor = { createdAt: number; id: number };
 
 export type GuestbookPage = {
   entries: GuestbookEntry[];
@@ -48,24 +43,6 @@ export type GuestbookStats = {
   /** Signatures with no usable country — imported, or Workers didn't say. */
   unplaced: number;
 };
-
-/** `<epoch seconds>:<id>`, which is what travels in the query string. */
-export function encodeCursor(cursor: Cursor): string {
-  return `${cursor.createdAt}:${cursor.id}`;
-}
-
-/**
- * Parses a cursor, or null. Strict — it arrives from a stranger and becomes
- * two numbers in a WHERE clause. A malformed one starts from the top.
- */
-export function decodeCursor(raw: string | null): Cursor | null {
-  if (!raw) return null;
-
-  const match = /^(\d{1,15}):(\d{1,15})$/.exec(raw);
-  if (!match) return null;
-
-  return { createdAt: Number(match[1]), id: Number(match[2]) };
-}
 
 function toEntry(row: typeof schema.guestbook.$inferSelect): GuestbookEntry {
   return {

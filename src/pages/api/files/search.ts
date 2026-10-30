@@ -1,12 +1,10 @@
 import type { APIRoute } from "astro";
-import { waitUntil } from "cloudflare:workers";
 import { bucket } from "@/lib/bucket";
+import { edgeCached } from "@/lib/edge";
+import { json, policies, privateNoStore, uncachedError } from "@/lib/http";
 import { identify } from "@/lib/owner";
 
 export const prerender = false;
-
-/** The tree behind this refreshes every five minutes anyway. */
-const CACHE_SECONDS = 60;
 
 /**
  * An unbounded query is an unbounded cache key, which turns this endpoint's
@@ -14,11 +12,10 @@ const CACHE_SECONDS = 60;
  */
 const MAX_QUERY = 64;
 
-function json(body: unknown, cache: string): Response {
-  return new Response(JSON.stringify(body), {
-    headers: { "content-type": "application/json", "cache-control": cache, vary: "cookie" },
-  });
-}
+// For the browser, which would otherwise keep serving the visitor copy after
+// sign-in. Never stored: the edge cache is anonymous by construction, since
+// the owner never reaches it.
+const VARY = { vary: "cookie" };
 
 /**
  * Flat search over the bucket: reads the whole cached tree out of KV and walks
@@ -28,52 +25,29 @@ function json(body: unknown, cache: string): Response {
 export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   const query = (url.searchParams.get("q") ?? "").trim().slice(0, MAX_QUERY);
 
-  if (query.length < 2) {
-    return new Response(JSON.stringify({ query, files: [] }), {
-      headers: { "content-type": "application/json" },
-    });
-  }
+  if (query.length < 2) return json({ query, files: [] });
 
   try {
     if ((await identify({ cookies, locals })).owner) {
-      return json({ query, files: await bucket.view(true).search(query) }, "private, no-store");
+      return json({ query, files: await bucket.view(true).search(query) }, { policy: privateNoStore, headers: VARY });
     }
 
     // Keyed on the normalised query, so `?q=x&`, `?q=X` and a stray second
     // parameter share one entry rather than minting three. The rules' version
     // is in the key so a folder made unlisted drops out at once, not after
     // the cached answer expires.
-    const cacheKey = new Request(
-      `${new URL(request.url).origin}/api/files/search?q=${encodeURIComponent(
-        query.toLowerCase(),
-      )}&v=${await bucket.version()}`,
+    const key = `${new URL(request.url).origin}/api/files/search?q=${encodeURIComponent(
+      query.toLowerCase(),
+    )}&v=${await bucket.version()}`;
+
+    return await edgeCached(
+      "files-search",
+      key,
+      async () => json({ query, files: await bucket.view(false).search(query) }),
+      { policy: policies.files, headers: VARY },
     );
-    const cache = await caches.open("files-search");
-
-    const hit = await cache.match(cacheKey);
-    // Rebuilt rather than returned: a cached Response has immutable headers, and
-    // the middleware throws setting security headers on one.
-    if (hit) {
-      const copy = new Response(hit.body, hit);
-      copy.headers.set("vary", "cookie");
-      return copy;
-    }
-
-    const files = await bucket.view(false).search(query);
-    const response = json({ query, files }, `public, max-age=${CACHE_SECONDS}`);
-
-    // Stored without `vary`, which is for the browser: the edge cache is
-    // anonymous by construction, since the owner never reaches it.
-    const stored = new Response(response.clone().body, response);
-    stored.headers.delete("vary");
-    waitUntil(cache.put(cacheKey, stored));
-    return response;
   } catch (error) {
     console.error("[files] search failed", error);
-    // Not cached: a transient bucket failure shouldn't outlive itself.
-    return new Response(JSON.stringify({ query, files: [], error: true }), {
-      status: 200,
-      headers: { "content-type": "application/json", "cache-control": "no-store" },
-    });
+    return json({ query, files: [], error: true }, { policy: uncachedError });
   }
 };

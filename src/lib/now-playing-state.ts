@@ -1,4 +1,7 @@
-import { CACHE_SECONDS, PLAY_SETTLE_MS, type NowPlayingPayload } from "./now-playing.ts";
+import { uncachedError } from "../../shared/cache-policy.ts";
+import { createEdgeCache, type EdgeCache } from "./edge-cache.ts";
+import { json, policies } from "./http.ts";
+import { PLAY_SETTLE_MS, type NowPlayingPayload } from "./now-playing.ts";
 import type { NowPlaying, RecentTrack } from "./spotify-reads.ts";
 import { WarehouseShapeError } from "./warehouse-client.ts";
 
@@ -8,11 +11,7 @@ import { WarehouseShapeError } from "./warehouse-client.ts";
  * `cloudflare:workers`; `./now-playing-server` binds it to the Worker.
  */
 
-export type EdgeCache = {
-  match(key: Request): Promise<Response | undefined>;
-  put(key: Request, response: Response): Promise<void>;
-  delete(key: Request): Promise<boolean>;
-};
+export type { EdgeCache } from "./edge-cache.ts";
 
 export type NowPlayingReads = {
   live: () => Promise<NowPlaying>;
@@ -22,7 +21,7 @@ export type NowPlayingReads = {
 };
 
 export type NowPlayingDeps = {
-  cache: () => Promise<EdgeCache>;
+  cache: (name: string) => Promise<EdgeCache>;
   reads: NowPlayingReads;
   now: () => number;
   waitUntil: (promise: Promise<unknown>) => void;
@@ -32,11 +31,13 @@ export type NowPlayingDeps = {
 /** Stamped on the cached copy so a hit can tell how far the track has moved. */
 const CACHED_AT = "x-cached-at";
 
-const cacheKey = (origin: string) => new Request(`${origin}/api/spotify/now-playing`);
+const NAME = "now-playing";
 
-const headers = { "content-type": "application/json", "cache-control": `public, max-age=${CACHE_SECONDS}` };
+const cacheKey = (origin: string) => `${origin}/api/spotify/now-playing`;
 
 export function createNowPlaying({ cache, reads, now, waitUntil, sleep }: NowPlayingDeps) {
+  const { edgeCached, invalidateEdge } = createEdgeCache({ open: cache, waitUntil });
+
   async function read(): Promise<NowPlayingPayload> {
     // The read throws on a shape change so nothing caches it as silence; this
     // card still treats it as silence and falls back to last played.
@@ -60,41 +61,30 @@ export function createNowPlaying({ cache, reads, now, waitUntil, sleep }: NowPla
     return { state: "recent", title, artists, album, image, url, playedAt };
   }
 
-  /**
-   * Rebuilt rather than returned, since a cached Response has immutable
-   * headers, with progress advanced so the client's bar doesn't rewind.
-   */
+  /** Progress advanced by the copy's age, so the client's bar doesn't rewind. */
   async function fromCache(hit: Response): Promise<Response> {
     let payload = (await hit.json()) as NowPlayingPayload;
     const cachedAt = Number(hit.headers.get(CACHED_AT));
     if (payload.state === "playing" && Number.isFinite(cachedAt)) {
       payload = { ...payload, progressMs: Math.min(payload.progressMs + (now() - cachedAt), payload.durationMs) };
     }
-    return new Response(JSON.stringify(payload), { headers });
+    return json(payload);
   }
 
   return {
     /** The route's whole answer; the response is the same for every visitor. */
     async respond(origin: string): Promise<Response> {
-      const edge = await cache();
-      const key = cacheKey(origin);
-      const hit = await edge.match(key);
-      if (hit) return fromCache(hit);
-
       try {
-        const response = new Response(JSON.stringify(await read()), {
-          headers: { ...headers, [CACHED_AT]: String(now()) },
-        });
-        waitUntil(edge.put(key, response.clone()));
-        return response;
+        return await edgeCached(
+          NAME,
+          cacheKey(origin),
+          async () => json(await read(), { headers: { [CACHED_AT]: String(now()) } }),
+          { policy: policies.nowPlaying, fromHit: fromCache },
+        );
       } catch (error) {
         console.error("[music] now-playing failed", error);
-        // Not cached: a transient upstream failure shouldn't outlive itself. A
-        // 5xx, so the client keeps its last good card instead of replacing it.
-        return new Response(JSON.stringify({ state: "error" } satisfies NowPlayingPayload), {
-          status: 503,
-          headers: { "content-type": "application/json", "cache-control": "no-store" },
-        });
+        // A 5xx, so the client keeps its last good card instead of replacing it.
+        return json({ state: "error" } satisfies NowPlayingPayload, { status: 503, policy: uncachedError });
       }
     },
 
@@ -104,10 +94,9 @@ export function createNowPlaying({ cache, reads, now, waitUntil, sleep }: NowPla
      * in between cached what Spotify had not yet caught up on.
      */
     async invalidateAfterPlay(origin: string): Promise<void> {
-      const edge = await cache();
       const key = cacheKey(origin);
-      await edge.delete(key);
-      waitUntil(sleep(PLAY_SETTLE_MS).then(() => edge.delete(key)));
+      await invalidateEdge(NAME, key);
+      waitUntil(sleep(PLAY_SETTLE_MS).then(() => invalidateEdge(NAME, key)));
     },
   };
 }

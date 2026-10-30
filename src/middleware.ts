@@ -1,4 +1,5 @@
 import { defineMiddleware } from "astro:middleware";
+import { type CachePolicy, privateNoStore, serverIslands } from "../shared/cache-policy.ts";
 import { completePolicy, securityHeaders } from "../shared/security.ts";
 import { SESSION_COOKIE } from "@/lib/auth";
 import { ownerCacheControl } from "@/lib/owner-guard";
@@ -34,7 +35,7 @@ function personalised(cookies: { has(name: string): boolean }): boolean {
 }
 
 /** Hardens a response, working around headers that cannot be written to. */
-function finish(response: Response, store: string | null): Response {
+function finish(response: Response, store: CachePolicy | null): Response {
   try {
     harden(response);
     if (store) response.headers.set("Cache-Control", store);
@@ -53,7 +54,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // Before next(): every route past this point spends money, and a 429 issued
   // here costs a request and nothing else.
   const refused = await throttle(context.request, context.url.pathname);
-  if (refused) return finish(refused, "private, no-store");
+  if (refused) return finish(refused, privateNoStore);
 
   const response = await next();
 
@@ -62,17 +63,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // must be excluded here, or the edge will serve one reader's fragment to
   // another.
   if (context.url.pathname.startsWith("/_server-islands/")) {
-    return finish(
-      response,
-      "public, max-age=60, s-maxage=300, stale-while-revalidate=3600",
-    );
+    return finish(response, serverIslands);
   }
 
   // A signed-in render is nobody else's to see. The anonymous branch gets no
   // public Cache-Control either — see CLAUDE.md § Maintenance › Caching.
   const store =
     ownerCacheControl(context.locals) ??
-    (personalised(context.cookies) ? "private, no-store" : null);
+    (personalised(context.cookies) ? privateNoStore : null);
 
   return finish(response, store);
 });

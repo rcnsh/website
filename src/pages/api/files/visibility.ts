@@ -1,18 +1,12 @@
 import type { APIRoute } from "astro";
 import { bucket } from "@/lib/bucket";
+import { privateJson } from "@/lib/http";
 import { requireOwner } from "@/lib/owner";
 import { loadRules, setRule } from "@/lib/visibility";
 import { folderPrefix } from "../../../../shared/bucket-keys.ts";
 import { isVisibility } from "../../../../shared/visibility.ts";
 
 export const prerender = false;
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json", "cache-control": "private, no-store" },
-  });
-}
 
 /**
  * For the owner: every folder's own setting, and the whole bucket tree the
@@ -25,10 +19,10 @@ export const GET: APIRoute = async ({ request, url, cookies, locals }) => {
 
   try {
     const [rules, tree] = await Promise.all([loadRules(), bucket.view(true).tree()]);
-    return json({ owner: true, rules, tree });
+    return privateJson({ owner: true, rules, tree });
   } catch (error) {
     console.error("[files] visibility read failed", error);
-    return json({ owner: true, error: "Unavailable" }, 502);
+    return privateJson({ owner: true, error: "Unavailable" }, 502);
   }
 };
 
@@ -44,21 +38,21 @@ export const POST: APIRoute = async ({ request, cookies, url, locals }) => {
   try {
     body = await request.json();
   } catch {
-    return json({ error: "Expected JSON" }, 400);
+    return privateJson({ error: "Expected JSON" }, 400);
   }
 
   const { prefix: raw, visibility } = (body ?? {}) as { prefix?: unknown; visibility?: unknown };
-  if (typeof raw !== "string") return json({ error: "Missing prefix" }, 400);
-  if (visibility !== null && !isVisibility(visibility)) return json({ error: "Bad visibility" }, 400);
+  if (typeof raw !== "string") return privateJson({ error: "Missing prefix" }, 400);
+  if (visibility !== null && !isVisibility(visibility)) return privateJson({ error: "Bad visibility" }, 400);
 
   const prefix = folderPrefix(raw);
-  if (prefix === null) return json({ error: "Bad prefix" }, 400);
+  if (prefix === null) return privateJson({ error: "Bad prefix" }, 400);
 
   try {
     await setRule(prefix, visibility);
-    return json({ rules: await loadRules() });
+    return privateJson({ rules: await loadRules() });
   } catch (error) {
     console.error("[files] visibility write failed", prefix, error);
-    return json({ error: "Write failed" }, 502);
+    return privateJson({ error: "Write failed" }, 502);
   }
 };

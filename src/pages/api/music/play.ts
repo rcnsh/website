@@ -1,17 +1,11 @@
 import type { APIRoute } from "astro";
+import { privateJson } from "@/lib/http";
 import { requireOwner } from "@/lib/owner";
 import { nowPlaying } from "@/lib/now-playing-server";
 import { isTrackId } from "@/lib/track-play";
 import { WarehouseNotConfigured, warehouse } from "@/lib/warehouse";
 
 export const prerender = false;
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json", "cache-control": "private, no-store" },
-  });
-}
 
 /**
  * Starts `{ track_id }` on the owner's active Spotify device. Any answer but
@@ -26,18 +20,18 @@ export const POST: APIRoute = async ({ request, cookies, url, locals }) => {
   try {
     body = await request.json();
   } catch {
-    return json({ error: "Expected JSON" }, 400);
+    return privateJson({ error: "Expected JSON" }, 400);
   }
   const trackId = (body as { track_id?: unknown } | null)?.track_id;
-  if (!isTrackId(trackId)) return json({ error: "Bad track_id" }, 400);
+  if (!isTrackId(trackId)) return privateJson({ error: "Bad track_id" }, 400);
 
   let response: Response;
   try {
     response = await warehouse.play(trackId);
   } catch (error) {
-    if (error instanceof WarehouseNotConfigured) return json({ error: "Playback is not configured" }, 503);
-    return json({ error: "music-warehouse unreachable" }, 502);
+    if (error instanceof WarehouseNotConfigured) return privateJson({ error: "Playback is not configured" }, 503);
+    return privateJson({ error: "music-warehouse unreachable" }, 502);
   }
   if (response.ok) await nowPlaying.invalidateAfterPlay(url.origin);
-  return json(await response.json().catch(() => ({})), response.status);
+  return privateJson(await response.json().catch(() => ({})), response.status);
 };
