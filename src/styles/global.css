@@ -67,7 +67,7 @@
 
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
 
-  --animate-rise: rise 0.4s var(--ease-out-quint) both;
+  --animate-rise: rise 0.3s var(--ease-out-quint) both;
   /* The incoming album cover, fading in over the outgoing one. */
   --animate-art-in: art-in 0.25s ease both;
 
@@ -178,6 +178,17 @@
 
   &:hover {
     border-color: var(--color-line);
+  }
+}
+
+/* Solid buttons: colour on hover, a small give on press. */
+@utility press {
+  transition-property: color, background-color, border-color, scale;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-out-quint);
+
+  &:active:not(:disabled) {
+    scale: 0.97;
   }
 }
 

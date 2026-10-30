@@ -273,7 +273,7 @@ export default function PostEditor({ initial }: { initial: Post }) {
         <button
           type="submit"
           disabled={status.kind === "saving"}
-          className="inline-flex h-[34px] shrink-0 items-center rounded-[6px] border border-ink bg-ink px-3.5 text-[0.84375rem] font-medium text-(color:--color-base) transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-ink"
+          className="inline-flex h-[34px] shrink-0 items-center rounded-[6px] border border-ink bg-ink px-3.5 text-[0.84375rem] font-medium text-(color:--color-base) press hover:bg-white disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-ink"
         >
           {status.kind === "saving" ? "Committing…" : isNew ? "Create post" : "Save"}
         </button>

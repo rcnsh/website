@@ -305,8 +305,8 @@ export default function NowPlaying({
                   {/* Keyed so a new track remounts at its start rather than sweeping back. */}
                   <div
                     key={`${data.title}|${data.durationMs}`}
-                    className="bg-brand-gradient h-full transition-[width] duration-1000 ease-linear"
-                    style={{ width: `${pct}%` }}
+                    className="bg-brand-gradient h-full origin-left transition-transform duration-1000 ease-linear"
+                    style={{ transform: `scaleX(${pct / 100})` }}
                   />
                 </div>
                 <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-ink-faint">

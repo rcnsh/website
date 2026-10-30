@@ -88,7 +88,7 @@ const heading = initial ? (initial.sha ? "Edit post" : "New post") : "Posts";
         <section class="tile col-span-12 flex flex-col gap-3.5">
           <a
             href="/api/auth/login?next=/blog/edit"
-            class="inline-flex h-10 items-center gap-2 self-start rounded-[6px] border border-ink bg-ink px-4 text-[0.90625rem] font-medium text-(color:--color-base) transition-colors hover:bg-white"
+            class="inline-flex h-10 items-center gap-2 self-start rounded-[6px] border border-ink bg-ink px-4 text-[0.90625rem] font-medium text-(color:--color-base) press hover:bg-white"
           >
             <GithubIcon className="h-4 w-4 shrink-0" />
             Sign in with GitHub
@@ -119,7 +119,7 @@ const heading = initial ? (initial.sha ? "Edit post" : "New post") : "Posts";
             <h2 id="edit-list" class="label">On main</h2>
             <a
               href="/blog/edit?new"
-              class="ml-auto inline-flex h-[30px] items-center rounded-[6px] border border-ink bg-ink px-3 text-[0.8125rem] font-medium text-(color:--color-base) transition-colors hover:bg-white"
+              class="ml-auto inline-flex h-[30px] items-center rounded-[6px] border border-ink bg-ink px-3 text-[0.8125rem] font-medium text-(color:--color-base) press hover:bg-white"
             >
               New post
             </a>

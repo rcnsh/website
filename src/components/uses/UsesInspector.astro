@@ -109,6 +109,7 @@ const irl = groups[0];
 
     let showing: HTMLElement | null = fallback;
     let revert: ReturnType<typeof setTimeout> | undefined;
+    let swapped = 0;
 
     const show = (el: HTMLElement) => {
       clearTimeout(revert);
@@ -126,9 +127,14 @@ const irl = groups[0];
       const svg = el.querySelector("svg");
       if (svg) art.replaceChildren(svg.cloneNode(true));
 
-      body.classList.remove("swap");
-      void body.offsetWidth;
-      body.classList.add("swap");
+      // Only the first of a sweep animates; restarting on every cell flickers.
+      const now = performance.now();
+      if (now - swapped > 300) {
+        body.classList.remove("swap");
+        void body.offsetWidth;
+        body.classList.add("swap");
+      }
+      swapped = now;
 
       const onDesk = isDefault || deskArt.has(d.art!);
       plugged.hidden = !onDesk;
