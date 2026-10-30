@@ -205,7 +205,7 @@ serves bucket bytes must too. Key and prefix shapes (`objectKey`,
 **Private files download through `/api/files/download`, owner only.** That
 route still 404s public keys while `PUBLIC_BUCKET_URL` is set; that rule is the
 route's own, not access policy. The browser picks the route per file
-(`baseFor` in FileBrowser), so a private file has no stored thumbs and
+(`baseFor` in `src/lib/files-source.ts`), so a private file has no stored thumbs and
 previews are generated in the browser.
 
 **The site reads the bucket only through `bucket.view(reader)`**
@@ -221,6 +221,17 @@ publicly (see Caching), so the owner's full tree comes from
 `/api/files/visibility` after hydration. They use `view(false)`, or
 `publicSummary()` where the usage bar needs hidden totals: sizes, never names.
 Never pass `view(true)` or an owner check into anything served publicly.
+
+**The browser's listings come from `src/lib/files-source.ts`**, never from a
+fetch in FileBrowser. It holds the whole-tree and per-folder modes, the owner
+upgrade (one `/api/files/visibility` probe, which swaps in the owner's
+listings and rules) and the per-file download route, with `fetch` injected so
+it tests under node. It reports the probe settled exactly once, on every path,
+and `src/components/files/owner-view.ts` is the only thing that lifts the
+owner hold: at once unless the owner's tree went out, then as soon as nothing
+on the page shows the visitors' view, with the 5s timer as the floor. Lifting
+it while an island still shows that view flashes it at the owner. The page
+script in `files.astro` starts the hold, since it must run before hydration.
 
 **Rules fail closed.** `rulesLoader` (`shared/visibility.ts`) throws rather
 than returning `{}`, and an unknown stored value reads as `private`. Both
@@ -251,7 +262,7 @@ only writer and sets or clears the hint with the same expiry, so a session
 extended in `getSession` extends the hint too. `getSession` also restores a
 missing hint for the owner, and any refusal deletes a stale one. Scripts read
 it through `hasOwnerHint()` (`src/lib/owner-hint.ts`), which holds the one
-name: `PlayOnSpotify`, the /files hold (`owner-tree.ts`) and the blog edit
+name: `PlayOnSpotify`, the /files hold (`owner-view.ts`) and the blog edit
 links. It is a hint, not a permission: nothing is granted on it.
 
 ### Blog editor

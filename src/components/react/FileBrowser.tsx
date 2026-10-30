@@ -7,14 +7,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { R2File, R2Listing, R2Tree } from "@/lib/r2";
+import type { R2Listing, R2Tree } from "@/lib/r2";
 import {
   baseName,
   childOnPath,
   crumbs,
   type Entry,
-  fileEntry,
-  folderStats,
+  type FolderStat,
   formatDay,
   hashFor,
   listingEntries,
@@ -23,7 +22,6 @@ import {
   parentOf,
   parseHash,
   SEARCH_MIN,
-  searchTree,
   type SortKey,
   SORT_KEYS,
   sortEntries,
@@ -44,7 +42,7 @@ import MediaPreview, {
   Fallback,
   previewKind,
 } from "@/components/react/MediaPreview";
-import { publishOwnerTree, releaseOwnerHold } from "@/components/files/owner-tree";
+import { useFilesSource } from "@/components/files/useFilesSource";
 import { CardThumb, EntryIcon, ImagePreview, TextPreview } from "@/components/files/Previews";
 import {
   ArrowDownIcon,
@@ -79,16 +77,9 @@ const count = (n: number) => n.toLocaleString("en-GB");
 const plural = (n: number, word: string) => `${count(n)} ${word}${n === 1 ? "" : "s"}`;
 
 export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
-  // With a tree, every directory is already here and nothing is ever fetched.
-  const complete = tree !== null;
-  const [listings, setListings] = useState<Record<string, R2Listing>>(
-    () => tree ?? (initial ? { "": initial } : {}),
-  );
-  const [loading, setLoading] = useState<Set<string>>(new Set());
-  // Without this a failed fetch renders identically to an empty folder.
-  const [failed, setFailed] = useState<Set<string>>(new Set());
-  const [rootError, setRootError] = useState(!tree && !initial);
-  const stats = useMemo(() => (complete ? folderStats(listings) : null), [complete, listings]);
+  const [files, source] = useFilesSource({ tree, initial, bucketUrl });
+  const { stats, rules, baseFor } = files;
+  const tagFor = useCallback((entry: Entry) => files.tagFor(entry.key), [files]);
 
   const [cwd, setCwd] = useState("");
   /** The selected key in each folder visited, so stepping back restores it. */
@@ -107,69 +98,6 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
 
   const [copied, setCopied] = useState<string | null>(null);
 
-  /**
-   * Folder settings, present only for the owner. The island everyone shares
-   * holds listed folders alone, so the owner's full tree arrives with these.
-   */
-  const [rules, setRules] = useState<VisibilityRules | null>(null);
-  const [accessChecked, setAccessChecked] = useState(false);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount only
-  useEffect(() => {
-    let live = true;
-    void (async () => {
-      try {
-        const response = await fetch("/api/files/visibility", { cache: "no-store" });
-        if (!response.ok) {
-          releaseOwnerHold();
-          return;
-        }
-        const data = (await response.json()) as { owner?: boolean; rules?: VisibilityRules; tree?: R2Tree | null };
-        if (!live || data.owner !== true || !data.rules) {
-          releaseOwnerHold();
-          return;
-        }
-        // Lazy mode starts over: what it fetched so far was the visitors' view.
-        if (complete) {
-          if (data.tree) {
-            setListings(data.tree);
-            publishOwnerTree(data.tree);
-          }
-        } else {
-          setListings({});
-          setFailed(new Set());
-          // No tree to publish, so the usage tile keeps the visitors' view.
-          releaseOwnerHold();
-        }
-        setRules(data.rules);
-      } catch {
-        // Not signed in, or offline: the visitors' view stands.
-        releaseOwnerHold();
-      } finally {
-        if (live) setAccessChecked(true);
-      }
-    })();
-    return () => {
-      live = false;
-    };
-  }, []);
-
-  /** Where a file's bytes come from: the bucket's domain, or for a private one the owner-checked route. */
-  const baseFor = useCallback(
-    (key: string) => (rules && visibilityOf(rules, key) === "private" ? "" : bucketUrl),
-    [rules, bucketUrl],
-  );
-
-  /** A tag for anything a visitor would not see listed; owner only. */
-  const tagFor = useCallback(
-    (entry: Entry): Visibility | null => {
-      if (!rules) return null;
-      const visibility = visibilityOf(rules, entry.key);
-      return visibility === "listed" ? null : visibility;
-    },
-    [rules],
-  );
-
   const root = useRef<HTMLElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -177,50 +105,18 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   const parentCol = useRef<HTMLDivElement>(null);
   const playback = useRef<(() => void) | null>(null);
 
-  const load = useCallback(
-    async (prefix: string) => {
-      if (complete || listings[prefix] || loading.has(prefix)) return;
-      setLoading((prev) => new Set(prev).add(prefix));
-      setFailed((prev) => {
-        if (!prev.has(prefix)) return prev;
-        const next = new Set(prev);
-        next.delete(prefix);
-        return next;
-      });
-      try {
-        const response = await fetch(`/api/files/list?prefix=${encodeURIComponent(prefix)}`);
-        // A 429 and a 500 both arrive as JSON, and neither is an empty folder.
-        if (!response.ok) throw new Error(String(response.status));
-        const data = (await response.json()) as R2Listing & { error?: boolean };
-        if (data.error) throw new Error("listing unavailable");
-        setListings((prev) => ({ ...prev, [prefix]: data }));
-        if (prefix === "") setRootError(false);
-      } catch {
-        setFailed((prev) => new Set(prev).add(prefix));
-        if (prefix === "") setRootError(true);
-      } finally {
-        setLoading((prev) => {
-          const next = new Set(prev);
-          next.delete(prefix);
-          return next;
-        });
-      }
-    },
-    [complete, listings, loading],
-  );
-
-  // The current folder and its parent, whenever either is missing. Failed
-  // ones wait for the retry button rather than looping.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the folder, not on `load`'s identity
+  // The current folder and its parent, whenever either is missing, and again
+  // once the owner's view replaces the visitors'. Failed ones wait for the
+  // retry button rather than looping.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the folder and the viewer
   useEffect(() => {
-    if (complete) return;
-    if (!listings[cwd] && !failed.has(cwd)) void load(cwd);
-    const parent = parentOf(cwd);
-    if (cwd && !listings[parent] && !failed.has(parent)) void load(parent);
-  }, [cwd, complete, rules !== null]);
+    void source.load(cwd);
+    if (cwd) void source.load(parentOf(cwd));
+  }, [cwd, files.owner]);
 
   /* ---- Search ---- */
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: searched again once the owner's view arrives
   useEffect(() => {
     const term = query.trim();
     setResultPick(null);
@@ -231,46 +127,39 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
       return;
     }
 
-    if (complete) {
-      setResults(searchTree(listings, term));
+    const controller = new AbortController();
+    const hits = source.search(term, controller.signal);
+    if (Array.isArray(hits)) {
+      setResults(hits);
       setSearching(false);
       return;
     }
 
     setSearching(true);
     setSearchFailed(false);
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      try {
-        const response = await fetch(`/api/files/search?q=${encodeURIComponent(term)}`, {
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error(String(response.status));
-        const data = (await response.json()) as { files: R2File[]; error?: boolean };
-        if (data.error) throw new Error("search unavailable");
-        setResults((data.files ?? []).map(([key, size, uploaded]) => fileEntry(key, size, uploaded)));
+    hits.then(
+      (entries) => {
+        if (controller.signal.aborted) return;
+        setResults(entries);
         setSearchFailed(false);
-      } catch {
+        setSearching(false);
+      },
+      () => {
         // An abort is us superseding the request, not a failure.
         if (controller.signal.aborted) return;
         setSearchFailed(true);
         setResults([]);
-      } finally {
-        if (!controller.signal.aborted) setSearching(false);
-      }
-    }, 280);
-
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [query, complete, listings]);
+        setSearching(false);
+      },
+    );
+    return () => controller.abort();
+  }, [query, files.owner]);
 
   const searchActive = results !== null || searching || searchFailed;
 
   /* ---- What is on screen ---- */
 
-  const listing = listings[cwd];
+  const listing = files.listing(cwd);
   const items = useMemo(() => {
     if (results) return sortEntries(results, sort, reverse);
     if (!listing) return [];
@@ -340,21 +229,17 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   );
 
   const [visError, setVisError] = useState<string | null>(null);
-  const changeVisibility = useCallback(async (prefix: string, visibility: Visibility | null) => {
-    setVisError(null);
-    try {
-      const response = await fetch("/api/files/visibility", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ prefix, visibility }),
-      });
-      const data = (await response.json().catch(() => ({}))) as { rules?: VisibilityRules };
-      if (!response.ok || !data.rules) throw new Error(String(response.status));
-      setRules(data.rules);
-    } catch {
-      setVisError(prefix);
-    }
-  }, []);
+  const changeVisibility = useCallback(
+    async (prefix: string, visibility: Visibility | null) => {
+      setVisError(null);
+      try {
+        await source.setVisibility(prefix, visibility);
+      } catch {
+        setVisError(prefix);
+      }
+    },
+    [source],
+  );
 
   const copyTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(copyTimer.current), []);
@@ -377,17 +262,11 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
 
   const applyHash = useCallback(() => {
     const { prefix, file } = parseHash(window.location.hash);
-    if (complete) {
-      // A link to a folder without its trailing slash still opens the folder.
-      if (file && listings[`${file}/`]) {
-        setCwd(`${file}/`);
-        return;
-      }
-      if (!listings[prefix]) return;
-    }
-    setCwd(prefix);
-    if (file) setPicked((prev) => ({ ...prev, [prefix]: file }));
-  }, [complete, listings]);
+    const target = files.locate(prefix, file);
+    if (!target) return;
+    setCwd(target.prefix);
+    if (target.file) setPicked((prev) => ({ ...prev, [target.prefix]: target.file as string }));
+  }, [files]);
 
   // The listener outlives the listings it was made with; the owner's arrive later.
   const applyHashRef = useRef(applyHash);
@@ -412,10 +291,10 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   // tree lands in the same render as `accessChecked`, so the retry sees it.
   // biome-ignore lint/correctness/useExhaustiveDependencies: once, when the check settles
   useLayoutEffect(() => {
-    if (!accessChecked) return;
-    if (rules) applyHashRef.current();
+    if (!files.accessChecked) return;
+    if (files.owner) applyHashRef.current();
     hashApplied.current = true;
-  }, [accessChecked]);
+  }, [files.accessChecked]);
 
   // Search results are a view, not a place, so they leave the link alone.
   const linkPath = results ? null : selected && !selected.dir ? selected.key : cwd;
@@ -446,17 +325,17 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the folder changes
   useLayoutEffect(() => {
     scrollIn(parentCol.current, parentCol.current?.querySelector<HTMLElement>(".on"));
-  }, [cwd, listings]);
+  }, [cwd, files]);
 
-  // A folder's preview lists its children; without the tree that is a fetch,
-  // so it waits until the selection settles.
+  // A folder's preview lists its children, which may be a fetch, so it waits
+  // until the selection settles.
   const peek = selected?.dir ? selected.key : null;
   // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the folder
   useEffect(() => {
-    if (complete || !peek || listings[peek] || failed.has(peek)) return;
-    const timer = setTimeout(() => void load(peek), PEEK_DELAY_MS);
+    if (!peek || files.listing(peek)) return;
+    const timer = setTimeout(() => void source.load(peek), PEEK_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [peek, complete]);
+  }, [peek]);
 
   /* ---- Keys ---- */
 
@@ -695,7 +574,7 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
             cwd={cwd}
             searching={searchActive}
             host={host}
-            listings={listings}
+            listing={files.listing}
             stats={stats}
             sort={sort}
             reverse={reverse}
@@ -724,7 +603,7 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
             <p className="fb-empty">Couldn't search just now — try again.</p>
           ) : searching && !results ? (
             <SkeletonRows />
-          ) : !results && rootError && cwd === "" ? (
+          ) : !results && files.rootError && cwd === "" ? (
             <p className="fb-empty">
               Couldn't reach the bucket.
               {import.meta.env.DEV && (
@@ -734,9 +613,9 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
               )}
             </p>
           ) : !results && !listing ? (
-            failed.has(cwd) ? (
+            files.failed(cwd) ? (
               <p className="fb-empty">
-                <button type="button" className="fb-textbtn" onClick={() => void load(cwd)}>
+                <button type="button" className="fb-textbtn" onClick={() => void source.load(cwd, { retry: true })}>
                   Couldn't load this folder — retry
                 </button>
               </p>
@@ -854,8 +733,8 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
               {selected.dir ? (
                 <FolderPreview
                   entry={selected}
-                  listing={listings[selected.key]}
-                  failed={failed.has(selected.key)}
+                  listing={files.listing(selected.key)}
+                  failed={files.failed(selected.key)}
                   stats={stats}
                   sort={sort}
                   reverse={reverse}
@@ -1036,7 +915,7 @@ function ParentColumn({
   cwd,
   searching,
   host,
-  listings,
+  listing,
   stats,
   sort,
   reverse,
@@ -1047,8 +926,8 @@ function ParentColumn({
   cwd: string;
   searching: boolean;
   host: string;
-  listings: Record<string, R2Listing>;
-  stats: ReturnType<typeof folderStats> | null;
+  listing: (prefix: string) => R2Listing | undefined;
+  stats: Record<string, FolderStat> | null;
   sort: SortKey;
   reverse: boolean;
   onGo: (prefix: string, focusKey?: string) => void;
@@ -1088,14 +967,14 @@ function ParentColumn({
   }
 
   const parent = parentOf(cwd);
-  const listing = listings[parent];
-  const entries = listing ? sortEntries(listingEntries(parent, listing, stats), sort, reverse) : [];
+  const shown = listing(parent);
+  const entries = shown ? sortEntries(listingEntries(parent, shown, stats), sort, reverse) : [];
   return (
     <>
       <div className="fb-col-h">
         <b>{parent ? `${baseName(parent)}/` : `${host}/`}</b>
       </div>
-      {listing ? (
+      {shown ? (
         <ul className="fb-rows">
           {entries.map((entry) => (
             <Row
@@ -1129,7 +1008,7 @@ function FolderPreview({
   entry: Entry;
   listing: R2Listing | undefined;
   failed: boolean;
-  stats: ReturnType<typeof folderStats> | null;
+  stats: Record<string, FolderStat> | null;
   sort: SortKey;
   reverse: boolean;
   bucketUrl: string;
