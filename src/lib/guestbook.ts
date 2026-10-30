@@ -1,6 +1,5 @@
 import { and, count, desc, eq, lt, or } from "drizzle-orm";
-import { env } from "cloudflare:workers";
-import { cached } from "./cache";
+import { cached, invalidate as invalidateCache } from "./cache";
 import { getDb, schema } from "./db";
 
 /**
@@ -169,15 +168,8 @@ export async function getStats(): Promise<GuestbookStats> {
  * Drops the cached first page and totals, so a writer sees their own change on
  * the redirect. Failures are swallowed: the write is already committed.
  */
-export async function invalidate(): Promise<void> {
-  const kv = env.CACHE;
-  if (!kv) return;
-
-  try {
-    await Promise.all([kv.delete(FIRST_PAGE_KEY), kv.delete(STATS_KEY)]);
-  } catch (error) {
-    console.error("[guestbook] cache invalidation failed", error);
-  }
+export function invalidate(): Promise<void> {
+  return invalidateCache(FIRST_PAGE_KEY, STATS_KEY);
 }
 
 /** When this signer last posted, for the rate limit. Indexed; reads one row. */
