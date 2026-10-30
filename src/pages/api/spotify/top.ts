@@ -14,7 +14,7 @@ export const GET: APIRoute = async ({ url }) => {
   try {
     const { tracks, artists } = await getTop(range, 12);
 
-    return json({ range, tracks, artists }, { policy: policies.top });
+    return json({ range, tracks, artists }, { policy: policies.top(range) });
   } catch (error) {
     console.error("[music] top failed", error);
     return json({ range, tracks: [], artists: [], error: true });

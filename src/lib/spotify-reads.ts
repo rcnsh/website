@@ -86,7 +86,7 @@ export type TimeRange = "short_term" | "medium_term" | "long_term";
 
 // A long window only means the warehouse is polled less; `cached()` serves
 // stale instantly either way.
-const TOP_FRESHNESS: Record<TimeRange, number> = {
+export const TOP_FRESHNESS: Record<TimeRange, number> = {
   short_term: 60 * 60, // "4 weeks" — shifts day to day
   medium_term: 60 * 60 * 6, // "6 months" — shifts over weeks
   long_term: 60 * 60 * 24, // "all time" — barely shifts at all

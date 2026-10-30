@@ -14,7 +14,9 @@ test("each route's policy", () => {
       download: policies.download,
       thumbObject: policies.thumbObject,
       shellFs: policies.shellFs,
-      top: policies.top,
+      topShort: policies.top("short_term"),
+      topMedium: policies.top("medium_term"),
+      topLong: policies.top("long_term"),
     },
     {
       nowPlaying: "public, max-age=10",
@@ -24,7 +26,9 @@ test("each route's policy", () => {
       download: "public, max-age=3600",
       thumbObject: "public, max-age=86400",
       shellFs: "public, max-age=3600",
-      top: "public, max-age=900",
+      topShort: "public, max-age=3600",
+      topMedium: "public, max-age=21600",
+      topLong: "public, max-age=86400",
     },
   );
 });

@@ -101,7 +101,9 @@ builders (`publicFor`, `noStore`, `uncachedError`, `privateNoStore`,
 `policies` table in `src/lib/http.ts`, which `http.test.ts` pins string by
 string. Where a route sits in front of a KV window its max-age is derived
 from the loader's constant (`FRESH_SECONDS` in `guestbook-cache.ts`,
-`CACHE_SECONDS` in `now-playing.ts`), so the two layers cannot drift.
+`TOP_FRESHNESS` in `spotify-reads.ts`, `CACHE_SECONDS` in `now-playing.ts`),
+so the two layers cannot drift. `/api/spotify/top` follows its range's
+freshness: 1h, 6h or 24h.
 
 **Edge copies go through `src/lib/edge-cache.ts`** (`edgeCached`,
 `invalidateEdge`; bound to the Worker in `edge.ts`). Cloudflare does not

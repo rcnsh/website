@@ -1,6 +1,7 @@
 import { privateNoStore, publicFor, type CachePolicy } from "../../shared/cache-policy.ts";
 import { FRESH_SECONDS as GUESTBOOK_FRESH_SECONDS } from "./guestbook-cache.ts";
 import { CACHE_SECONDS as NOW_PLAYING_SECONDS } from "./now-playing.ts";
+import { TOP_FRESHNESS, type TimeRange } from "./spotify-reads.ts";
 
 export {
   type CachePolicy,
@@ -23,7 +24,8 @@ export const policies = {
   /** Files list, meta and search. The tree behind them refreshes every five minutes. */
   files: publicFor(60),
   guestbookList: publicFor(GUESTBOOK_FRESH_SECONDS),
-  top: publicFor(900),
+  /** As long as `cached()` treats the range's KV copy as fresh. */
+  top: (range: TimeRange) => publicFor(TOP_FRESHNESS[range]),
   download: publicFor(3600),
   /** Stored on each thumb object in R2, for upload.rcn.sh to serve. */
   thumbObject: publicFor(86400),
