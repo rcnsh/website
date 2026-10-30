@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
-import { nowPlaying, recentPlays, top } from "./spotify-reads.ts";
+import { lastPlayed, nowPlaying, recentPlays, top } from "./spotify-reads.ts";
 import { createWarehouse, WarehouseNotConfigured, WarehouseShapeError } from "./warehouse-client.ts";
 
 const ENV = {
@@ -114,7 +114,31 @@ describe("recent plays", () => {
       ["An Album", "An Artist", null, null],
     );
     assert.ok(!JSON.stringify(plays).includes("Secret Mix"));
-    assert.deepEqual(cacheKeys, ["warehouse:recent:v3:4"]);
+    assert.deepEqual(cacheKeys, ["warehouse:recent:v4:4"]);
+  });
+
+  test("each play carries its track id", async () => {
+    const { client } = fake({ plays: [row(null, null)] });
+    const [play] = await client.read(recentPlays(1));
+    assert.equal(play.trackId, "abc");
+    assert.equal(play.url, "https://open.spotify.com/track/abc");
+  });
+});
+
+describe("track ids on live reads", () => {
+  test("now playing carries the track id", async () => {
+    const { client } = fake({ item: { is_playing: true, progress_ms: 5, item: { id: "abc", name: "Song" } } });
+    const playing = await client.read(nowPlaying());
+    assert.ok(playing.isPlaying);
+    assert.equal(playing.trackId, "abc");
+  });
+
+  test("last played carries the track id, and a local file has none", async () => {
+    const played_at = "2026-01-01T00:00:00.000Z";
+    const { client } = fake({ items: [{ played_at, track: { id: "abc", name: "Song" } }] });
+    assert.equal((await client.read(lastPlayed()))?.trackId, "abc");
+    const local = fake({ items: [{ played_at, track: { id: null, name: "Local" } }] });
+    assert.equal((await local.client.read(lastPlayed()))?.trackId, null);
   });
 });
 
@@ -123,7 +147,7 @@ describe("top", () => {
 
   test("picks the smallest cover wide enough, else the first", async () => {
     const { client, cacheKeys } = fake({
-      tracks: { items: [{ name: "T", artists: [{ name: "A" }, { name: "B" }], album: { images: [image(640), image(300), image(64)] } }] },
+      tracks: { items: [{ id: "abc", name: "T", artists: [{ name: "A" }, { name: "B" }], album: { images: [image(640), image(300), image(64)] } }] },
       artists: {
         items: [
           { name: "Wide", images: [image(640), image(320), image(160)] },
@@ -134,10 +158,11 @@ describe("top", () => {
     const { tracks, artists } = await client.read(top("short_term", 2));
     assert.equal(tracks[0].image, "w300");
     assert.equal(tracks[0].artists, "A, B");
+    assert.equal(tracks[0].trackId, "abc");
     assert.deepEqual(
       artists.map((a) => a.image),
       ["w320", "w160"],
     );
-    assert.deepEqual(cacheKeys, ["warehouse:top:short_term:2"]);
+    assert.deepEqual(cacheKeys, ["warehouse:top:v2:short_term:2"]);
   });
 });

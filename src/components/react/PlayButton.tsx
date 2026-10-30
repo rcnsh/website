@@ -1,17 +1,11 @@
-import { trackIdFromHref } from "@/lib/track-play";
+import { PLAY_ICON } from "@/components/icons";
+import { PLAY_CLASS, playButtonAttributes } from "@/lib/track-play";
 
 /** PlayButton.astro's counterpart: shown to the owner only, played by PlayOnSpotify. */
-export function PlayButton({ url, title }: { url: string | null; title: string }) {
-  const trackId = url ? trackIdFromHref(url) : null;
+export function PlayButton({ trackId, title }: { trackId: string | null | undefined; title: string }) {
   if (!trackId) return null;
   return (
-    <button
-      type="button"
-      className="play-track"
-      data-play-track={trackId}
-      aria-label={`Play ${title} on Spotify`}
-      title="Play on Spotify"
-    >
+    <button type="button" className={PLAY_CLASS} {...playButtonAttributes(trackId, title)}>
       <svg
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -20,10 +14,9 @@ export function PlayButton({ url, title }: { url: string | null; title: string }
         strokeLinejoin="round"
         aria-hidden="true"
         className="h-2.5 w-2.5 fill-current"
-      >
-        {/* icons.ts `play`. */}
-        <path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" />
-      </svg>
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: a constant from icons.ts, not user input.
+        dangerouslySetInnerHTML={{ __html: PLAY_ICON }}
+      />
     </button>
   );
 }

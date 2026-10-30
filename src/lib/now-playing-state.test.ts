@@ -8,7 +8,9 @@ import { WarehouseShapeError } from "./warehouse-client.ts";
 
 const ORIGIN = "https://rcn.sh";
 
-const track = { title: "Song", artists: "Band", album: "LP", image: null, url: "https://open.spotify.com/track/x" };
+// The payload carries what the widget shows; the track id stays server-side.
+const shown = { title: "Song", artists: "Band", album: "LP", image: null, url: "https://open.spotify.com/track/x" };
+const track = { ...shown, trackId: "x" };
 const playing = { isPlaying: true as const, ...track, progressMs: 60_000, durationMs: 200_000 };
 const recent: RecentTrack = { ...track, durationMs: 200_000, playedAt: "2026-10-30T10:00:00.000Z" };
 
@@ -89,7 +91,7 @@ describe("now-playing respond", () => {
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), `public, max-age=${CACHE_SECONDS}`);
     assert.equal(response.headers.get("x-cached-at"), "1000000");
-    assert.deepEqual(body, { state: "playing", ...track, progressMs: 60_000, durationMs: 200_000 });
+    assert.deepEqual(body, { state: "playing", ...shown, progressMs: 60_000, durationMs: 200_000 });
     assert.ok(h.entries.has(`${ORIGIN}/api/spotify/now-playing`));
   });
 
@@ -118,7 +120,7 @@ describe("now-playing respond", () => {
       },
     });
     const { body } = await h.get();
-    assert.deepEqual(body, { state: "recent", ...track, playedAt: recent.playedAt });
+    assert.deepEqual(body, { state: "recent", ...shown, playedAt: recent.playedAt });
   });
 
   test("last played failing falls back to stored, then to idle", async () => {
