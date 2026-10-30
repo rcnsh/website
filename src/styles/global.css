@@ -443,9 +443,9 @@
   }
 }
 
-/* Owner-only play buttons (PlayButton.astro, NowPlaying). Every page and
-   island carries them, since those are cached for everyone; PlayOnSpotify
-   marks the document for the owner, and only then do they show. */
+/* Owner-only play buttons (PlayButton; names from src/lib/track-play.ts).
+   Every page and island carries them, since those are cached for everyone;
+   PlayOnSpotify marks the document for the owner, and only then do they show. */
 .play-track {
   display: none;
 }

@@ -1,5 +1,6 @@
 ---
 import Icon from "@/components/Icon.astro";
+import { PLAY_CLASS, playButtonAttributes } from "@/lib/track-play";
 
 /** Play `trackId` on the owner's Spotify. Rendered for everyone, shown only to the owner. */
 interface Props {
@@ -12,7 +13,7 @@ const { trackId, title } = Astro.props;
 
 {
   trackId && (
-    <button type="button" class="play-track" data-play-track={trackId} aria-label={`Play ${title} on Spotify`} title="Play on Spotify">
+    <button type="button" class={PLAY_CLASS} {...playButtonAttributes(trackId, title)}>
       <Icon name="play" class="h-2.5 w-2.5 fill-current" />
     </button>
   )

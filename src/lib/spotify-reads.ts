@@ -38,6 +38,8 @@ const artistSchema = z.object({
 });
 
 const trackSchema = z.object({
+  // Null for local files, which Spotify can't play remotely.
+  id: z.string().nullish(),
   name: z.string(),
   duration_ms: z.number().optional(),
   external_urls: z.object({ spotify: z.string() }).optional(),
@@ -51,6 +53,7 @@ const trackSchema = z.object({
 });
 
 export type Track = {
+  trackId: string | null;
   title: string;
   artists: string;
   album: string | null;
@@ -69,6 +72,7 @@ export type NowPlaying =
   | { isPlaying: false }
   | {
       isPlaying: true;
+      trackId: string | null;
       title: string;
       artists: string;
       album: string | null;
@@ -90,6 +94,7 @@ const TOP_FRESHNESS: Record<TimeRange, number> = {
 
 function normaliseTrack(raw: z.infer<typeof trackSchema>): Track {
   return {
+    trackId: raw.id ?? null,
     title: raw.name,
     artists: raw.artists.map((a) => a.name).join(", "),
     album: raw.album?.name ?? null,
@@ -117,6 +122,7 @@ export const nowPlaying = (): Read<NowPlaying> => ({
       const track = normaliseTrack(playing.item);
       return {
         isPlaying: true,
+        trackId: track.trackId,
         title: track.title,
         artists: track.artists,
         album: track.album,
@@ -172,7 +178,8 @@ export const top = (range: TimeRange, limit: number): Read<{ tracks: Track[]; ar
         url: item.external_urls?.spotify ?? null,
       })),
     })),
-  cache: { key: `top:${range}:${limit}`, freshForSeconds: TOP_FRESHNESS[range] },
+  // v2 carries track ids; v1 entries lack them.
+  cache: { key: `top:v2:${range}:${limit}`, freshForSeconds: TOP_FRESHNESS[range] },
 });
 
 const playRowSchema = z.object({
@@ -217,6 +224,7 @@ export const recentPlays = (limit: number): Read<StoredPlay[]> => ({
     .object({ plays: z.array(playRowSchema).default([]) })
     .transform(({ plays }) =>
       plays.map((row) => ({
+        trackId: row.track_id,
         title: row.track_name ?? "Unknown track",
         artists: row.artists ?? "",
         album: row.album_name ?? null,
@@ -240,8 +248,8 @@ export const recentPlays = (limit: number): Read<StoredPlay[]> => ({
   cache: {
     // Versioned: a value cached before credits were read lacks them, and
     // stale-while-revalidate would serve it to code that expects them. v3
-    // drops the playlist names v2 cached.
-    key: `recent:v3:${limit}`,
+    // drops the playlist names v2 cached; v4 adds track ids.
+    key: `recent:v4:${limit}`,
     freshForSeconds: 60 * 5,
     // Every row renders as "played 3 hours ago", so week-old stale reads as broken.
     maxStaleSeconds: 60 * 60 * 6,
