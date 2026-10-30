@@ -1,4 +1,5 @@
 <script>
+  import { PLAYED_EVENT } from "@/lib/now-playing";
   import { hasOwnerHint } from "@/lib/owner-hint";
   import { isTrackId } from "@/lib/track-play";
 
@@ -21,7 +22,7 @@
       const body = response && !response.ok ? ((await response.json().catch(() => null)) as { error?: string } | null) : null;
       const failure = response?.ok ? null : (body?.error ?? (response ? `Failed (${response.status})` : "Couldn't reach the site"));
       button.dataset.state = failure ? "failed" : "played";
-      if (!failure) document.dispatchEvent(new CustomEvent("music:played"));
+      if (!failure) document.dispatchEvent(new CustomEvent(PLAYED_EVENT));
       button.title = failure ?? "Playing";
       setTimeout(() => {
         delete button.dataset.state;

@@ -1,33 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { SpotifyIcon } from "./BrandIcons";
+import { END_RETRIES, END_RETRY_MS, PLAYED_EVENT, PLAYED_REFRESH_MS, type NowPlayingPayload as Payload } from "@/lib/now-playing";
 import { liveUpdates, onPrefChange } from "@/lib/prefs";
 import { cn, formatDuration, relativeTime } from "@/lib/utils";
 import "@/components/music/now-playing.css";
-
-type Payload =
-  | { state: "playing"; title: string; artists: string; album: string | null; image: string | null; url: string | null; progressMs: number; durationMs: number }
-  | { state: "recent"; title: string; artists: string; album: string | null; image: string | null; url: string | null; playedAt: string }
-  | { state: "idle" }
-  | { state: "error" };
 
 // The bar is interpolated locally between polls, so the cadence only decides
 // how fast a *track change* is noticed — and the end of a track is handled
 // directly below.
 const POLL_MS = 30_000;
 
-/** After a play from the site: past the server's own re-fetch of Spotify (/api/music/play). */
-const PLAYED_REFRESH_MS = 3_500;
-
 // A poll must not outlive its own interval, or requests stack.
 const REQUEST_TIMEOUT_MS = 8_000;
 
 // A frozen bar under a "Now playing" label is a worse lie than saying nothing.
 const STALE_AFTER_FAILURES = 3;
-
-// Spotify keeps reporting a finished track for a few seconds, and the route
-// caches for ten, so one end-of-track refresh usually comes back unchanged.
-const END_RETRY_MS = 3_000;
-const END_RETRIES = 8;
 
 export default function NowPlaying({
   layout = "home",
@@ -145,7 +132,7 @@ export default function NowPlaying({
       if (timer) clearTimeout(timer);
       timer = setTimeout(restart, PLAYED_REFRESH_MS);
     };
-    document.addEventListener("music:played", onPlayed);
+    document.addEventListener(PLAYED_EVENT, onPlayed);
 
     return () => {
       alive = false;
@@ -153,7 +140,7 @@ export default function NowPlaying({
       inFlight?.abort();
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
-      document.removeEventListener("music:played", onPlayed);
+      document.removeEventListener(PLAYED_EVENT, onPlayed);
     };
   }, [live]);
 
