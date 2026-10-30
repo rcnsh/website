@@ -1,7 +1,7 @@
 ---
 import LinkTile from "./LinkTile.astro";
 import { bucketTotals } from "@/lib/bucket-totals";
-import { loadRules, visitorTree } from "@/lib/visibility";
+import { bucket } from "@/lib/bucket";
 import { formatBytes } from "@/lib/utils";
 
 // Server island: the totals change on every upload, the page around it does
@@ -9,7 +9,7 @@ import { formatBytes } from "@/lib/utils";
 let detail = "Public files on R2";
 try {
   // Listed files only, or the totals would hint at what is hidden.
-  const tree = await visitorTree(await loadRules());
+  const tree = await bucket.view(false).tree();
   // No tree means the bucket outgrew inlining; the generic line stands.
   if (tree) {
     const { objects, bytes } = bucketTotals(tree);

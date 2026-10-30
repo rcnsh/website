@@ -177,7 +177,7 @@ export default function MusicExplorer({
                       >
                         {track.title}
                       </a>
-                      <PlayButton url={track.url} title={track.title} />
+                      <PlayButton trackId={track.trackId} title={track.title} />
                     </span>
                     <span className="mt-px block truncate text-[12.5px] text-ink-dim">
                       {track.artists}

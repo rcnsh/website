@@ -1,9 +1,11 @@
 import type { APIRoute } from "astro";
 import { z } from "zod";
 import { cached } from "@/lib/cache";
+import { policies } from "@/lib/http";
 import { pickLine, renderNowCard, type NowLine, type NowSnapshot, type Theme } from "@/lib/now-card";
 import { clock } from "@/lib/site";
-import { getNowPlaying, warehouse } from "@/lib/spotify";
+import { getNowPlaying } from "@/lib/spotify";
+import { warehouse } from "@/lib/warehouse";
 
 export const prerender = false;
 
@@ -17,17 +19,15 @@ const localDay = (daysAgo: number) =>
 
 /** The most played song of the last 7 days, or null for a quiet week. */
 async function onRepeat(): Promise<NowLine> {
-  return cached("warehouse:on-repeat:7d", REPEAT_FRESHNESS, async () => {
-    const query = new URLSearchParams({ from: localDay(6), to: localDay(0), tz: clock.timeZone, limit: "1" });
-    const parsed = z
+  const query = new URLSearchParams({ from: localDay(6), to: localDay(0), tz: clock.timeZone, limit: "1" });
+  return warehouse.read({
+    path: `/api/top-tracks?${query}`,
+    schema: z
       .object({ tracks: z.array(z.object({ name: z.string(), artist: z.string().nullable() })) })
-      .safeParse(await warehouse(`/api/top-tracks?${query}`));
-    // A shape change is a failure, not an empty week — see CLAUDE.md § Maintenance › Data.
-    if (!parsed.success) {
-      throw new Error(`warehouse /api/top-tracks returned an unexpected shape: ${parsed.error.message}`);
-    }
-    const [top] = parsed.data.tracks;
-    return top ? { state: "repeat", title: top.name, artists: top.artist } : { state: "none" };
+      .transform(({ tracks: [top] }): NowLine =>
+        top ? { state: "repeat", title: top.name, artists: top.artist } : { state: "none" },
+      ),
+    cache: { key: "on-repeat:7d", freshForSeconds: REPEAT_FRESHNESS },
   });
 }
 
@@ -67,7 +67,7 @@ export const GET: APIRoute = async ({ url }) => {
   return new Response(renderNowCard(line, theme), {
     headers: {
       "content-type": "image/svg+xml; charset=utf-8",
-      "cache-control": "public, max-age=30, stale-while-revalidate=60",
+      "cache-control": policies.nowSvg,
     },
   });
 };

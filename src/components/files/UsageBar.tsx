@@ -3,7 +3,7 @@ import type { HiddenTotals } from "@/lib/bucket-totals";
 import { kindTotals, type KindTotal } from "@/lib/files-nav";
 import { formatBytes } from "@/lib/utils";
 import { KIND_COLOUR, KIND_LABEL, PRIVATE_COLOUR, PRIVATE_LABEL } from "./kinds";
-import { subscribeOwnerTree } from "./owner-tree";
+import { subscribeOwnerTree } from "./owner-view";
 
 interface Props {
   kinds: KindTotal[];

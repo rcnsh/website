@@ -1004,7 +1004,7 @@ video.fb-stage {
   }
 }
 
-/* See startOwnerHold in owner-tree.ts. Hidden, not removed: the space stays. */
+/* See startOwnerHold in owner-view.ts. Hidden, not removed: the space stays. */
 html[data-owner-hold] [data-owner-view="visitor"] {
   visibility: hidden;
 }

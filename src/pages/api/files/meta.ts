@@ -1,58 +1,62 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { getSession, isOwner } from "@/lib/auth";
+import { json, policies, uncachedError } from "@/lib/http";
 import { cachedMediaMeta, cachedThumbs, uploadedSeconds } from "@/lib/media";
-import { isHiddenKey } from "@/lib/r2";
+import { bucket } from "@/lib/bucket";
+import { requireOwner } from "@/lib/owner";
 import { NO_THUMBS, type ThumbSet } from "@/lib/thumbs";
-import { loadRules } from "@/lib/visibility";
-import { visibilityOf } from "../../../../shared/visibility.ts";
 
 export const prerender = false;
-
-function json(body: unknown, status = 200, cache = "public, max-age=60"): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json", "cache-control": cache },
-  });
-}
 
 /**
  * Container, tracks and tags for one object, demuxed on the Worker from ranged
  * reads of its header and index. Public for whatever the bucket serves publicly;
  * a private file's metadata is the owner's alone.
  */
-export const GET: APIRoute = async ({ url, cookies }) => {
-  const key = url.searchParams.get("key");
-
+export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   // Refused exactly as /api/files/download refuses them.
-  if (!key || key.includes("..")) return json({ error: "Bad request" }, 400, "no-store");
-  if (isHiddenKey(key)) return json({ error: "Not found" }, 404, "no-store");
+  const owner = async () => !(await requireOwner({ request, cookies, url, locals }, { refuse: "not-found-json" }));
+  let decision: Awaited<ReturnType<ReturnType<typeof bucket.view>["canRead"]>>;
+  try {
+    decision = await bucket.view(owner).canRead(url.searchParams.get("key"));
+  } catch (error) {
+    // The session lookup behind the owner check; D1 can be briefly out.
+    decision = { ok: false, refusal: "unavailable", error };
+  }
+  if (!decision.ok) {
+    switch (decision.refusal) {
+      case "bad-request":
+        return json({ error: "Bad request" }, { status: 400, policy: uncachedError });
+      case "not-found":
+        return json({ error: "Not found" }, { status: 404, policy: uncachedError });
+      case "unavailable":
+        console.error("[files] meta failed", url.searchParams.get("key"), decision.error);
+        return json({ error: "Metadata unavailable" }, { status: 502, policy: uncachedError });
+    }
+  }
+  const { key } = decision;
 
-  const bucket = env.BUCKET;
-  if (!bucket) return json({ error: "Bucket not configured" }, 503, "no-store");
+  const r2 = env.BUCKET;
+  if (!r2) return json({ error: "Bucket not configured" }, { status: 503, policy: uncachedError });
 
   try {
-    if (visibilityOf(await loadRules(), key) === "private" && !isOwner(await getSession(cookies))) {
-      return json({ error: "Not found" }, 404, "no-store");
-    }
+    const object = await r2.head(key);
+    if (!object) return json({ error: "Not found" }, { status: 404, policy: uncachedError });
 
-    const object = await bucket.head(key);
-    if (!object) return json({ error: "Not found" }, 404, "no-store");
-
-    const meta = await cachedMediaMeta(bucket, key, object);
+    const meta = await cachedMediaMeta(r2, key, object);
 
     // Secondary: a failed thumbs lookup only means the browser draws its own.
     let thumbs: ThumbSet = NO_THUMBS;
     if (meta.supported) {
-      thumbs = await cachedThumbs(bucket, key, uploadedSeconds(object)).catch((error) => {
+      thumbs = await cachedThumbs(r2, key, uploadedSeconds(object)).catch((error) => {
         console.error("[files] thumbs lookup failed", error);
         return NO_THUMBS;
       });
     }
 
-    return json({ ...meta, size: object.size, uploaded: uploadedSeconds(object), thumbs });
+    return json({ ...meta, size: object.size, uploaded: uploadedSeconds(object), thumbs }, { policy: policies.files });
   } catch (error) {
     console.error("[files] meta failed", key, error);
-    return json({ error: "Metadata unavailable" }, 502, "no-store");
+    return json({ error: "Metadata unavailable" }, { status: 502, policy: uncachedError });
   }
 };

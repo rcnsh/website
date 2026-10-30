@@ -94,7 +94,7 @@ async function sign(): Promise<string | null> {
     });
 
     // The redirect reads both straight back; drop them first.
-    await invalidate();
+    await invalidate(Astro.url.origin);
     return null;
   } catch (insertError) {
     console.error("[guestbook] insert failed", insertError);

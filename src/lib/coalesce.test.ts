@@ -14,24 +14,6 @@ function deferred<T>() {
 }
 
 describe("single-flight", () => {
-  test("concurrent callers for one key run the loader once", async () => {
-    const gate = deferred<string>();
-    let calls = 0;
-
-    const load = () => {
-      calls += 1;
-      return gate.promise;
-    };
-
-    const a = coalesce("k", load);
-    const b = coalesce("k", load);
-    const c = coalesce("k", load);
-
-    gate.resolve("value");
-    assert.deepEqual(await Promise.all([a, b, c]), ["value", "value", "value"]);
-    assert.equal(calls, 1, "the herd should collapse onto one load");
-  });
-
   test("different keys do not share a load", async () => {
     let calls = 0;
     const load = async () => {

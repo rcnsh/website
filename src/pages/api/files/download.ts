@@ -1,9 +1,9 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { getSession, isOwner } from "@/lib/auth";
-import { isHiddenKey, publicBucketBase } from "@/lib/r2";
-import { loadRules } from "@/lib/visibility";
-import { visibilityOf } from "../../../../shared/visibility.ts";
+import { bucket } from "@/lib/bucket";
+import { policies, privateNoStore } from "@/lib/http";
+import { requireOwner } from "@/lib/owner";
+import { publicBucketBase } from "@/lib/r2";
 
 export const prerender = false;
 
@@ -36,41 +36,36 @@ function inlineSafe(type: string | undefined): boolean {
  * private file, which upload.rcn.sh refuses, and anyone at all when
  * PUBLIC_BUCKET_URL is unset and there is no bucket domain to link to.
  */
-export const GET: APIRoute = async ({ url, request, cookies }) => {
-  const key = url.searchParams.get("key");
+export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
+  // A refused owner check also drops a stale owner hint.
+  const owner = async () => !(await requireOwner({ request, cookies, url, locals }, { refuse: "not-found" }));
+  const decision = await bucket.view(owner).canRead(url.searchParams.get("key"));
 
-  if (!key || key.includes("..")) {
-    return new Response("Bad request", { status: 400 });
+  if (!decision.ok) {
+    switch (decision.refusal) {
+      case "bad-request":
+        return new Response("Bad request", { status: 400 });
+      case "not-found":
+        return new Response("Not found", { status: 404 });
+      case "unavailable":
+        console.error("[files] rules unavailable", decision.error);
+        return new Response("Unavailable", { status: 503 });
+    }
   }
 
-  // Listings hide dot-prefixed entries; without this they stay downloadable by
-  // name. 404 rather than 403, so this does not confirm what exists.
-  if (isHiddenKey(key)) {
-    return new Response("Not found", { status: 404 });
-  }
-
-  let isPrivate: boolean;
-  try {
-    isPrivate = visibilityOf(await loadRules(), key) === "private";
-  } catch (error) {
-    console.error("[files] rules unavailable", error);
-    return new Response("Unavailable", { status: 503 });
-  }
-
-  if (isPrivate) {
-    if (!isOwner(await getSession(cookies))) return new Response("Not found", { status: 404 });
-  } else if (publicBucketBase()) {
+  const isPrivate = decision.visibility === "private";
+  if (!isPrivate && publicBucketBase()) {
     // A public object is linked on the bucket's domain, so this route has no
     // caller for it — and bucket bytes on the site's own origin are worse.
     return new Response("Not found", { status: 404 });
   }
 
-  const bucket = env.BUCKET;
-  if (!bucket) return new Response("Bucket not configured", { status: 503 });
+  const r2 = env.BUCKET;
+  if (!r2) return new Response("Bucket not configured", { status: 503 });
 
   const range = request.headers.get("range");
-  const object = await bucket.get(
-    key,
+  const object = await r2.get(
+    decision.key,
     range ? { range: request.headers } : undefined,
   );
 
@@ -79,7 +74,7 @@ export const GET: APIRoute = async ({ url, request, cookies }) => {
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set("etag", object.httpEtag);
-  headers.set("cache-control", isPrivate ? "private, no-store" : "public, max-age=3600");
+  headers.set("cache-control", isPrivate ? privateNoStore : policies.download);
   headers.set("accept-ranges", "bytes");
 
   // An opaque origin regardless of type, so a rendered document cannot reach
@@ -92,7 +87,7 @@ export const GET: APIRoute = async ({ url, request, cookies }) => {
   } else {
     // Not on the inert list: strip the stored type and hand it over as a file.
     headers.set("content-type", "application/octet-stream");
-    const filename = (key.split("/").pop() || "download").replace(/"/g, "");
+    const filename = (decision.key.split("/").pop() || "download").replace(/"/g, "");
     headers.set(
       "content-disposition",
       `attachment; filename="${filename}"`,

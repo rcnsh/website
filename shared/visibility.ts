@@ -1,6 +1,8 @@
 // Who may see and fetch what in the file bucket, decided per folder. Shared by
 // the site and the upload.rcn.sh Worker, which must never disagree about it.
 
+import { isHiddenKey, objectKey, THUMBS_PREFIX } from "./bucket-keys.ts";
+
 /**
  * `listed` shows on /files. `unlisted` is hidden there but still served to
  * anyone holding the URL. `private` is served only to the owner, through the
@@ -15,8 +17,6 @@ export type VisibilityRules = Record<string, Visibility>;
 
 /** What a folder gets when neither it nor any ancestor has a setting. */
 export const DEFAULT_VISIBILITY: Visibility = "unlisted";
-
-const THUMBS_PREFIX = ".thumbs/";
 
 export function isVisibility(value: unknown): value is Visibility {
   return typeof value === "string" && (VISIBILITIES as readonly string[]).includes(value);
@@ -34,13 +34,16 @@ export function parseRules(rows: Iterable<{ prefix: string; visibility: string }
   return rules;
 }
 
-/** The folder a key lives in: everything up to the last slash, "" at the root. */
-export function folderOf(key: string): string {
+/**
+ * Everything up to the last slash, "" at the root: a key's folder, or a
+ * folder prefix itself.
+ */
+export function prefixOf(key: string): string {
   return key.slice(0, key.lastIndexOf("/") + 1);
 }
 
 function parentFolder(prefix: string): string {
-  return folderOf(prefix.slice(0, -1));
+  return prefixOf(prefix.slice(0, -1));
 }
 
 /**
@@ -48,7 +51,7 @@ function parentFolder(prefix: string): string {
  * itself included, that has one of its own.
  */
 export function visibilityOf(rules: VisibilityRules, path: string): Visibility {
-  let prefix = path === "" || path.endsWith("/") ? path : folderOf(path);
+  let prefix = path === "" || path.endsWith("/") ? path : prefixOf(path);
   for (;;) {
     // hasOwn, not `in`: a folder called "constructor/" is not Object's.
     if (Object.hasOwn(rules, prefix)) return rules[prefix];
@@ -68,10 +71,6 @@ export function inheritedFrom(rules: VisibilityRules, prefix: string): string | 
   return "";
 }
 
-function hidden(key: string): boolean {
-  return key.split("/").some((segment) => segment.startsWith("."));
-}
-
 /**
  * The key whose visibility governs `key`: a preview under `.thumbs/` answers
  * to the file it was made from, any other dot path to nothing (null). Thumbs
@@ -80,15 +79,71 @@ function hidden(key: string): boolean {
 export function accessSubject(key: string): string | null {
   if (key.startsWith(THUMBS_PREFIX)) {
     const source = key.slice(THUMBS_PREFIX.length);
-    return source && !hidden(source) ? source : null;
+    return source && !isHiddenKey(source) ? source : null;
   }
-  return hidden(key) ? null : key;
+  return isHiddenKey(key) ? null : key;
 }
 
-/** Whether anyone, signed in or not, may fetch the object at `key`. */
-export function servesPublicly(rules: VisibilityRules, key: string): boolean {
+export type ReadRefusal = "bad-request" | "not-found" | "unavailable";
+
+export type ReadDecision =
+  | { ok: true; key: string; visibility: Visibility }
+  | { ok: false; refusal: ReadRefusal; error?: unknown };
+
+/**
+ * Whether the object at `key` may be read, refusing in a fixed order: a key
+ * that names nothing, then a dot path, then rules that cannot be read, then a
+ * private file for anyone but the owner. Private and missing answer alike so
+ * existence is never confirmed. `isOwner` is asked only about private files,
+ * so a public read never costs a session lookup.
+ */
+export async function decideRead(
+  raw: string | null | undefined,
+  rules: () => Promise<VisibilityRules>,
+  isOwner: () => Promise<boolean>,
+): Promise<ReadDecision> {
+  const key = objectKey(raw);
+  if (key === null) return { ok: false, refusal: "bad-request" };
   const subject = accessSubject(key);
-  return subject !== null && visibilityOf(rules, subject) !== "private";
+  if (subject === null) return { ok: false, refusal: "not-found" };
+
+  let visibility: Visibility;
+  try {
+    visibility = visibilityOf(await rules(), subject);
+  } catch (error) {
+    return { ok: false, refusal: "unavailable", error };
+  }
+
+  if (visibility === "private" && !(await isOwner())) return { ok: false, refusal: "not-found" };
+  return { ok: true, key, visibility };
+}
+
+/** How long an isolate trusts its copy of the rules; a change lands everywhere within this. */
+export const RULES_FRESH_MS = 10_000;
+
+export type RuleRow = { prefix: string; visibility: string };
+
+/**
+ * The rules, read through `read` and memoised for RULES_FRESH_MS. A failed
+ * read throws rather than returning `{}`: empty rules would apply the default
+ * to every folder, and a caller that cannot read the rules must refuse.
+ * `forget` drops the memo, for the isolate that just wrote a change.
+ */
+export function rulesLoader(read: () => Promise<Iterable<RuleRow>>, now: () => number = Date.now) {
+  let memo: { rules: VisibilityRules; at: number } | null = null;
+
+  async function load(): Promise<VisibilityRules> {
+    if (memo && now() - memo.at < RULES_FRESH_MS) return memo.rules;
+    const rules = parseRules(await read());
+    memo = { rules, at: now() };
+    return rules;
+  }
+
+  function forget(): void {
+    memo = null;
+  }
+
+  return { load, forget };
 }
 
 /**

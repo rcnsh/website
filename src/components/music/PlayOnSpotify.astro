@@ -1,18 +1,19 @@
 <script>
-  import { hasOwnerCookie } from "@/lib/owner-hint";
-  import { isTrackId } from "@/lib/track-play";
+  import { PLAYED_EVENT } from "@/lib/now-playing";
+  import { hasOwnerHint } from "@/lib/owner-hint";
+  import { isTrackId, PLAY_SELECTOR, PLAY_STATE_ATTR, PLAY_TITLE, PLAY_TRACK_ATTR } from "@/lib/track-play";
 
   // Marks the document so the owner's play buttons show (global.css), and
   // plays from any of them, islands and live widgets included.
-  if (hasOwnerCookie(document.cookie)) {
+  if (hasOwnerHint()) {
     document.documentElement.dataset.owner = "";
     document.addEventListener("click", async (event) => {
-      const button = (event.target as Element | null)?.closest<HTMLButtonElement>("button[data-play-track]");
-      const trackId = button?.dataset.playTrack;
-      if (!button || !isTrackId(trackId) || button.dataset.state === "pending") return;
+      const button = (event.target as Element | null)?.closest<HTMLButtonElement>(PLAY_SELECTOR);
+      const trackId = button?.getAttribute(PLAY_TRACK_ATTR);
+      if (!button || !isTrackId(trackId) || button.getAttribute(PLAY_STATE_ATTR) === "pending") return;
       event.preventDefault();
 
-      button.dataset.state = "pending";
+      button.setAttribute(PLAY_STATE_ATTR, "pending");
       const response = await fetch("/api/music/play", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -20,12 +21,12 @@
       }).catch(() => null);
       const body = response && !response.ok ? ((await response.json().catch(() => null)) as { error?: string } | null) : null;
       const failure = response?.ok ? null : (body?.error ?? (response ? `Failed (${response.status})` : "Couldn't reach the site"));
-      button.dataset.state = failure ? "failed" : "played";
-      if (!failure) document.dispatchEvent(new CustomEvent("music:played"));
+      button.setAttribute(PLAY_STATE_ATTR, failure ? "failed" : "played");
+      if (!failure) document.dispatchEvent(new CustomEvent(PLAYED_EVENT));
       button.title = failure ?? "Playing";
       setTimeout(() => {
-        delete button.dataset.state;
-        button.title = "Play on Spotify";
+        button.removeAttribute(PLAY_STATE_ATTR);
+        button.title = PLAY_TITLE;
       }, failure ? 4000 : 1500);
     });
   }

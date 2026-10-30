@@ -1,5 +1,4 @@
-import { env } from "cloudflare:workers";
-import { cached } from "@/lib/cache";
+import { cached, invalidate } from "@/lib/cache";
 import {
   bucketSource,
   READ_BUDGET,
@@ -10,11 +9,11 @@ import {
 import {
   SOURCE_UPLOADED_FIELD,
   THUMB_KINDS,
-  THUMBS_PREFIX,
   thumbSet,
   type ThumbKind,
   type ThumbSet,
 } from "@/lib/thumbs";
+import { THUMBS_PREFIX } from "../../shared/bucket-keys.ts";
 
 /**
  * KV-backed lookups for /files previews. Metadata is keyed on the object key
@@ -102,14 +101,7 @@ export async function cachedThumbs(
 
 /** Drops the cached thumb set, so a backfill shows on the next read. */
 export async function forgetThumbs(key: string, uploaded: number): Promise<void> {
-  const kv = env.CACHE;
-  if (!kv) return;
-  try {
-    await kv.delete(thumbsCacheKey(await digest(key), uploaded));
-  } catch (error) {
-    // The thumbs are already written; the entry ages out within the hour.
-    console.error("[files] thumbs cache invalidation failed", error);
-  }
+  await invalidate(thumbsCacheKey(await digest(key), uploaded));
 }
 
 /** The kinds, longest first, so `strip.webp` is not mistaken for a shorter match. */

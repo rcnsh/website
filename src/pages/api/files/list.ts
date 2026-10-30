@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
-import { getSession, isOwner } from "@/lib/auth";
-import { cachedDirectory, isHiddenKey, normalisePrefix } from "@/lib/r2";
-import { loadRules, visitorDirectory } from "@/lib/visibility";
+import { bucket } from "@/lib/bucket";
+import { json, policies, privateNoStore } from "@/lib/http";
+import { identify } from "@/lib/owner";
 
 export const prerender = false;
 
@@ -10,33 +10,22 @@ export const prerender = false;
  * caller's, so a live LIST per request is a bucket scan on tap. Visitors get
  * listed folders only; the owner gets everything.
  */
-export const GET: APIRoute = async ({ url, cookies }) => {
-  const prefix = normalisePrefix(url.searchParams.get("prefix"));
-  // The live-LIST fallback past the cached tree's cap does not skip hidden
-  // keys, so refuse them here as thumbs.ts does.
-  if (isHiddenKey(prefix)) {
-    return new Response(JSON.stringify({ error: "Bad request" }), {
-      status: 400,
-      headers: { "content-type": "application/json" },
-    });
-  }
-
+export const GET: APIRoute = async ({ url, cookies, locals }) => {
   try {
-    const owner = isOwner(await getSession(cookies));
-    const listing = owner ? await cachedDirectory(prefix) : await visitorDirectory(prefix, await loadRules());
-    return new Response(JSON.stringify(listing), {
-      headers: {
-        "content-type": "application/json",
-        "cache-control": owner ? "private, no-store" : "public, max-age=60",
-        // Signing in changes the answer; without this the browser keeps serving the visitor copy.
-        vary: "cookie",
-      },
+    const { owner } = await identify({ cookies, locals });
+    const listing = await bucket.view(owner).listing(url.searchParams.get("prefix"));
+    // Hidden folders are refused rather than listed: the live-LIST fallback
+    // past the cached tree's cap would otherwise walk into `.thumbs/`.
+    if (!listing) {
+      return json({ error: "Bad request" }, { status: 400 });
+    }
+    return json(listing, {
+      policy: owner ? privateNoStore : policies.files,
+      // Signing in changes the answer; without this the browser keeps serving the visitor copy.
+      headers: { vary: "cookie" },
     });
   } catch (error) {
     console.error("[files] list failed", error);
-    return new Response(
-      JSON.stringify({ folders: [], files: [], error: "Bucket unavailable" }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    );
+    return json({ folders: [], files: [], error: "Bucket unavailable" });
   }
 };

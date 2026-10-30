@@ -83,8 +83,8 @@ that file exports.
 ### Caching
 
 **Server islands must stay non-personalised.** `src/middleware.ts` gives
-everything under `/_server-islands/*` a public `Cache-Control` as a class,
-because every island today renders public data. Add one that reads the session
+everything under `/_server-islands/*` the public `serverIslands` policy as a
+class, because every island today renders public data. Add one that reads the session
 and the edge will serve one reader's fragment to another. Nothing enforces
 this.
 
@@ -94,10 +94,48 @@ differently for the signer, and Cloudflare's default cache key ignores cookies
 sign-in prompt to someone holding a valid session. Fixing that properly needs a
 cookie-varying cache key, which is zone config, not code.
 
+**Every `Cache-Control` is a named policy; never type one in a route.** The
+builders (`publicFor`, `noStore`, `uncachedError`, `privateNoStore`,
+`serverIslands`, `staticAssets`) are in `shared/cache-policy.ts`, so the
+`_headers` generator can use them. Each public route's policy is in the
+`policies` table in `src/lib/http.ts`, which `http.test.ts` pins string by
+string. Where a route sits in front of a KV window its max-age is derived
+from the loader's constant (`FRESH_SECONDS` in `guestbook-cache.ts`,
+`CACHE_SECONDS` in `now-playing.ts`), so the two layers cannot drift.
+`/api/spotify/top` is the exception: its KV windows run to 24h and `cached()`
+serves stale past them, so the browser gets a 15-minute ceiling instead.
+
+**Edge copies go through `src/lib/edge-cache.ts`** (`edgeCached`,
+`invalidateEdge`; bound to the Worker in `edge.ts`). Cloudflare does not
+CDN-cache a Worker's responses on `cache-control` alone, so the routes that
+need it (files search, guestbook list, now-playing) keep one copy per colo in
+the Cache API. It rebuilds a hit, because a cached Response's headers are
+immutable and the middleware writes to them, and never stores a rejection or
+a non-2xx. Keep cache names and key URLs stable: changing either orphans every
+copy until it expires. The Cache API is per colo, so `invalidateEdge` clears
+only the colo the write ran in; elsewhere a copy lives out its max-age.
+
+**A guestbook write drops both layers.** `invalidate(origin, removed?)` in
+`src/lib/guestbook.ts` clears page 1 and the totals in KV, and this colo's
+edge copy of page 1 and of the deep page a deleted entry sat on (found with
+one count in D1). Later pages need nothing: their cursors move with the rows,
+so their keys change. A copy keyed by a cursor from before an earlier write is
+missed, and other colos aren't reached at all, so a deleted entry can still
+show for up to `FRESH_SECONDS`.
+
 **Server-island props are encrypted into the `?e=` query parameter**, so they
 are part of the cache key. Passing volatile data in makes the island URL change
 with the data and defeats caching. `GuestbookMapIsland` fetches its own stats
 for this reason.
+
+**Now-playing freshness lives in `src/lib/now-playing-state.ts`.** The colo
+cache, its age stamp, the progress advance, the fallback chain (live, then
+last played, then stored) and the post-play invalidation are all there, bound
+to the Worker by `now-playing-server.ts`. The payload type and every timing
+the client depends on are in `now-playing.ts`, which `NowPlaying.tsx` imports,
+so it must stay free of runtime imports. `PLAY_SETTLE_MS` mirrors the
+music-warehouse's own constant of that name; change both together. The tests
+assert the client's timings against it and against the cache window.
 
 **`scripts/verify-headers.ts` runs as part of `npm run build`** and fails it if
 `dist/client/_headers` is missing or stale. Prerendered pages never reach the
@@ -111,12 +149,30 @@ holds. A loader that swallows its own error returns a value that looks like
 success, gets written to KV, and replaces good data for the whole freshness
 window.
 
+**`cached()` and `invalidate()` are the only way into the CACHE namespace.**
+`src/lib/cache.ts` binds them to KV; the logic is `createCache` in
+`src/lib/swr.ts`, which takes the store, clock and `waitUntil` so its tests run
+under `node --test`. Drop an entry with `invalidate(key)` rather than
+`env.CACHE.delete`, so each key format lives only beside the loader that writes
+it.
+
 **Every outbound `fetch` needs `deadline()`** from `src/lib/upstream.ts`.
 `fetch` has no timeout of its own.
 
 **`coalesce()` must delete its map entry on both settle paths.** A retained
 rejected promise replays one upstream failure to every later caller for the
 isolate's lifetime.
+
+**Every music-warehouse call goes through `warehouse` (`src/lib/warehouse.ts`).**
+`read()` throws on a failed response or a schema mismatch, applies
+`deadline()`, and namespaces cache keys under `warehouse:`. A read's cached
+value is its schema's *output*, transforms included, so changing what a
+schema transforms to means bumping its key (`recent:v3`), or stale entries
+in the old shape reach new code. The read definitions live in
+`src/lib/spotify-reads.ts`, free of `cloudflare:workers`, so tests drive them
+through `createWarehouse` with a fake `fetch`. `getNowPlaying()` throws on a
+bad shape too; `src/lib/now-playing-state.ts` alone turns that into "not
+playing".
 
 **Do not renumber `migrations/0002`.** `d1_migrations` records applied
 migrations by *name*, so its body was rewritten in place to be replay-safe
@@ -165,31 +221,86 @@ the bucket's public domain or r2.dev URL bypasses every private folder at once.
 It refuses private keys, `.thumbs/` of private sources, and every other dot
 path. Deploy it with `npm run deploy:upload`; `npm run deploy` does not.
 
+**Who may read a key is decided once, by `decideRead` (`shared/visibility.ts`).**
+upload.rcn.sh, `/api/files/download` and `/api/files/meta` all call it, so
+they refuse the same keys in the same order: no object named (400), a dot path
+(404), unreadable rules (503), then a private file for anyone but the owner
+(404, as missing, so existence is never confirmed). A thumb answers to its
+source. The site reaches it as `canRead` on a bucket view; a new route that
+serves bucket bytes must too. Key and prefix shapes (`objectKey`,
+`folderPrefix`, the hidden-segment rule, `THUMBS_PREFIX`) live in
+`shared/bucket-keys.ts` and nowhere else.
+
 **Private files download through `/api/files/download`, owner only.** That
-route still 404s public keys while `PUBLIC_BUCKET_URL` is set. The browser
-picks the route per file (`baseFor` in FileBrowser), so a private file has no
-stored thumbs and previews are generated in the browser.
+route still 404s public keys while `PUBLIC_BUCKET_URL` is set; that rule is the
+route's own, not access policy. The browser picks the route per file
+(`baseFor` in `src/lib/files-source.ts`), so a private file has no stored thumbs and
+previews are generated in the browser.
+
+**The site reads the bucket only through `bucket.view(reader)`**
+(`src/lib/bucket.ts`): `tree()`, `listing(prefix)`, `search(q)`, `canRead(key)`,
+each filtered to what that reader may see. The unfiltered tree is private to
+`src/lib/bucket-view.ts` and comes out only for `view(true)`. A reader can be a
+function, asked only when a decision needs it, so a public download costs no
+session lookup. The logic lives in `bucket-view.ts` with the R2 listing, tree
+cache and rules injected, so it tests under node.
 
 **Islands and the home tile render the visitor view only.** They are cached
 publicly (see Caching), so the owner's full tree comes from
-`/api/files/visibility` after hydration. Anything new that reads `cachedTree()`
-for a public response must go through `visitorTree()` instead.
+`/api/files/visibility` after hydration. They use `view(false)`, or
+`publicSummary()` where the usage bar needs hidden totals: sizes, never names.
+Never pass `view(true)` or an owner check into anything served publicly.
 
-**Rules fail closed.** `loadRules()` throws rather than returning `{}`, and an
-unknown stored value reads as `private`. Both Workers trust their copy for 10s,
-so a change lands everywhere within that. The search edge cache is keyed on
+**The browser's listings come from `src/lib/files-source.ts`**, never from a
+fetch in FileBrowser. It holds the whole-tree and per-folder modes, the owner
+upgrade (one `/api/files/visibility` probe, which swaps in the owner's
+listings and rules) and the per-file download route, with `fetch` injected so
+it tests under node. It reports the probe settled exactly once, on every path,
+and `src/components/files/owner-view.ts` is the only thing that lifts the
+owner hold: at once unless the owner's tree went out, then as soon as nothing
+on the page shows the visitors' view, with the 5s timer as the floor. Lifting
+it while an island still shows that view flashes it at the owner. The page
+script in `files.astro` starts the hold, since it must run before hydration.
+
+**Rules fail closed.** `rulesLoader` (`shared/visibility.ts`) throws rather
+than returning `{}`, and an unknown stored value reads as `private`. Both
+Workers build their loader from it (drizzle in the site, raw D1 in
+upload.rcn.sh), so both trust their copy for `RULES_FRESH_MS` (10s) and a
+change lands everywhere within that. The search edge cache is keyed on
 `rulesVersion()`, so it does not lag. The FilesRoot island can show a
 just-hidden folder's names until its edge copy expires (`s-maxage=300`), but
 private bytes are refused at once.
+
+### Owner
+
+**Every owner check goes through `src/lib/owner.ts`.** `requireOwner(context,
+{ refuse, sameOrigin })` returns the refusal, or null for the owner;
+`identify(context)` answers without refusing, for routes that serve both.
+Never check `isOwner` in a route. The guestbook's signer session is not an owner check, so `guestbook.astro` and `api/guestbook/delete.ts` call `getSession` directly. The refusal styles keep
+existence private: `not-found`/`not-found-json` match the route's own 404, so
+download and meta never confirm a private key exists. Writes pass
+`sameOrigin: true` (see `src/lib/csrf.ts`). The decisions live in
+`owner-guard.ts` with the session lookup injected, so they test under node.
+
+**An owner response is `private, no-store` whatever the route sets.** The
+guard marks `locals.owner` and the middleware stamps the header from it.
+
+**The owner hint cookie lives and dies with the session cookie.**
+`writeSessionCookie` (`src/lib/session-cookie.ts`) is the session cookie's
+only writer and sets or clears the hint with the same expiry, so a session
+extended in `getSession` extends the hint too. `getSession` also restores a
+missing hint for the owner, and any refusal deletes a stale one. Scripts read
+it through `hasOwnerHint()` (`src/lib/owner-hint.ts`), which holds the one
+name: `PlayOnSpotify`, the /files hold (`owner-view.ts`) and the blog edit
+links. It is a hint, not a permission: nothing is granted on it.
 
 ### Blog editor
 
 **`/blog/edit` commits to `main`; it does not write to the site.** Saves go
 through the GitHub Contents API (`src/lib/blog-repo.ts`) with the
 `BLOG_REPO_TOKEN` secret, a fine-grained PAT that should hold Contents: write on
-this repo and nothing else. The owner check (`isOwner`) is the only thing
-gating who can use it, so it must stay on both the page and
-`/api/blog/post`. Posts go live through Workers Builds, which deploys every
+this repo and nothing else. The owner guard is the only thing gating who can
+use it, so it must stay on both the page and `/api/blog/post`. Posts go live through Workers Builds, which deploys every
 push to `main`, so a saved post ships whatever else is on `main` with it.
 
 **The frontmatter schema lives in `src/lib/post-source.ts`**, shared by
@@ -197,10 +308,9 @@ push to `main`, so a saved post ships whatever else is on `main` with it.
 would. A field added to one place only means a commit that breaks the deploy.
 `post-slug.ts` stays dependency-free because the editor bundles it.
 
-**Edit links on prerendered pages come from a `localStorage` flag**
-(`src/lib/owner-hint.ts`) that `/blog/edit` sets for the owner. That way
-visitors don't each pay for a Worker call. It is a hint, not a permission:
-the links lead to pages that check the session.
+**Edit links on prerendered pages come from the owner hint cookie** (see
+Owner), so visitors don't each pay for a Worker call. The links lead to pages
+that check the session.
 
 **Sign-in's `?next=` goes through `returnPath()`** on the way in and again on
 the way out, since the cookie comes back from the browser. Loosening it turns
@@ -212,13 +322,15 @@ the way out, since the cookie comes back from the browser. Loosening it turns
 `PlayButton` (`.astro`, and `.tsx` for React lists) is rendered for every visitor,
 because pages and islands are cached publicly, and hidden by `.play-track` in
 `global.css`. `PlayOnSpotify` (in `Layout`) sets `data-owner` on `<html>` when
-the owner cookie is present, which reveals them, and posts their clicks to
-`/api/music/play`. That route checks `isOwner` and calls the warehouse's
-`/control/play` with `MUSIC_WAREHOUSE_CONTROL_TOKEN`, a token that can start
-playback and nothing else; never use it for reads, and never give the read
-token control. The button sits beside the title, never inside a link: rows
-use a stretched link (`after:absolute after:inset-0`) so the button can be a
-sibling.
+the owner hint cookie is present, which reveals them, and posts their clicks to
+`/api/music/play`. That route runs the owner guard and calls `warehouse.play()`,
+which sends `MUSIC_WAREHOUSE_CONTROL_TOKEN` to the warehouse's
+`/control/play`, a token that can start playback and nothing else; never use
+it for reads, and never give the read token control. Both tokens are read only
+in `src/lib/warehouse-client.ts`, where `read` sends the read token and `play`
+the control token, so keep any new warehouse call inside that client. The
+button sits beside the title, never inside a link: rows use a stretched link
+(`after:absolute after:inset-0`) so the button can be a sibling.
 
 ### Gotchas that cost time
 

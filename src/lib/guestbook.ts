@@ -1,7 +1,16 @@
-import { and, count, desc, eq, lt, or } from "drizzle-orm";
-import { env } from "cloudflare:workers";
-import { cached } from "./cache";
+import { and, count, desc, eq, gt, lt, or } from "drizzle-orm";
+import { cached, invalidate as invalidateCache } from "./cache";
 import { getDb, schema } from "./db";
+import { invalidateEdge } from "./edge";
+import {
+  type Cursor,
+  FIRST_PAGE_KEY,
+  FRESH_SECONDS,
+  guestbookInvalidation,
+  STATS_KEY,
+} from "./guestbook-cache.ts";
+
+export { type Cursor, decodeCursor, encodeCursor } from "./guestbook-cache.ts";
 
 /**
  * Reading the guestbook. The first page is cached because D1 bills rows read
@@ -10,12 +19,6 @@ import { getDb, schema } from "./db";
 
 /** Rows per page. Roughly two screens on a phone. */
 export const PAGE_SIZE = 25;
-
-/** How long the first page and the totals are served before a refresh runs. */
-const FRESH_SECONDS = 60;
-
-const FIRST_PAGE_KEY = "guestbook:page:1";
-const STATS_KEY = "guestbook:stats";
 
 /** One entry. `createdAt` is epoch seconds, since a Date survives neither KV nor fetch. */
 export type GuestbookEntry = {
@@ -27,13 +30,6 @@ export type GuestbookEntry = {
   message: string;
   createdAt: number;
 };
-
-/**
- * Sort key of the last row handed out: newest first, id breaking ties. Not the
- * id alone — migration 0002 backdated the imported entries, so id order and
- * time order differ and paginating on the wrong one strands them.
- */
-export type Cursor = { createdAt: number; id: number };
 
 export type GuestbookPage = {
   entries: GuestbookEntry[];
@@ -49,24 +45,6 @@ export type GuestbookStats = {
   /** Signatures with no usable country — imported, or Workers didn't say. */
   unplaced: number;
 };
-
-/** `<epoch seconds>:<id>`, which is what travels in the query string. */
-export function encodeCursor(cursor: Cursor): string {
-  return `${cursor.createdAt}:${cursor.id}`;
-}
-
-/**
- * Parses a cursor, or null. Strict — it arrives from a stranger and becomes
- * two numbers in a WHERE clause. A malformed one starts from the top.
- */
-export function decodeCursor(raw: string | null): Cursor | null {
-  if (!raw) return null;
-
-  const match = /^(\d{1,15}):(\d{1,15})$/.exec(raw);
-  if (!match) return null;
-
-  return { createdAt: Number(match[1]), id: Number(match[2]) };
-}
 
 function toEntry(row: typeof schema.guestbook.$inferSelect): GuestbookEntry {
   return {
@@ -165,19 +143,54 @@ export async function getStats(): Promise<GuestbookStats> {
   });
 }
 
+const drop = guestbookInvalidation({ kv: invalidateCache, edge: invalidateEdge });
+
+/**
+ * The cursor `/api/guestbook/list` was asked with for the page that holds
+ * `entry`, or null for page 1. Rows newer than it keep their positions after
+ * it is deleted, so this still answers once it is gone.
+ */
+async function pageHolding(entry: Cursor): Promise<Cursor | null> {
+  const db = getDb();
+  const at = new Date(entry.createdAt * 1000);
+  const [{ newer }] = await db
+    .select({ newer: count() })
+    .from(schema.guestbook)
+    .where(
+      or(
+        gt(schema.guestbook.createdAt, at),
+        and(eq(schema.guestbook.createdAt, at), gt(schema.guestbook.id, entry.id)),
+      ),
+    );
+
+  const page = Math.floor(newer / PAGE_SIZE);
+  if (page === 0) return null;
+
+  const [row] = await db
+    .select({ createdAt: schema.guestbook.createdAt, id: schema.guestbook.id })
+    .from(schema.guestbook)
+    .orderBy(desc(schema.guestbook.createdAt), desc(schema.guestbook.id))
+    .limit(1)
+    .offset(page * PAGE_SIZE - 1);
+
+  return row ? { createdAt: Math.floor(row.createdAt.getTime() / 1000), id: row.id } : null;
+}
+
 /**
  * Drops the cached first page and totals, so a writer sees their own change on
- * the redirect. Failures are swallowed: the write is already committed.
+ * the redirect, and this colo's edge copy of every page the change touched:
+ * page 1 for a new entry, and the page `removed` sat on. Later pages need
+ * nothing, since their cursors moved with the rows. Failures are swallowed:
+ * the write is already committed.
  */
-export async function invalidate(): Promise<void> {
-  const kv = env.CACHE;
-  if (!kv) return;
-
-  try {
-    await Promise.all([kv.delete(FIRST_PAGE_KEY), kv.delete(STATS_KEY)]);
-  } catch (error) {
-    console.error("[guestbook] cache invalidation failed", error);
-  }
+export async function invalidate(origin: string, removed?: Cursor): Promise<void> {
+  const page = removed
+    ? await pageHolding(removed).catch((error) => {
+        console.error("[guestbook] locating the changed page failed", error);
+        return null;
+      })
+    : null;
+  await drop(origin, page);
 }
 
 /** When this signer last posted, for the rate limit. Indexed; reads one row. */
