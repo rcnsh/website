@@ -243,11 +243,19 @@ const delay = ["", "[animation-delay:30ms]", "[animation-delay:60ms]", "[animati
       transform 0.25s var(--ease-out-quint);
   }
 
-  a.item:hover .out,
   a.item:focus-visible .out {
     opacity: 1;
     color: var(--color-brand-alt);
     transform: translate(1px, -1px);
+  }
+
+  /* A tap fires :hover and leaves it stuck. */
+  @media (hover: hover) and (pointer: fine) {
+    a.item:hover .out {
+      opacity: 1;
+      color: var(--color-brand-alt);
+      transform: translate(1px, -1px);
+    }
   }
 
   @media (max-width: 1020px) {

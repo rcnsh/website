@@ -129,21 +129,22 @@ const homeActive = isActive("/");
     --wm-to: var(--color-brand-alt);
   }
 
-  /* One bar for the whole rail: width and offset arrive as custom properties,
-     so hovering a tab moves one element rather than cross-fading two. */
+  /* One bar for the whole rail, so hovering a tab moves one element rather
+     than cross-fading two. A fixed 100px scaled to the tab's width, so the
+     move is transform-only and never relayouts. */
   .nav-underline {
     position: absolute;
     bottom: -1px;
     left: 0;
     height: 2px;
-    width: var(--nav-w, 0);
-    transform: translate3d(var(--nav-x, 0), 0, 0);
-    opacity: var(--nav-o, 0);
+    width: 100px;
+    transform-origin: 0 0;
+    transform: scaleX(0);
+    opacity: 0;
     background: linear-gradient(100deg, var(--color-brand-blue), var(--color-brand));
     pointer-events: none;
     transition:
-      transform 0.42s var(--ease-out-quint),
-      width 0.42s var(--ease-out-quint),
+      transform 0.25s var(--ease-out-quint),
       opacity 0.22s ease;
   }
 
@@ -187,7 +188,7 @@ const homeActive = isActive("/");
       // Tabs hidden at this breakpoint have no box to measure, so fade the
       // bar out rather than collapsing it to 0,0.
       if (!el || (el.offsetParent === null && el.offsetWidth === 0)) {
-        rail.style.setProperty("--nav-o", "0");
+        bar.style.opacity = "0";
         shown = false;
         return;
       }
@@ -197,9 +198,8 @@ const homeActive = isActive("/");
       const jump = !animate || !shown;
       if (jump) bar.setAttribute("data-instant", "");
 
-      rail.style.setProperty("--nav-x", `${el.offsetLeft}px`);
-      rail.style.setProperty("--nav-w", `${el.offsetWidth}px`);
-      rail.style.setProperty("--nav-o", "1");
+      bar.style.transform = `translate3d(${el.offsetLeft}px, 0, 0) scaleX(${el.offsetWidth / 100})`;
+      bar.style.opacity = "1";
 
       if (jump) {
         void bar.offsetWidth; // commit the jump before re-arming the transition

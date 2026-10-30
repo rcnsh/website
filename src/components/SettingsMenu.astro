@@ -73,6 +73,21 @@ const settings = [
 </div>
 
 <style>
+  /* Grows out of the cog it hangs from. Closing stays instant. */
+  [data-settings-panel] {
+    transform-origin: top right;
+    transition:
+      opacity 0.15s var(--ease-out-quint),
+      transform 0.15s var(--ease-out-quint);
+  }
+
+  @starting-style {
+    [data-settings-panel] {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+
   /* Until the script is up, the cog does nothing — so it is not there. */
   [data-settings]:not([data-settings-ready]) {
     display: none;
