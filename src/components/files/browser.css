@@ -311,7 +311,7 @@
   border-radius: 5px;
   cursor: pointer;
   user-select: none;
-  transition: background-color 0.12s;
+  /* No transition: j/k moves the selection, and a fading highlight trails. */
 }
 .fb-row:hover {
   background: var(--color-raised);
@@ -429,7 +429,6 @@
   cursor: pointer;
   user-select: none;
   background: color-mix(in oklab, var(--color-base) 50%, var(--color-surface));
-  transition: border-color 0.15s;
   position: relative;
 }
 .fb-card:hover {
@@ -580,8 +579,10 @@
   color: var(--color-ink);
   transition: transform 0.2s var(--ease-out-quint);
 }
-.fb-stage:hover .bigplay {
-  transform: scale(1.06);
+@media (hover: hover) and (pointer: fine) {
+  .fb-stage:hover .bigplay {
+    transform: scale(1.06);
+  }
 }
 .fb-stage .tc {
   position: absolute;
