@@ -24,3 +24,10 @@ interface Env extends Secrets {}
 declare namespace Cloudflare {
 	interface Env extends Secrets {}
 }
+
+// Set by the owner guard (src/lib/owner.ts) once the session is the owner's.
+declare namespace App {
+	interface Locals {
+		owner?: boolean;
+	}
+}

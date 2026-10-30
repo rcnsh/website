@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { waitUntil } from "cloudflare:workers";
-import { getSession, isOwner } from "@/lib/auth";
+import { identify } from "@/lib/owner";
 import { searchBucket } from "@/lib/r2";
 import { loadRules } from "@/lib/visibility";
 import { rulesVersion, visibilityOf } from "../../../../shared/visibility.ts";
@@ -27,7 +27,7 @@ function json(body: unknown, cache: string): Response {
  * every key. Hence the tight rate-limit budget and the edge cache. Visitors
  * search listed folders only; the owner searches everything, uncached.
  */
-export const GET: APIRoute = async ({ url, request, cookies }) => {
+export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   const query = (url.searchParams.get("q") ?? "").trim().slice(0, MAX_QUERY);
 
   if (query.length < 2) {
@@ -37,7 +37,7 @@ export const GET: APIRoute = async ({ url, request, cookies }) => {
   }
 
   try {
-    if (isOwner(await getSession(cookies))) {
+    if ((await identify({ cookies, locals })).owner) {
       return json({ query, files: await searchBucket(query, 100) }, "private, no-store");
     }
 

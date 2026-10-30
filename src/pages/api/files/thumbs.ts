@@ -1,8 +1,7 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { getSession, isOwner } from "@/lib/auth";
-import { forbidden, sameOrigin } from "@/lib/csrf";
 import { folderThumbs, forgetThumbs, uploadedSeconds } from "@/lib/media";
+import { requireOwner } from "@/lib/owner";
 import { normalisePrefix } from "@/lib/r2";
 import {
   isHiddenKey,
@@ -28,8 +27,9 @@ function json(body: unknown, status = 200): Response {
  * Whether the caller is the owner and, if so, which files in `prefix` already
  * have previews. Anyone else learns only `{ owner: false }`.
  */
-export const GET: APIRoute = async ({ url, cookies }) => {
-  if (!isOwner(await getSession(cookies))) return json({ owner: false });
+export const GET: APIRoute = async ({ request, url, cookies, locals }) => {
+  const refused = await requireOwner({ request, cookies, url, locals }, { refuse: "visitor" });
+  if (refused) return refused;
 
   const bucket = env.BUCKET;
   if (!bucket) return json({ error: "Bucket not configured" }, 503);
@@ -51,9 +51,9 @@ export const GET: APIRoute = async ({ url, cookies }) => {
  * `strip.webp`, `strip.json`, `peaks.json`). Targets are derived here, never
  * taken from the client, so nothing can be written outside `.thumbs/`.
  */
-export const POST: APIRoute = async ({ request, cookies, url }) => {
-  if (!sameOrigin(request, url.origin)) return forbidden();
-  if (!isOwner(await getSession(cookies))) return forbidden();
+export const POST: APIRoute = async ({ request, cookies, url, locals }) => {
+  const refused = await requireOwner({ request, cookies, url, locals }, { refuse: "forbidden", sameOrigin: true });
+  if (refused) return refused;
 
   // Checked before the body is read. A missing length is refused too: a
   // chunked body could otherwise stream past the cap into formData().
