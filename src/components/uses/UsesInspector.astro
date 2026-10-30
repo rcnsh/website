@@ -129,8 +129,8 @@ const irl = groups[0];
 
       // Only the first of a sweep animates; restarting on every cell flickers.
       const now = performance.now();
-      body.classList.remove("swap");
       if (now - swapped > 300) {
+        body.classList.remove("swap");
         void body.offsetWidth;
         body.classList.add("swap");
       }
