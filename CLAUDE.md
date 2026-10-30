@@ -99,6 +99,15 @@ are part of the cache key. Passing volatile data in makes the island URL change
 with the data and defeats caching. `GuestbookMapIsland` fetches its own stats
 for this reason.
 
+**Now-playing freshness lives in `src/lib/now-playing-state.ts`.** The colo
+cache, its age stamp, the progress advance, the fallback chain (live, then
+last played, then stored) and the post-play invalidation are all there, bound
+to the Worker by `now-playing-server.ts`. The payload type and every timing
+the client depends on are in `now-playing.ts`, which `NowPlaying.tsx` imports,
+so it must stay free of runtime imports. `PLAY_SETTLE_MS` mirrors the
+music-warehouse's own constant of that name; change both together. The tests
+assert the client's timings against it and against the cache window.
+
 **`scripts/verify-headers.ts` runs as part of `npm run build`** and fails it if
 `dist/client/_headers` is missing or stale. Prerendered pages never reach the
 middleware, so that file is their only source of security headers.
@@ -133,7 +142,8 @@ schema transforms to means bumping its key (`recent:v3`), or stale entries
 in the old shape reach new code. The read definitions live in
 `src/lib/spotify-reads.ts`, free of `cloudflare:workers`, so tests drive them
 through `createWarehouse` with a fake `fetch`. `getNowPlaying()` throws on a
-bad shape too; the now-playing route alone turns that into "not playing".
+bad shape too; `src/lib/now-playing-state.ts` alone turns that into "not
+playing".
 
 **Do not renumber `migrations/0002`.** `d1_migrations` records applied
 migrations by *name*, so its body was rewritten in place to be replay-safe
