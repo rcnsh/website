@@ -16,7 +16,13 @@ export const prerender = false;
 export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   // Refused exactly as /api/files/download refuses them.
   const owner = async () => !(await requireOwner({ request, cookies, url, locals }, { refuse: "not-found-json" }));
-  const decision = await bucket.view(owner).canRead(url.searchParams.get("key"));
+  let decision: Awaited<ReturnType<ReturnType<typeof bucket.view>["canRead"]>>;
+  try {
+    decision = await bucket.view(owner).canRead(url.searchParams.get("key"));
+  } catch (error) {
+    // The session lookup behind the owner check; D1 can be briefly out.
+    decision = { ok: false, refusal: "unavailable", error };
+  }
   if (!decision.ok) {
     switch (decision.refusal) {
       case "bad-request":
