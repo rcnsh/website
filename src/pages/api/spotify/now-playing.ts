@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { waitUntil } from "cloudflare:workers";
 import { nowPlayingCache } from "@/lib/now-playing-cache";
 import { getLastPlayed, getNowPlaying, getRecentTracks } from "@/lib/spotify";
+import { WarehouseShapeError } from "@/lib/warehouse";
 
 export const prerender = false;
 
@@ -70,7 +71,13 @@ export const GET: APIRoute = async ({ request }) => {
   };
 
   try {
-    const current = await getNowPlaying();
+    // The read throws on a shape change so nothing caches it as silence; this
+    // card still treats it as silence and falls back to last played.
+    const current = await getNowPlaying().catch((error) => {
+      if (!(error instanceof WarehouseShapeError)) throw error;
+      console.error("[music] now-playing shape changed, showing last played", error);
+      return { isPlaying: false } as const;
+    });
 
     if (current.isPlaying) {
       return json({

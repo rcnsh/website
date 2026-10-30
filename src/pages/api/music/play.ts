@@ -1,10 +1,10 @@
 import type { APIRoute } from "astro";
-import { env, waitUntil } from "cloudflare:workers";
+import { waitUntil } from "cloudflare:workers";
 import { getSession, isOwner } from "@/lib/auth";
 import { forbidden, sameOrigin } from "@/lib/csrf";
 import { nowPlayingCache } from "@/lib/now-playing-cache";
 import { isTrackId } from "@/lib/track-play";
-import { deadline } from "@/lib/upstream";
+import { WarehouseNotConfigured, warehouse } from "@/lib/warehouse";
 
 export const prerender = false;
 
@@ -33,18 +33,11 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
   const trackId = (body as { track_id?: unknown } | null)?.track_id;
   if (!isTrackId(trackId)) return json({ error: "Bad track_id" }, 400);
 
-  const { MUSIC_WAREHOUSE_URL, MUSIC_WAREHOUSE_CONTROL_TOKEN } = env;
-  if (!MUSIC_WAREHOUSE_URL || !MUSIC_WAREHOUSE_CONTROL_TOKEN) return json({ error: "Playback is not configured" }, 503);
-
   let response: Response;
   try {
-    response = await fetch(`${MUSIC_WAREHOUSE_URL.replace(/\/$/, "")}/control/play`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${MUSIC_WAREHOUSE_CONTROL_TOKEN}`, "content-type": "application/json" },
-      body: JSON.stringify({ track_id: trackId }),
-      signal: deadline(),
-    });
-  } catch {
+    response = await warehouse.play(trackId);
+  } catch (error) {
+    if (error instanceof WarehouseNotConfigured) return json({ error: "Playback is not configured" }, 503);
     return json({ error: "music-warehouse unreachable" }, 502);
   }
   if (response.ok) {
