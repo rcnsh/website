@@ -10,19 +10,19 @@ Then the account came for me. Just before 1am on 5 October it messaged me, turne
 
 ![Discord DMs from my friend's stolen account: small talk, "no need vc", then a pitch for a 2D adventure game and a link to matefall.pages.dev](../../assets/blog/decrypting-a-discord-stealer/dm-1.png)
 
-The account told me to check VirusTotal, which showed zero detections, almost making it belivable.
+The account told me to check VirusTotal, which showed zero detections, so it was almost believable.
 
-I wanted to know what had actually run on their PC, so I took malware apart with the help of Claude. This post covers how it works, why the usual way of reading Java malware failed, and the trick that worked instead: letting the malware decrypt its own strings and catching them as it did.
+I wanted to know what had actually run on my friend's PC, so I took the malware apart with Claude's help. The usual way of reading Java malware failed on it. What worked was letting the malware decrypt its own strings and catching them as it did.
 
 ## The infection chain
 
 There are five steps between clicking Download and losing your account.
 
-1. **The lure.** `matefall[.]pages[.]dev` is a Cloudflare Pages site dressed up as an indie game. The comments in its code are in Turkish, and the page script comes from a template called "HAISE". By the time I looked, Cloudflare was already showing a warning page in front of it.
-2. **The download.** The Download button first looks up the visitor's IP address and location (with ipapi.co, falling back to api.ipify.org) and posts them to a Discord webhook, so the operators know who took the bait. Then it fetches the installer from a Dropbox link.
-3. **The installer.** `MateFall-nstaller Setup 1.0.0.exe` (the missing "I" is theirs) is 155 MB. It's an NSIS installer (a common Windows installer format), and inside it is an Electron app (a desktop app built from web code, like Discord itself) plus a complete Java 21 runtime.
-4. **The launcher.** The Electron app has one real file, `index.js`, run through an obfuscator. All it does is start Java in the background, hidden and detached, with the malware jar and one argument: `ira-ed6140ab`. No game window ever appears.
-5. **The stealer.** A 35 MB Java jar. This is where everything else happens.
+1. The lure is `matefall[.]pages[.]dev`, a Cloudflare Pages site dressed up as an indie game. The comments in its code are in Turkish, and the page script comes from a template called "HAISE". By the time I looked, Cloudflare was already showing a warning page in front of it.
+2. The Download button first looks up the visitor's IP address and location (with ipapi.co, falling back to api.ipify.org) and posts them to a Discord webhook, so the operators know who took the bait. Then it fetches the installer from a Dropbox link.
+3. The installer, `MateFall-nstaller Setup 1.0.0.exe` (the missing "I" is theirs), is 155 MB. It's an NSIS installer (a common Windows installer format), and inside it is an Electron app (a desktop app built from web code, like Discord itself) plus a complete Java 21 runtime.
+4. The Electron app has one real file, `index.js`, run through an obfuscator. It starts Java in the background, hidden and detached, with the malware jar and one argument: `ira-ed6140ab`. No game window ever appears.
+5. The stealer itself is a 35 MB Java jar, which does everything else.
 
 I opened every layer without running it. 7-Zip unpacks NSIS installers, and Electron's own `asar` tool unpacks the app archive, so I could read each layer as plain files. The launcher shows the style of the whole thing. Every name becomes `_0x…` and every string is pulled from a shuffled, encoded table:
 
@@ -32,7 +32,7 @@ _0x1ea51b:'qO4#',_0x2af2db:0xc6,_0xe3dc03:'t!RU',_0x3b2d88:'cgXE',…},_0x41dac8
 _0x429918=_0x368524();while(!![]){try{const _0x427f0f=parseInt(_0x41dac8(_0x18b481._0x283cf0,…
 ```
 
-Under all that, the 7,894-byte file does one thing: start `javaw` hidden and detached, with the jar, the entry class `V` and the argument `ira-ed6140ab`.
+Under all that, the 7,894-byte file starts `javaw` hidden and detached, with the jar, the entry class `V` and the argument `ira-ed6140ab`.
 
 ## Why reading the code didn't work
 
@@ -40,11 +40,11 @@ The usual way to study Java malware is to decompile it: turn the compiled `.clas
 
 This jar was built to defeat that. Its own code lives in a package with the Turkish name `izini_birakir_arkasinda_geceler`, alongside normal libraries (OkHttp for web requests, JNA for calling Windows functions, a SQLite driver for reading browser databases). I ran the [Vineflower](https://github.com/Vineflower/vineflower) decompiler over its 176 classes and got 48 MB of "source" back, full of errors like `Statement cannot be decomposed although reducible!`. The entry class, `V`, wouldn't decompile at all.
 
-Looking at the raw bytecode showed why. Three layers of obfuscation were stacked on top of each other:
+The raw bytecode showed why: three layers of obfuscation, stacked on top of each other.
 
-- **Encrypted strings.** Dozens of classes carry their own encrypted block of strings, and 71 of them reference `Cipher`, `PBEKeySpec` and `SecretKeyFactory` (Java's encryption classes). None of the interesting text (URLs, file paths, messages) appears in the file. It only exists in memory once the class has decrypted it.
-- **Hidden calls.** Instead of calling methods directly, 140 classes look them up at runtime through `MethodHandles` (a way to find and call a method by name while the program runs). A decompiler can't show you what a call does when the method's name is only decided while the program runs.
-- **Scrambled control flow.** Simple logic is padded with arithmetic that always comes out the same way, so the real path through each method is buried.
+- The strings are encrypted. Dozens of classes carry their own encrypted block of strings, and 71 of them reference `Cipher`, `PBEKeySpec` and `SecretKeyFactory` (Java's encryption classes). None of the interesting text (URLs, file paths, messages) appears in the file; it only exists in memory once the class has decrypted it.
+- The calls are hidden. Instead of calling methods directly, 140 classes look them up at runtime through `MethodHandles` (a way to find and call a method by name while the program runs). If the method's name isn't decided until then, a decompiler can't show you what the call does.
+- The control flow is scrambled. Simple logic is padded with arithmetic that always comes out the same way, which buries the real path through each method.
 
 Here is the start of one method in `V`, as `javap` (the JDK's bytecode viewer) prints it:
 
@@ -65,15 +65,13 @@ Here is the start of one method in `V`, as `javap` (the JDK's bytecode viewer) p
 30: athrow
 ```
 
-The first nine instructions are an XOR written the long way round. The next block undoes it, so the comparison at line 26 always works out to `298099655 < 842601993`. The jump is always taken, and the `athrow` after it never runs. Every method is full of branches like this that look like decisions but aren't.
-
-Reading this by hand would have taken weeks.
+The first nine instructions are an XOR written the long way round. The next block undoes it, so the comparison at line 26 always works out to `298099655 < 842601993`. The jump is always taken, and the `athrow` after it never runs. Every method is full of branches like this that look like decisions but aren't, and working through them by hand would have taken weeks.
 
 ## The trick: let it decrypt itself
 
-The malware has a weakness built into its design. To use its strings, it has to decrypt them, and it does that with Java's standard `Cipher.doFinal` method. Every secret passes through that one method in plain text, right after decryption.
+To use its strings, the malware has to decrypt them, and it does that with Java's standard `Cipher.doFinal` method. Every secret passes through that one method in plain text, right after decryption.
 
-So instead of reading the code, I watched it run. Java supports **agents**: small programs passed with `-javaagent` that load before the main program and can rewrite classes as they load. I wrote one with [Byte Buddy](https://bytebuddy.net) (a library for exactly this) that hooks a handful of standard Java methods and logs every call:
+So I stopped reading the code and watched it run. Java supports agents: small programs passed with `-javaagent` that load before the main program and can rewrite classes as they load. I wrote one with [Byte Buddy](https://bytebuddy.net) (a library for exactly this) that hooks a handful of standard Java methods and logs every call:
 
 - `Cipher.doFinal`, to record every decrypted string block;
 - `MethodHandles.Lookup.find*`, to record which real method each hidden call resolves to;
@@ -130,17 +128,17 @@ Each flag closes off one way out:
 - Memory and process limits, plus `timeout`, so it can't run away.
 - The jar is mounted read-only, and the only writable folder is the output folder.
 
-There's one more layer of safety for free. The container runs Linux, and the stealer targets Windows. Every part that calls a Windows system library (`advapi32`, `user32`, `kernel32`) fails to load, so it can't touch anything even in principle.
+There's one more layer of safety for free: the container runs Linux, and the stealer targets Windows. Every part that calls a Windows system library (`advapi32`, `user32`, `kernel32`) fails to load, so it can't touch anything even in principle.
 
 ### Getting it to work
 
-The first runs failed in instructive ways.
+The first runs failed for three reasons.
 
-- **Class loader clash.** Java's own classes (like `Cipher`) are loaded by a different class loader from the agent, so the hooks couldn't see the logging code. The fix was to put the agent's jar on the bootstrap path in its manifest, where Java's own classes can reach it.
-- **The hook hooked itself.** One hook used a Java lambda, and creating a lambda goes through `MethodHandles.Lookup`, the very method being hooked. Rewriting it as a plain anonymous class with a null check stopped the loop.
-- **Most of the code never ran.** With no network and no Windows, the malware gave up early, before loading most of its modules. So the agent waits 15 seconds and then loads every class in the jar itself. Loading a class runs its setup code, and the setup code decrypts that class's strings.
+- Java's own classes (like `Cipher`) are loaded by a different class loader from the agent, so the hooks couldn't see the logging code. Putting the agent's jar on the bootstrap path in its manifest, where Java's own classes can reach it, fixed that.
+- The hook hooked itself. One hook used a Java lambda, and creating a lambda goes through `MethodHandles.Lookup`, the very method being hooked. Rewriting it as a plain anonymous class with a null check stopped the loop.
+- Most of the code never ran. With no network and no Windows, the malware gave up early, before loading most of its modules. So the agent waits 15 seconds and then loads every class in the jar itself. Loading a class runs its setup code, and the setup code decrypts that class's strings.
 
-The final run loaded 225 classes (24 failed because they need Windows libraries) and caught **328 decrypted string blocks** at `Cipher.doFinal`. The hidden-call log showed the same pattern 112 times: get a key, initialise a cipher, call `doFinal`. Turning the decrypted bytes back into text gave me the malware's whole vocabulary: log messages, file paths, URLs, Discord message templates, its build version (`2025-08-30-V11`) and Turkish strings like `Sonuç` ("result") and `VERİ YOK` ("no data").
+The final run loaded 225 classes (24 failed because they need Windows libraries) and caught 328 decrypted string blocks at `Cipher.doFinal`. The hidden-call log showed the same pattern 112 times: get a key, initialise a cipher, call `doFinal`. Turning the decrypted bytes back into text gave me the malware's whole vocabulary: log messages, file paths, URLs, Discord message templates, its build version (`2025-08-30-V11`) and Turkish strings like `Sonuç` ("result") and `VERİ YOK` ("no data").
 
 Each line of the hook's log is one decrypted block. Here is the entry class's:
 
@@ -161,20 +159,19 @@ The rest of that block reads `build-version:`, `ens-refresh`, `ANTIVM`, `--inj`,
 
 ## What it does
 
-With the strings readable, the malware's purpose was clear.
+Once the strings were readable, I could see what it takes:
 
-**What it steals:**
+- Saved passwords, cookies, card details, history and autofill from Chrome, Edge, Brave, Opera and Opera GX, Firefox, Waterfox, Pale Moon, Yandex and Vivaldi. It reads their SQLite databases and unlocks the encrypted values with Windows' own DPAPI (the Windows feature that encrypts data for the logged-in user).
+- Discord login tokens from Discord's local storage, Canary included. It also injects JavaScript into the Discord app that attaches the developer tools debugger to Discord's window and records login, registration, 2FA and backup-code requests. While that injection is in place, changing your password on the infected PC would just hand over the new one.
+- The Roblox `.ROBLOSECURITY` cookie, followed by a lookup of the account's Robux, limited items and Premium status.
+- Crypto wallets: Exodus (it patches the wallet app's own code), Electrum, Guarda, Binance and Dash.
+- Telegram sessions, VPN configs, SSH keys and game data.
 
-- **Browsers.** Saved passwords, cookies, card details, history and autofill from Chrome, Edge, Brave, Opera and Opera GX, Firefox, Waterfox, Pale Moon, Yandex and Vivaldi. It reads their SQLite databases and unlocks the encrypted values with Windows' own DPAPI (the Windows feature that encrypts data for the logged-in user).
-- **Discord.** Login tokens from Discord's local storage, Canary included. It also injects JavaScript into the Discord app that attaches the developer tools debugger to Discord's window and records login, registration, 2FA and backup-code requests. While that injection is in place, changing your password on the infected PC would just hand over the new one.
-- **Roblox.** The `.ROBLOSECURITY` cookie, then a lookup of the account's Robux, limited items and Premium status.
-- **Crypto wallets.** Exodus (it patches the wallet app's own code), Electrum, Guarda, Binance and Dash.
-- **Everything else.** Telegram sessions, VPN configs, SSH keys and game data.
-- **Remote access.** A hidden desktop (HVNC: a second, invisible Windows desktop the attacker can use without you seeing), screenshots and the webcam.
+It also gives the attacker remote access: a hidden desktop (HVNC, a second, invisible Windows desktop the attacker can use without you seeing), screenshots and the webcam.
 
-**How it hides:** checks for virtual machines and sandboxes, checks for Avast, AVG, Kaspersky and Malwarebytes, and carries embedded x64 shellcode, with launch flags for elevating its privileges (`--test-elevate`) and injecting (`--inj`).
+To stay hidden, it checks for virtual machines and sandboxes and for Avast, AVG, Kaspersky and Malwarebytes. It carries embedded x64 shellcode too, with launch flags for elevating its privileges (`--test-elevate`) and injecting (`--inj`).
 
-**How it sends data home:** results go to Discord webhooks as formatted messages (with the victim's hardware ID and counts of cookies, passwords and cards). Archives over 8 MB go to gofile.io instead.
+Results go to Discord webhooks as formatted messages, with the victim's hardware ID and counts of cookies, passwords and cards. Archives over 8 MB go to gofile.io instead.
 
 ### A command server on the blockchain
 
@@ -208,12 +205,12 @@ I never decoded the ENS name itself, so the command server stayed hidden. An [AN
 
 Once I knew what it was, I reported every piece of infrastructure I could find:
 
-- **VirusTotal:** both the installer and the jar had zero detections when I checked. That's what the obfuscation is for. (It changed later; see the end of the post.)
-- **Cloudflare:** Trust & Safety restricted `matefall.pages.dev` and forwarded the report to the site's owner.
-- **Dropbox, URLhaus, Microsoft (Defender) and Google Safe Browsing:** submitted.
-- **MalwareBazaar:** banned my account. It only accepts samples within 10 days of their first sighting, and this one was first seen on 20 September 2026, so the upload broke its rules. I appealed and the ban was lifted.
-- **Telegram:** the `@irahook` channel named in the strings was already gone.
-- **Discord:** bot replies only. The route that actually works is the victim's own "hacked account" ticket, which my friend filed.
+- VirusTotal: both the installer and the jar had zero detections when I checked. That's what the obfuscation is for. (It changed later; see the end of the post.)
+- Cloudflare: Trust & Safety restricted `matefall.pages.dev` and forwarded the report to the site's owner.
+- Dropbox, URLhaus, Microsoft (Defender) and Google Safe Browsing: submitted.
+- MalwareBazaar: banned my account. It only accepts samples within 10 days of their first sighting, and this one was first seen on 20 September 2026, so the upload broke its rules. I appealed and the ban was lifted.
+- Telegram: the `@irahook` channel named in the strings was already gone.
+- Discord: bot replies only. The route that actually works is the victim's own "hacked account" ticket, which my friend filed.
 
 ## If you ran something like this
 
@@ -227,23 +224,23 @@ Assume everything in your browsers and Discord is stolen, and work from a differ
 
 ## What I took from it
 
-- **Dynamic beats static against heavy obfuscation.** Every encrypted string has to be decrypted before use, so hooking the decryption method gets you everything the code hides, without reading a line of it.
-- **A clean scan means very little.** Zero detections on VirusTotal didn't make this file safe; it meant the file was new and well hidden. Weeks later, most engines still miss the jar.
-- **Infrastructure is moving where takedowns can't reach.** A Pages site, a Dropbox link and a Discord webhook can each be reported. A blockchain record can't.
+Against obfuscation this heavy, watching the code run worked far better than reading it. Every encrypted string has to be decrypted before use, so hooking the decryption method got me everything the code hides without my reading a line of it.
+
+A clean VirusTotal scan meant very little here. Zero detections only showed that the file was new and well hidden, and weeks later most engines still miss the jar.
+
+Most of this campaign could be reported: the Pages site, the Dropbox link, the Discord webhooks. The command server's address lives in a blockchain record, and there is nobody to report that to.
 
 ## A few weeks later
 
-When I looked on 2026-10-06, VirusTotal showed no detections for either file. Its most recent scans (the installer on 2026-10-11, the jar on 2026-10-08) tell a different story:
+When I looked on 2026-10-06, VirusTotal showed no detections for either file. Its most recent scans (the installer on 2026-10-11, the jar on 2026-10-08) flag both, though not equally.
 
-- **The installer:** 21 of 66 engines flag it. Most use generic names like `Trojan.GenericKDQ` and `Win32:Malware-gen`. Malwarebytes names it exactly: `Spyware.InfoStealer.Electron`.
-- **The jar:** 6 of 67 (ESET, Kaspersky, Ikarus, Google, Alibaba and Kingsoft). The part that does the stealing is still the part almost everything misses.
-- **Gaps:** Microsoft's, CrowdStrike's and SentinelOne's engines missed both files in those scans.
+The installer is flagged by 21 of 66 engines, mostly under generic names like `Trojan.GenericKDQ` and `Win32:Malware-gen`; Malwarebytes names it exactly, as `Spyware.InfoStealer.Electron`. The jar is flagged by only 6 of 67 (ESET, Kaspersky, Ikarus, Google, Alibaba and Kingsoft). Microsoft's, CrowdStrike's and SentinelOne's engines missed both files in those scans.
 
-So detection caught up with the wrapper, not the payload. The installer and its Electron launcher look like plenty of other malware, while the encrypted jar still gives scanners very little to match on.
+So scanners now catch the wrapper and mostly miss the payload. The installer and its Electron launcher look like plenty of other malware, while the encrypted jar still gives them very little to match on.
 
 The file history adds two more things. Both files were first uploaded on 2026-09-20, sixteen days before I saw them, so this campaign was already running before my friend found it. And the installer has also been submitted as `Nicht bestätigt 53763.crdownload`, the name a German-language Chrome or Edge gives a download that hasn't finished, which suggests at least one other person downloaded it too.
 
-These figures are from VirusTotal's last scans of each file; the live reports are linked in the table below.
+The live VirusTotal reports are linked in the table below.
 
 ## Indicators
 
