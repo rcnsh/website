@@ -72,9 +72,11 @@ const longest = daily?.longest ? length(daily.longest) : 0;
             </div>
           ))}
         </dl>
-        <p class="mt-auto pt-5 font-mono text-[11px] text-ink-dim">
-          {live ? "Counted to the end of last week." : `Runs crossing into another year count only their ${year} days.`}
-        </p>
+        {!live && (
+          <p class="mt-auto pt-5 font-mono text-[11px] text-ink-dim">
+            Runs crossing into another year count only their {year} days.
+          </p>
+        )}
       </div>
 
       <div>
@@ -100,9 +102,6 @@ const longest = daily?.longest ? length(daily.longest) : 0;
             </li>
           ))}
         </ol>
-        <p class="mt-4 text-[12.5px] leading-relaxed text-ink-faint">
-          A streak survives until a whole day passes without a play, counted in local time wherever I was living.
-        </p>
       </div>
     </div>
   )
