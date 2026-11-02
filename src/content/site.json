@@ -25,12 +25,12 @@
   "pages": {
     "blog": {
       "title": "Writing",
-      "description": "Posts on software and side projects. Available as an RSS feed.",
+      "description": "Posts on software and side projects. RSS feed.",
       "feedDescription": "Posts on software and side projects, by Jacob Wiltshire."
     },
     "uses": {
       "title": "Uses",
-      "description": "The hardware and software Jacob Wiltshire works on, drawn as a diagram."
+      "description": "What I work with."
     },
     "music": {
       "title": "Music",
