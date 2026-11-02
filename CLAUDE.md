@@ -139,8 +139,8 @@ everything under `/_server-islands/*` the public `serverIslands` policy as a
 class, because every island today renders public data. Add one that reads the session
 and the edge will serve one reader's fragment to another. Nothing enforces
 this. The exceptions are `LIVE_ISLANDS` (`islandPolicy` in `src/lib/http.ts`),
-public but never cached: the guestbook's totals and first page, which the page
-a post or delete redirects to must show.
+public but never cached: the guestbook's totals, countries and first page,
+which the page a post or delete redirects to must show.
 
 **`/guestbook` is prerendered; who is reading comes from
 `/api/guestbook/signer`** (`private, no-store`), through `loadSigner()`

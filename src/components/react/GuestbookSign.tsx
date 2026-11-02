@@ -26,6 +26,8 @@ function errorText(code: string, maxLength: number): string | null {
       return "One message a day — you've already had yours.";
     case "db":
       return "Couldn't save that. Try again in a moment.";
+    case "refused":
+      return "That didn't go through. Try again in a moment.";
     default:
       return null;
   }

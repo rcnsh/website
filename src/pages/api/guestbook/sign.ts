@@ -72,4 +72,4 @@ export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
 
 // Where the router lands a refused post (a 429 or 403 is not HTML, so it
 // retries the action as a GET). Back to the form, which keeps the draft.
-export const GET: APIRoute = ({ redirect }) => redirect("/guestbook?error=db#gb-sign", 303);
+export const GET: APIRoute = ({ redirect }) => redirect("/guestbook?error=refused#gb-sign", 303);

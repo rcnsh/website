@@ -73,9 +73,9 @@ Two exceptions, both deliberate:
   advances the track position by the entry's age, so a shared copy would hand
   every viewer the same frozen offset. The Worker is invoked on every poll,
   which is why the client polls at 30s rather than 20s.
-- `/guestbook`'s totals and first page (the `GuestbookTotals` and
-  `GuestbookEntries` islands) are not cached, so the page a post redirects to
-  shows it. Each answers from KV, which the write drops. The page itself is
+- `/guestbook`'s totals, countries and first page (the `GuestbookTotals`,
+  `GuestbookCountries` and `GuestbookEntries` islands) are not cached, so the
+  page a post redirects to shows it. Each answers from KV, which the write drops. The page itself is
   static; who is reading comes from `/api/guestbook/signer`, which is private.
 
 ## What the dashboard has to do
