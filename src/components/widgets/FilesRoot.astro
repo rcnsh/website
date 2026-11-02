@@ -14,10 +14,9 @@ import { publicBucketBase } from "@/lib/r2";
 // this island for all readers, so the owner's full view loads client-side.
 interface Props {
   title: string;
-  description: string;
 }
 
-const { title, description } = Astro.props;
+const { title } = Astro.props;
 
 let summary: PublicSummary = { tree: null, root: null, hidden: null, ownerSlots: 0 };
 try {
@@ -33,7 +32,7 @@ const kinds = tree ? kindTotals(tree) : null;
 ---
 
 <div class="bento">
-  <FilesHero title={title} description={description} totals={totals} wide={!kinds?.length} />
+  <FilesHero title={title} totals={totals} wide={!kinds?.length} />
   {kinds && kinds.length > 0 && <FilesUsage kinds={kinds} hidden={hidden} ownerSlots={ownerSlots} />}
   <FileBrowser client:idle tree={tree} initial={root} bucketUrl={publicBucketBase()} />
 </div>

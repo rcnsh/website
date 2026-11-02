@@ -9,13 +9,12 @@ import { formatBytes, relativeTime } from "@/lib/utils";
  */
 interface Props {
   title: string;
-  description: string;
   totals?: BucketTotals | null;
   /** Full width when there is no usage tile beside it. */
   wide?: boolean;
 }
 
-const { title, description, totals, wide = false } = Astro.props;
+const { title, totals, wide = false } = Astro.props;
 
 const facts = totals
   ? [
@@ -46,7 +45,6 @@ const facts = totals
   <h1 id="files-title" class="display-face mt-5 text-[2.4rem] text-ink sm:mt-6 sm:text-[clamp(2.25rem,4vw,3rem)]">
     {title}
   </h1>
-  <p class="mt-3 max-w-[52ch] text-[15px] leading-relaxed text-ink-dim sm:text-[15.5px]">{description}</p>
 
   {
     totals === undefined ? (

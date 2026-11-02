@@ -16,10 +16,10 @@ const page = pages.files;
   image={pageOgHref("files")}
 >
   <div class="pb-6" data-files-page>
-    <FilesRoot server:defer title={page.title} description={page.description}>
+    <FilesRoot server:defer title={page.title}>
       {/* Sized to the island: same title tile, same tile heights. */}
       <div slot="fallback" class="bento">
-        <FilesHero title={page.title} description={page.description} />
+        <FilesHero title={page.title} />
         <FilesUsage />
         <section class="fb tile col-span-12" aria-label="File browser" aria-busy="true">
           <div class="fb-tb">
