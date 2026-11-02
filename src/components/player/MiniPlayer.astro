@@ -1,0 +1,362 @@
+---
+// The floating player: what is playing, while no /files preview of it is on
+// screen. `transition:persist` keeps this node, and the media element inside
+// it, through every soft navigation. src/lib/player.ts owns the playback.
+---
+
+<aside
+  class="mini-player"
+  data-mini-player
+  transition:persist="mini-player"
+  aria-label="Now playing"
+  hidden
+>
+  <div class="mp-stage" data-mp-stage></div>
+  <div class="mp-bar">
+    <button type="button" class="mp-btn" data-mp-toggle aria-label="Play">
+      <svg class="mp-play" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M8 5v14l11-7z"></path>
+      </svg>
+      <svg class="mp-pause" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M7 5h4v14H7zM13 5h4v14h-4z"></path>
+      </svg>
+    </button>
+    <div class="mp-meta">
+      <a class="mp-title" data-mp-title href="/files"></a>
+      <span class="mp-time" data-mp-time>0:00 / 0:00</span>
+    </div>
+    <button type="button" class="mp-btn" data-mp-pip aria-label="Picture in picture" title="Picture in picture" hidden>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+        <rect x="12" y="12" width="7" height="5" rx="1" fill="currentColor" stroke="none"></rect>
+      </svg>
+    </button>
+    <button type="button" class="mp-btn" data-mp-close aria-label="Close player" title="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <path d="M6 6l12 12M18 6 6 18"></path>
+      </svg>
+    </button>
+  </div>
+  <div class="mp-seek">
+    <input data-mp-seek type="range" min="0" max="0" step="any" value="0" aria-label="Seek" />
+  </div>
+</aside>
+
+<style>
+  .mini-player {
+    position: fixed;
+    left: 0;
+    top: 0;
+    /* Under the command palette (z-100), over the sticky header (z-50). */
+    z-index: 90;
+    width: min(320px, calc(100vw - 32px));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-tile);
+    background: var(--color-surface);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+    touch-action: none;
+    cursor: grab;
+    user-select: none;
+    will-change: transform;
+  }
+  .mini-player[hidden] {
+    display: none;
+  }
+  .mini-player[data-kind="video"] {
+    width: min(360px, calc(100vw - 32px));
+  }
+  .mini-player[data-dragging] {
+    cursor: grabbing;
+  }
+  .mini-player[data-settling] {
+    transition: transform 420ms cubic-bezier(0.2, 0.9, 0.25, 1);
+  }
+
+  .mp-stage {
+    display: none;
+    aspect-ratio: var(--mp-aspect, 16 / 9);
+    max-height: 45vh;
+    background: #000;
+  }
+  .mini-player[data-kind="video"] .mp-stage {
+    display: block;
+  }
+
+  .mp-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 8px 6px;
+  }
+  .mp-btn {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    color: var(--color-ink-dim);
+    cursor: pointer;
+  }
+  .mp-btn:hover,
+  .mp-btn:focus-visible {
+    color: var(--color-ink);
+    background: var(--color-raised);
+  }
+  .mp-btn[hidden] {
+    display: none;
+  }
+  .mp-pause,
+  .mini-player[data-paused] .mp-play {
+    display: block;
+  }
+  .mp-play,
+  .mini-player[data-paused] .mp-pause {
+    display: none;
+  }
+  [data-mp-toggle] {
+    color: var(--color-ink);
+  }
+
+  .mp-meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+    gap: 1px;
+  }
+  .mp-title {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 13px;
+    color: var(--color-ink);
+  }
+  .mp-title:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .mini-player[data-failed] .mp-title {
+    color: var(--color-bad);
+  }
+  .mp-time {
+    font: 11px var(--font-mono);
+    color: var(--color-ink-faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mp-seek {
+    padding: 0 12px 8px;
+  }
+  .mp-seek input {
+    display: block;
+    width: 100%;
+    height: 14px;
+    margin: 0;
+    accent-color: var(--color-brand);
+    cursor: pointer;
+  }
+</style>
+
+<script>
+  import { hashFor } from "@/lib/files-nav";
+  import { cornerPosition, isCorner, projectedCorner, releaseVelocity, type Corner } from "@/lib/pip-position";
+  import { getSnapshot, mediaElement, seek, startPlayer, stop, subscribe, toggle } from "@/lib/player";
+  import { formatClock } from "@/lib/clock";
+  import type { PlayerTrack } from "@/lib/player-state";
+
+  // Runs once per document: the box is persisted, so a soft navigation keeps
+  // both it and this script's bindings.
+
+  const CORNER_KEY = "rcn:player-corner";
+  /** Under this, a press is a tap (play/pause on the video), not a drag. */
+  const DRAG_THRESHOLD_PX = 4;
+  const EDGE_PX = 16;
+
+  const root = document.querySelector<HTMLElement>("[data-mini-player]");
+  if (root) mount(root);
+
+  function mount(root: HTMLElement) {
+    const find = <T extends HTMLElement>(selector: string) => root.querySelector<T>(selector)!;
+    const stage = find("[data-mp-stage]");
+    const toggleButton = find<HTMLButtonElement>("[data-mp-toggle]");
+    const title = find<HTMLAnchorElement>("[data-mp-title]");
+    const time = find("[data-mp-time]");
+    const seekBar = find<HTMLInputElement>("[data-mp-seek]");
+    const pipButton = find<HTMLButtonElement>("[data-mp-pip]");
+    const closeButton = find<HTMLButtonElement>("[data-mp-close]");
+
+    let corner = readCorner();
+    let position = { x: 0, y: 0 };
+    let shown = false;
+    let scrubbing = false;
+    type Drag = { id: number; fromX: number; fromY: number; startX: number; startY: number; moved: boolean; onStage: boolean };
+    let drag: Drag | null = null;
+    let samples: { x: number; y: number; t: number }[] = [];
+
+    const viewport = () => ({
+      width: document.documentElement.clientWidth,
+      height: document.documentElement.clientHeight,
+    });
+
+    const insets = () => {
+      const header =
+        parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--header-h")) || 0;
+      return { top: header + 12, right: EDGE_PX, bottom: EDGE_PX, left: EDGE_PX };
+    };
+
+    const moveTo = (x: number, y: number) => {
+      position = { x, y };
+      root.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    };
+
+    const settle = (animate: boolean) => {
+      const { width, height } = root.getBoundingClientRect();
+      const target = cornerPosition(corner, { width, height }, viewport(), insets());
+      root.toggleAttribute("data-settling", animate);
+      moveTo(target.x, target.y);
+    };
+
+    root.addEventListener("transitionend", () => root.removeAttribute("data-settling"));
+    new ResizeObserver(() => {
+      if (!root.hidden && !drag) settle(false);
+    }).observe(root);
+    addEventListener("resize", () => !root.hidden && settle(false), { passive: true });
+
+    let drawnTrack: PlayerTrack | null = null;
+    let drawnPaused = true;
+    let drawnFailed = false;
+    const render = () => {
+      const { track, paused, failed, time: at, duration, docked } = getSnapshot();
+      const visible = track !== null && !docked;
+      root.hidden = !visible;
+      if (!visible) {
+        shown = false;
+        return;
+      }
+
+      // Only the clock and seek bar move at every timeupdate.
+      if (track !== drawnTrack || paused !== drawnPaused || failed !== drawnFailed) {
+        drawnTrack = track;
+        drawnPaused = paused;
+        drawnFailed = failed;
+        root.dataset.kind = track.kind;
+        root.toggleAttribute("data-paused", paused);
+        root.toggleAttribute("data-failed", failed);
+        title.textContent = failed ? `Couldn't play ${track.title}` : track.title;
+        title.title = track.artist ? `${track.title} · ${track.artist}` : track.title;
+        title.href = `/files${hashFor(track.key)}`;
+        toggleButton.setAttribute("aria-label", paused ? "Play" : "Pause");
+        pipButton.hidden = track.kind !== "video" || !document.pictureInPictureEnabled;
+      }
+      time.textContent = `${formatClock(at)} / ${formatClock(duration)}`;
+      if (!scrubbing) {
+        seekBar.max = String(duration);
+        seekBar.value = String(at);
+      }
+      const media = mediaElement();
+      if (media?.videoWidth && media.videoHeight) {
+        root.style.setProperty("--mp-aspect", `${media.videoWidth} / ${media.videoHeight}`);
+      }
+      if (!shown) {
+        shown = true;
+        settle(false);
+      }
+    };
+
+    // The element goes in a shadow root; src/lib/player.ts says why.
+    startPlayer(stage.attachShadow({ mode: "open" }));
+    subscribe(render);
+    render();
+
+    toggleButton.addEventListener("click", toggle);
+    closeButton.addEventListener("click", stop);
+    pipButton.addEventListener("click", () => {
+      const media = mediaElement();
+      if (!media) return;
+      const request = document.pictureInPictureElement === media
+        ? document.exitPictureInPicture()
+        : media.requestPictureInPicture();
+      void request.catch(() => {});
+    });
+    seekBar.addEventListener("input", () => {
+      scrubbing = true;
+      seek(Number(seekBar.value));
+    });
+    seekBar.addEventListener("change", () => {
+      scrubbing = false;
+    });
+
+    /* ---- Dragging ---- */
+
+    root.addEventListener("pointerdown", (event) => {
+      const target = event.target as Element;
+      if (event.button !== 0 || target.closest("button, a, input")) return;
+      drag = {
+        id: event.pointerId,
+        fromX: event.clientX,
+        fromY: event.clientY,
+        startX: position.x,
+        startY: position.y,
+        moved: false,
+        onStage: stage.contains(target),
+      };
+      samples = [{ x: event.clientX, y: event.clientY, t: event.timeStamp }];
+      root.setPointerCapture(event.pointerId);
+    });
+
+    root.addEventListener("pointermove", (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      const dx = event.clientX - drag.fromX;
+      const dy = event.clientY - drag.fromY;
+      if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+      if (!drag.moved) {
+        drag.moved = true;
+        root.removeAttribute("data-settling");
+        root.setAttribute("data-dragging", "");
+      }
+      moveTo(drag.startX + dx, drag.startY + dy);
+      samples.push({ x: event.clientX, y: event.clientY, t: event.timeStamp });
+      if (samples.length > 12) samples.shift();
+    });
+
+    const release = (event: PointerEvent, cancelled: boolean) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      const ended = drag;
+      drag = null;
+      root.removeAttribute("data-dragging");
+      if (!ended.moved) {
+        if (!cancelled && ended.onStage) toggle();
+        return;
+      }
+      const { width, height } = root.getBoundingClientRect();
+      const velocity = cancelled ? { x: 0, y: 0 } : releaseVelocity(samples);
+      corner = projectedCorner(position, velocity, { width, height }, viewport());
+      saveCorner(corner);
+      settle(true);
+    };
+    root.addEventListener("pointerup", (event) => release(event, false));
+    root.addEventListener("pointercancel", (event) => release(event, true));
+  }
+
+  function readCorner(): Corner {
+    try {
+      const stored = localStorage.getItem(CORNER_KEY);
+      if (isCorner(stored)) return stored;
+    } catch {
+      // Storage walled off.
+    }
+    return "bottom-right";
+  }
+
+  function saveCorner(corner: Corner) {
+    try {
+      localStorage.setItem(CORNER_KEY, corner);
+    } catch {
+      // Storage walled off: the corner lasts this document.
+    }
+  }
+</script>

@@ -33,6 +33,8 @@ const VIEWS: { id: View; name: string }[] = [
 
 type Render = (markdown: string) => string;
 
+const FORM_ID = "post-editor";
+
 export default function PostEditor({ initial }: { initial: Post }) {
   const [post, setPost] = useState(initial);
   const [slugTouched, setSlugTouched] = useState(initial.sha !== null);
@@ -51,7 +53,7 @@ export default function PostEditor({ initial }: { initial: Post }) {
   useEffect(() => {
     if (!showsPreview || render) return;
     import("@/lib/markdown-preview")
-      .then((module) => setRender(() => module.renderPreview))
+      .then((module) => setRender(() => module.renderSafePreview))
       .catch(() => setRenderFailed(true));
   }, [showsPreview, render]);
 
@@ -114,199 +116,214 @@ export default function PostEditor({ initial }: { initial: Post }) {
     }
   }
 
+  // The fields join the form by id rather than sitting inside it, so the
+  // preview is not a descendant: HTML parsed into a <form> joins it, and a
+  // <button> pasted into a post would save, and so commit, when clicked there.
   return (
-    <form
-      ref={form}
-      onSubmit={(event) => {
-        event.preventDefault();
-        void save();
-      }}
-      className="flex flex-col gap-4">
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_220px]">
+    <>
+      <form
+        id={FORM_ID}
+        ref={form}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
+      />
+      <div className="flex flex-col gap-4">
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_220px]">
+          <div>
+            <label className={label} htmlFor="pe-title">Title</label>
+            <input
+              id="pe-title"
+              form={FORM_ID}
+              required
+              maxLength={200}
+              value={post.title}
+              onChange={(e) => update({ title: e.target.value })}
+              className={field}
+            />
+          </div>
+          <div>
+            <label className={label} htmlFor="pe-slug">Slug</label>
+            <input
+              id="pe-slug"
+              form={FORM_ID}
+              required
+              readOnly={!isNew}
+              pattern="_?[a-z0-9]+(-[a-z0-9]+)*"
+              value={post.slug}
+              onChange={(e) => {
+                setSlugTouched(true);
+                update({ slug: e.target.value });
+              }}
+              title={isNew ? "Lowercase letters, digits and single hyphens" : "The URL of a published post stays put"}
+              className={cn(field, "font-mono text-[0.84375rem]", !isNew && "text-ink-faint")}
+            />
+          </div>
+        </div>
+
         <div>
-          <label className={label} htmlFor="pe-title">Title</label>
+          <label className={label} htmlFor="pe-description">Description</label>
           <input
-            id="pe-title"
+            id="pe-description"
+            form={FORM_ID}
             required
-            maxLength={200}
-            value={post.title}
-            onChange={(e) => update({ title: e.target.value })}
+            maxLength={500}
+            value={post.description}
+            onChange={(e) => update({ description: e.target.value })}
             className={field}
           />
         </div>
+
+        <div className="flex flex-wrap items-end gap-4">
+          <div>
+            <label className={label} htmlFor="pe-pub">Published</label>
+            <input
+              id="pe-pub"
+              form={FORM_ID}
+              type="date"
+              required
+              value={post.pubDate}
+              onChange={(e) => update({ pubDate: e.target.value })}
+              className={cn(field, "w-auto font-mono text-[0.84375rem]")}
+            />
+          </div>
+          <div>
+            <label className={label} htmlFor="pe-updated">Updated</label>
+            <input
+              id="pe-updated"
+              form={FORM_ID}
+              type="date"
+              value={post.updatedDate ?? ""}
+              onChange={(e) => update({ updatedDate: e.target.value || null })}
+              className={cn(field, "w-auto font-mono text-[0.84375rem]")}
+            />
+          </div>
+          <label className="flex h-[38px] items-center gap-2 font-mono text-[0.8125rem] text-ink-dim">
+            <input
+              form={FORM_ID}
+              type="checkbox"
+              checked={post.draft}
+              onChange={(e) => update({ draft: e.target.checked })}
+              className="accent-(--color-brand)"
+            />
+            Draft
+          </label>
+        </div>
+
         <div>
-          <label className={label} htmlFor="pe-slug">Slug</label>
-          <input
-            id="pe-slug"
-            required
-            readOnly={!isNew}
-            pattern="_?[a-z0-9]+(-[a-z0-9]+)*"
-            value={post.slug}
-            onChange={(e) => {
-              setSlugTouched(true);
-              update({ slug: e.target.value });
-            }}
-            title={isNew ? "Lowercase letters, digits and single hyphens" : "The URL of a published post stays put"}
-            className={cn(field, "font-mono text-[0.84375rem]", !isNew && "text-ink-faint")}
-          />
-        </div>
-      </div>
+          <div className="mb-1.5 flex items-center gap-3">
+            <label className="label" htmlFor="pe-body">Markdown</label>
+            <fieldset className="ml-auto flex rounded-[6px] border border-line-soft p-0.5">
+              <legend className="sr-only">Editor layout</legend>
+              {VIEWS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  aria-pressed={view === option.id}
+                  onClick={() => setView(option.id)}
+                  className={cn(
+                    "rounded-[4px] px-2.5 py-1 font-mono text-[11px] transition-colors",
+                    view === option.id ? "bg-raised text-ink" : "text-ink-faint hover:text-ink-dim",
+                  )}
+                >
+                  {option.name}
+                </button>
+              ))}
+            </fieldset>
+          </div>
 
-      <div>
-        <label className={label} htmlFor="pe-description">Description</label>
-        <input
-          id="pe-description"
-          required
-          maxLength={500}
-          value={post.description}
-          onChange={(e) => update({ description: e.target.value })}
-          className={field}
-        />
-      </div>
-
-      <div className="flex flex-wrap items-end gap-4">
-        <div>
-          <label className={label} htmlFor="pe-pub">Published</label>
-          <input
-            id="pe-pub"
-            type="date"
-            required
-            value={post.pubDate}
-            onChange={(e) => update({ pubDate: e.target.value })}
-            className={cn(field, "w-auto font-mono text-[0.84375rem]")}
-          />
-        </div>
-        <div>
-          <label className={label} htmlFor="pe-updated">Updated</label>
-          <input
-            id="pe-updated"
-            type="date"
-            value={post.updatedDate ?? ""}
-            onChange={(e) => update({ updatedDate: e.target.value || null })}
-            className={cn(field, "w-auto font-mono text-[0.84375rem]")}
-          />
-        </div>
-        <label className="flex h-[38px] items-center gap-2 font-mono text-[0.8125rem] text-ink-dim">
-          <input
-            type="checkbox"
-            checked={post.draft}
-            onChange={(e) => update({ draft: e.target.checked })}
-            className="accent-(--color-brand)"
-          />
-          Draft
-        </label>
-      </div>
-
-      <div>
-        <div className="mb-1.5 flex items-center gap-3">
-          <label className="label" htmlFor="pe-body">Markdown</label>
-          <fieldset className="ml-auto flex rounded-[6px] border border-line-soft p-0.5">
-            <legend className="sr-only">Editor layout</legend>
-            {VIEWS.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                aria-pressed={view === option.id}
-                onClick={() => setView(option.id)}
-                className={cn(
-                  "rounded-[4px] px-2.5 py-1 font-mono text-[11px] transition-colors",
-                  view === option.id ? "bg-raised text-ink" : "text-ink-faint hover:text-ink-dim",
-                )}
-              >
-                {option.name}
-              </button>
-            ))}
-          </fieldset>
-        </div>
-
-        {/* Split puts the panes side by side when there is room, stacked otherwise. */}
-        <div className={cn("grid gap-4", view === "split" && "min-[1021px]:grid-cols-2")}>
-          <textarea
-            id="pe-body"
-            value={post.body}
-            onChange={(e) => update({ body: e.target.value })}
-            spellCheck
-            rows={28}
-            hidden={view === "preview"}
-            className={cn(
-              field,
-              "h-[70vh] min-h-[320px] resize-y font-mono text-[0.8125rem] leading-[1.7]",
-            )}
-          />
-
-          {showsPreview && (
-            <section
+          {/* Split puts the panes side by side when there is room, stacked otherwise. */}
+          <div className={cn("grid gap-4", view === "split" && "min-[1021px]:grid-cols-2")}>
+            <textarea
+              id="pe-body"
+              form={FORM_ID}
+              value={post.body}
+              onChange={(e) => update({ body: e.target.value })}
+              spellCheck
+              rows={28}
+              hidden={view === "preview"}
               className={cn(
-                "post-preview h-[70vh] min-h-[320px] overflow-y-auto rounded-[6px] border border-line-soft px-8 py-7 max-sm:px-5",
-                view === "preview" && "h-auto min-h-[70vh] overflow-visible",
+                field,
+                "h-[70vh] min-h-[320px] resize-y font-mono text-[0.8125rem] leading-[1.7]",
               )}
-              aria-label="Preview"
-            >
-              <h1 className="display-face max-w-[20ch] text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.05] text-ink">
-                {post.title || "Untitled"}
-              </h1>
-              {post.description && (
-                <p className="mt-3 max-w-[54ch] text-[1rem] leading-relaxed text-ink-dim">{post.description}</p>
-              )}
-              <div className="mt-6 border-t border-line-soft pt-6">
-                {renderFailed ? (
-                  <p className="text-[0.84375rem] text-bad">The preview failed to load.</p>
-                ) : render ? (
-                  <div
-                    className="prose max-w-[68ch]"
-                    // The owner's own Markdown, rendered as the build would: raw
-                    // HTML included. The route's hashed script-src is what keeps
-                    // a pasted <script> or onerror from running.
-                    // biome-ignore lint/security/noDangerouslySetInnerHtml: see above
-                    dangerouslySetInnerHTML={{ __html: previewHtml }}
-                  />
-                ) : (
-                  <p className="font-mono text-[11px] text-ink-faint">Loading preview…</p>
+            />
+
+            {showsPreview && (
+              <section
+                className={cn(
+                  "post-preview h-[70vh] min-h-[320px] overflow-y-auto rounded-[6px] border border-line-soft px-8 py-7 max-sm:px-5",
+                  view === "preview" && "h-auto min-h-[70vh] overflow-visible",
                 )}
-              </div>
-            </section>
-          )}
+                aria-label="Preview"
+              >
+                <h1 className="display-face max-w-[20ch] text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.05] text-ink">
+                  {post.title || "Untitled"}
+                </h1>
+                {post.description && (
+                  <p className="mt-3 max-w-[54ch] text-[1rem] leading-relaxed text-ink-dim">{post.description}</p>
+                )}
+                <div className="mt-6 border-t border-line-soft pt-6">
+                  {renderFailed ? (
+                    <p className="text-[0.84375rem] text-bad">The preview failed to load.</p>
+                  ) : render ? (
+                    <div
+                      className="prose max-w-[68ch]"
+                      // The owner's own Markdown, raw HTML included as the build
+                      // does, through DOMPurify first (renderSafePreview) and the
+                      // route's hashed script-src second.
+                      // biome-ignore lint/security/noDangerouslySetInnerHtml: see above
+                      dangerouslySetInnerHTML={{ __html: previewHtml }}
+                    />
+                  ) : (
+                    <p className="font-mono text-[11px] text-ink-faint">Loading preview…</p>
+                  )}
+                </div>
+              </section>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3.5">
+          <button
+            type="submit"
+            form={FORM_ID}
+            disabled={status.kind === "saving"}
+            className="inline-flex h-[34px] shrink-0 items-center rounded-[6px] border border-ink bg-ink px-3.5 text-[0.84375rem] font-medium text-(color:--color-base) press hover:bg-white disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-ink"
+          >
+            {status.kind === "saving" ? "Committing…" : isNew ? "Create post" : "Save"}
+          </button>
+          <span className="font-mono text-[11px] text-ink-faint">
+            commits to main · live after the deploy (~2 min)
+          </span>
+
+          <p role="status" className="basis-full text-[0.84375rem] sm:ml-auto sm:basis-auto">
+            {status.kind === "error" && <span className="text-bad">{status.message}</span>}
+            {status.kind === "saved" && (
+              <span className="text-ok">
+                Committed
+                {status.commitUrl && (
+                  <>
+                    {" · "}
+                    <a href={status.commitUrl} className="underline underline-offset-[3px]">
+                      view on GitHub
+                    </a>
+                  </>
+                )}
+                {!post.draft && (
+                  <>
+                    {" · "}
+                    <a href={`/blog/${post.slug}`} className="underline underline-offset-[3px]">
+                      open post
+                    </a>
+                  </>
+                )}
+              </span>
+            )}
+            {status.kind === "idle" && dirty && <span className="text-ink-faint">Unsaved changes</span>}
+          </p>
         </div>
       </div>
-
-      <div className="flex flex-wrap items-center gap-3.5">
-        <button
-          type="submit"
-          disabled={status.kind === "saving"}
-          className="inline-flex h-[34px] shrink-0 items-center rounded-[6px] border border-ink bg-ink px-3.5 text-[0.84375rem] font-medium text-(color:--color-base) press hover:bg-white disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-ink"
-        >
-          {status.kind === "saving" ? "Committing…" : isNew ? "Create post" : "Save"}
-        </button>
-        <span className="font-mono text-[11px] text-ink-faint">
-          commits to main · live after the deploy (~2 min)
-        </span>
-
-        <p role="status" className="basis-full text-[0.84375rem] sm:ml-auto sm:basis-auto">
-          {status.kind === "error" && <span className="text-bad">{status.message}</span>}
-          {status.kind === "saved" && (
-            <span className="text-ok">
-              Committed
-              {status.commitUrl && (
-                <>
-                  {" · "}
-                  <a href={status.commitUrl} className="underline underline-offset-[3px]">
-                    view on GitHub
-                  </a>
-                </>
-              )}
-              {!post.draft && (
-                <>
-                  {" · "}
-                  <a href={`/blog/${post.slug}`} className="underline underline-offset-[3px]">
-                    open post
-                  </a>
-                </>
-              )}
-            </span>
-          )}
-          {status.kind === "idle" && dirty && <span className="text-ink-faint">Unsaved changes</span>}
-        </p>
-      </div>
-    </form>
+    </>
   );
 }

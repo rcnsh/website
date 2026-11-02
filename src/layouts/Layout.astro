@@ -1,4 +1,5 @@
 ---
+import { ClientRouter } from "astro:transitions";
 import { MOTION_BOOTSTRAP } from "../../shared/inline-scripts.ts";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
@@ -12,6 +13,7 @@ import TopBar from "@/components/TopBar.astro";
 import CommandPalette from "@/components/CommandPalette.astro";
 import Footer from "@/components/Footer.astro";
 import PlayOnSpotify from "@/components/music/PlayOnSpotify.astro";
+import MiniPlayer from "@/components/player/MiniPlayer.astro";
 import { site } from "@/lib/site";
 
 interface Props {
@@ -116,6 +118,16 @@ const ogImage = new URL(image, site.url).toString();
          be registered there too. */
     }
     <script is:inline set:html={MOTION_BOOTSTRAP} />
+
+    {
+      /* Soft navigation, so the player keeps playing between pages. Only on
+         prerendered pages: they all share one CSP (the union of their hashes,
+         see scripts/csp-union.ts), while an SSR page's policy names only its
+         own scripts. A link into one is a full load, as the router falls back
+         to whenever the next page has no <ClientRouter />. See CLAUDE.md
+         § Maintenance › CSP and the router. */
+      Astro.isPrerendered && <ClientRouter />
+    }
   </head>
 
   <body class="min-h-dvh">
@@ -137,6 +149,16 @@ const ogImage = new URL(image, site.url).toString();
     {/* Outside the header: its backdrop-blur would trap a fixed overlay. */}
     <CommandPalette />
     <PlayOnSpotify />
+    <MiniPlayer />
+
+    <script>
+      import { holdOwnerViewOnFiles } from "@/components/files/owner-view";
+      import { keepReaderAttributes, loadServerPagesDirectly } from "@/lib/page-lifecycle";
+
+      keepReaderAttributes();
+      loadServerPagesDirectly();
+      holdOwnerViewOnFiles();
+    </script>
   </body>
 </html>
 

@@ -188,8 +188,9 @@ const details = [
 
 <script>
   import { revealOwnerLinks } from "@/lib/owner-hint";
+  import { onPage } from "@/lib/page-lifecycle";
 
-  revealOwnerLinks();
+  onPage(revealOwnerLinks);
 </script>
 
 <style>

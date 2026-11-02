@@ -15,7 +15,7 @@ const page = pages.files;
   description={page.description}
   image={pageOgHref("files")}
 >
-  <div class="pb-6">
+  <div class="pb-6" data-files-page>
     <FilesRoot server:defer title={page.title} description={page.description}>
       {/* Sized to the island: same title tile, same tile heights. */}
       <div slot="fallback" class="bento">
@@ -33,10 +33,3 @@ const page = pages.files;
     </FilesRoot>
   </div>
 </Layout>
-
-<script>
-  import { startOwnerHold } from "@/components/files/owner-view";
-
-  // Before the island lands, so its visitors' view never shows to the owner.
-  startOwnerHold();
-</script>

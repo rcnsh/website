@@ -177,6 +177,8 @@ const years = statsYears(new Date());
 </style>
 
 <script>
+  import { onPage } from "@/lib/page-lifecycle";
+
   // One delegated listener for every chart's readout. Island markup lands
   // after this runs, so nothing binds per element. The readout repeats what
   // the chart's text summary and table already say, hence aria-hidden there:
@@ -186,64 +188,69 @@ const years = statsYears(new Date());
   // rest. Islands land after this runs, so new markup is marked as it
   // arrives (observer callbacks run before the next paint, so nothing
   // flashes).
-  const switcher = document.querySelector<HTMLFieldSetElement>("[data-year-switch]");
-  const TAGGED = "[data-year], [data-col-year], [data-card-year]";
-  let chosen = "all";
+  onPage((signal) => {
+    const switcher = document.querySelector<HTMLFieldSetElement>("[data-year-switch]");
+    if (!switcher) return;
+    const TAGGED = "[data-year], [data-col-year], [data-card-year]";
+    let chosen = "all";
 
-  const markOne = (el: HTMLElement) => {
-    const year = el.dataset.year ?? el.dataset.colYear ?? el.dataset.cardYear;
-    el.toggleAttribute("data-year-match", year === chosen);
-  };
-  const mark = (root: Element | Document) => {
-    for (const el of root.querySelectorAll<HTMLElement>(TAGGED)) markOne(el);
-  };
-  const showYear = (year: string) => {
-    chosen = year;
-    if (year === "all") delete document.documentElement.dataset.statsYear;
-    else document.documentElement.dataset.statsYear = year;
-    mark(document);
-  };
-  new MutationObserver((records) => {
-    if (chosen === "all") return;
-    for (const record of records) {
-      for (const node of record.addedNodes) {
-        if (!(node instanceof HTMLElement)) continue;
-        if (node.matches(TAGGED)) markOne(node);
-        mark(node);
+    const markOne = (el: HTMLElement) => {
+      const year = el.dataset.year ?? el.dataset.colYear ?? el.dataset.cardYear;
+      el.toggleAttribute("data-year-match", year === chosen);
+    };
+    const mark = (root: Element | Document) => {
+      for (const el of root.querySelectorAll<HTMLElement>(TAGGED)) markOne(el);
+    };
+    const showYear = (year: string) => {
+      chosen = year;
+      if (year === "all") delete document.documentElement.dataset.statsYear;
+      else document.documentElement.dataset.statsYear = year;
+      mark(document);
+    };
+    const observer = new MutationObserver((records) => {
+      if (chosen === "all") return;
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!(node instanceof HTMLElement)) continue;
+          if (node.matches(TAGGED)) markOne(node);
+          mark(node);
+        }
       }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    signal.addEventListener("abort", () => observer.disconnect());
+    const linked = new URLSearchParams(location.search).get("year");
+    const linkedInput = linked ? switcher.querySelector<HTMLInputElement>(`input[value="${CSS.escape(linked)}"]`) : null;
+    if (linked && linkedInput) {
+      linkedInput.checked = true;
+      showYear(linked);
     }
-  }).observe(document.body, { childList: true, subtree: true });
-  const linked = new URLSearchParams(location.search).get("year");
-  const linkedInput = linked ? switcher?.querySelector<HTMLInputElement>(`input[value="${CSS.escape(linked)}"]`) : null;
-  if (linked && linkedInput) {
-    linkedInput.checked = true;
-    showYear(linked);
-  }
-  switcher?.addEventListener("change", (event) => {
-    const year = (event.target as HTMLInputElement).value;
-    showYear(year);
-    const url = new URL(location.href);
-    if (year === "all") url.searchParams.delete("year");
-    else url.searchParams.set("year", year);
-    history.replaceState(history.state, "", url);
-  });
+    switcher.addEventListener("change", (event) => {
+      const year = (event.target as HTMLInputElement).value;
+      showYear(year);
+      const url = new URL(location.href);
+      if (year === "all") url.searchParams.delete("year");
+      else url.searchParams.set("year", year);
+      history.replaceState(history.state, "", url);
+    });
 
-  const resting = new WeakMap<HTMLElement, string>();
+    const resting = new WeakMap<HTMLElement, string>();
 
-  document.addEventListener("pointerover", (event) => {
-    const mark = (event.target as Element).closest<HTMLElement>("[data-tip]");
-    const chart = mark?.closest<HTMLElement>("[data-chart]");
-    const readout = chart?.querySelector<HTMLElement>("[data-chart-readout]");
-    if (!mark || !readout) return;
-    if (!resting.has(readout)) resting.set(readout, readout.textContent ?? "");
-    readout.textContent = mark.dataset.tip ?? "";
-  });
+    document.addEventListener("pointerover", (event) => {
+      const mark = (event.target as Element).closest<HTMLElement>("[data-tip]");
+      const chart = mark?.closest<HTMLElement>("[data-chart]");
+      const readout = chart?.querySelector<HTMLElement>("[data-chart-readout]");
+      if (!mark || !readout) return;
+      if (!resting.has(readout)) resting.set(readout, readout.textContent ?? "");
+      readout.textContent = mark.dataset.tip ?? "";
+    }, { signal });
 
-  document.addEventListener("pointerout", (event) => {
-    const chart = (event.target as Element).closest<HTMLElement>("[data-chart]");
-    const next = (event as PointerEvent).relatedTarget as Element | null;
-    if (!chart || (next && chart.contains(next) && next.closest("[data-tip]"))) return;
-    const readout = chart.querySelector<HTMLElement>("[data-chart-readout]");
-    if (readout && resting.has(readout)) readout.textContent = resting.get(readout)!;
+    document.addEventListener("pointerout", (event) => {
+      const chart = (event.target as Element).closest<HTMLElement>("[data-chart]");
+      const next = (event as PointerEvent).relatedTarget as Element | null;
+      if (!chart || (next && chart.contains(next) && next.closest("[data-tip]"))) return;
+      const readout = chart.querySelector<HTMLElement>("[data-chart-readout]");
+      if (readout && resting.has(readout)) readout.textContent = resting.get(readout)!;
+    }, { signal });
   });
 </script>

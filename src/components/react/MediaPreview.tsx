@@ -15,13 +15,16 @@ import { fileKind, formatBytes } from "@/lib/utils";
 import {
   fetchJson,
   fetchMeta,
-  formatClock,
   loadPreview,
   thumbUrl,
   type Meta,
 } from "@/components/files/client";
 import { KIND_COLOUR } from "@/components/files/kinds";
 import { DownloadIcon, FileIcon, PauseIcon, PlayIcon } from "@/components/files/icons";
+import { usePlayerValue } from "@/components/player/usePlayer";
+import { formatClock } from "@/lib/clock";
+import { dock, play, toggle as togglePlayback } from "@/lib/player";
+import type { PlayerTrack } from "@/lib/player-state";
 
 /**
  * A visitor's browser downloads the whole file to draw a waveform, so past
@@ -41,6 +44,32 @@ export function previewKind(name: string): PreviewKind | null {
 /** The first rejection that is not us tearing the panel down. */
 function isTeardown(error: unknown): boolean {
   return error instanceof Error && error.name === "InputDisposedError";
+}
+
+/**
+ * A ref that shows the site-wide player's element in its node while this
+ * file is the one playing. A ref, not an effect: React runs a ref's cleanup
+ * in the same commit that removes the node (whatever removes it: a switch to
+ * Fallback, another file), and a media element out of the document at the
+ * next stable state is paused.
+ */
+function useDock(fileKey: string, current: boolean) {
+  return useCallback(
+    (node: HTMLElement | null) => (node && current ? dock(node, fileKey) : undefined),
+    [fileKey, current],
+  );
+}
+
+/** What the player shows for a file: its title tag, else its name. */
+function trackFor(key: string, url: string, meta: Supported, kind: PlayerTrack["kind"], poster?: string | null): PlayerTrack {
+  return {
+    key,
+    url,
+    title: meta.tags.title ?? key.split("/").pop() ?? key,
+    ...(meta.tags.artist ? { artist: meta.tags.artist } : {}),
+    kind,
+    ...(poster ? { poster } : {}),
+  };
 }
 
 /** Set by the open preview so the browser's space key can play and pause it. */
@@ -115,6 +144,7 @@ export function Fallback({
   uploaded,
   message,
   meta,
+  onRetry,
 }: {
   url: string;
   name: string;
@@ -122,6 +152,8 @@ export function Fallback({
   uploaded?: number;
   message: string;
   meta?: Supported;
+  /** Offered when playback failed, which may have been the network. */
+  onRetry?: () => void;
 }) {
   const codecs = [meta?.video?.codec, meta?.audio?.codec].filter(Boolean).join(" and ");
   const dot = name.lastIndexOf(".");
@@ -136,6 +168,11 @@ export function Fallback({
       </span>
       <p>{message}</p>
       <small>{codecs ? `Encoded as ${codecs}.` : facts}</small>
+      {onRetry && (
+        <button type="button" onClick={onRetry} className="fb-btn">
+          Try again
+        </button>
+      )}
       <a href={url} target="_blank" rel="noopener noreferrer" download className="fb-btn">
         <DownloadIcon size={14} />
         Download
@@ -215,7 +252,7 @@ const STAGE_MAX_HEIGHT = 320;
 /** Cells in the filmstrip under the stage, sampled from however many the sheet has. */
 const STRIP_CELLS = 8;
 
-type VideoState = "loading" | "ready" | "undecodable" | "unplayable";
+type VideoState = "loading" | "ready" | "undecodable";
 
 function spriteStyle(strip: StripView, frame: number): React.CSSProperties {
   const { columns, rows } = strip.layout;
@@ -247,9 +284,10 @@ function VideoPreview({
   const [poster, setPoster] = useState<string | null>(null);
   const [strip, setStrip] = useState<StripView | null>(null);
   const [scrub, setScrub] = useState<number | null>(null);
-  /** Null until played; then where playback starts, in seconds. */
-  const [startAt, setStartAt] = useState<number | null>(null);
-  const element = useRef<HTMLVideoElement>(null);
+  // Not usePlayer(): the stage needs no clock, so it skips the 4 Hz timeupdates.
+  const playing = usePlayerValue((snapshot) => snapshot.track?.key === fileKey);
+  const failed = usePlayerValue((snapshot) => snapshot.track?.key === fileKey && snapshot.failed);
+  const host = useDock(fileKey, playing);
 
   const video = meta.video;
   const aspect = video && video.width > 0 && video.height > 0 ? video.width / video.height : 16 / 9;
@@ -336,34 +374,36 @@ function VideoPreview({
     };
   }, [fileKey, url, base, meta]);
 
-  const playing = startAt !== null;
+  const track = trackFor(fileKey, url, meta, "video", poster);
+  const trackRef = useRef(track);
+  trackRef.current = track;
 
   useEffect(() => {
     if (!control) return;
-    control.current = () => {
-      const el = element.current;
-      if (!playing || !el) setStartAt((at) => at ?? 0);
-      else if (el.paused) void el.play().catch(() => {});
-      else el.pause();
-    };
+    control.current = () => (playing ? togglePlayback() : play(trackRef.current, 0));
     return () => {
       control.current = null;
     };
   }, [control, playing]);
 
-  if (state === "undecodable" || state === "unplayable") {
+  if (state === "undecodable" || failed) {
     return (
-      <Fallback
-        url={url}
-        name={fileKey.split("/").pop() ?? fileKey}
-        size={size}
-        meta={meta}
-        message={
-          state === "undecodable"
-            ? "This browser can't decode this video."
-            : "This browser can't play this video."
-        }
-      />
+      <>
+        {/* Still docked, so the box does not repeat the failure over this page. */}
+        {failed && <span ref={host} hidden />}
+        <Fallback
+          url={url}
+          name={fileKey.split("/").pop() ?? fileKey}
+          size={size}
+          meta={meta}
+          message={
+            state === "undecodable"
+              ? "This browser can't decode this video."
+              : "This browser can't play this video."
+          }
+          onRetry={failed ? () => play(trackRef.current, 0) : undefined}
+        />
+      </>
     );
   }
 
@@ -384,26 +424,12 @@ function VideoPreview({
   return (
     <>
       {playing ? (
-        // biome-ignore lint/a11y/useMediaCaption: arbitrary uploads have no captions to offer
-        <video
-          ref={element}
-          src={url}
-          poster={poster ?? undefined}
-          controls
-          autoPlay
-          playsInline
-          preload="metadata"
-          onLoadedMetadata={(e) => {
-            if (startAt) e.currentTarget.currentTime = startAt;
-          }}
-          onError={() => setState("unplayable")}
-          className="fb-stage"
-          style={stageStyle}
-        />
+        // The site-wide player's <video> is moved in here; see useDock.
+        <div ref={host} className="fb-stage" style={stageStyle} />
       ) : (
         <button
           type="button"
-          onClick={() => setStartAt(scrubTime ?? 0)}
+          onClick={() => play(track, scrubTime ?? 0)}
           onPointerMove={onPointerMove}
           onPointerLeave={() => setScrub(null)}
           aria-label="Play video"
@@ -442,16 +468,7 @@ function VideoPreview({
               title={strip ? formatClock(at) : undefined}
               className={scrub === frame ? "on" : undefined}
               style={strip ? spriteStyle(strip, frame) : undefined}
-              onClick={() => {
-                if (!strip) return;
-                const el = element.current;
-                if (playing && el) {
-                  el.currentTime = at;
-                  void el.play().catch(() => {});
-                } else {
-                  setStartAt(at);
-                }
-              }}
+              onClick={() => strip && play(track, at)}
             />
           );
         })}
@@ -462,7 +479,7 @@ function VideoPreview({
 
 /* -------------------------------------------------------------------------- */
 
-type AudioState = "loading" | "ready" | "undecodable" | "unplayable";
+type AudioState = "loading" | "ready" | "undecodable";
 
 function AudioPreview({
   fileKey,
@@ -483,9 +500,12 @@ function AudioPreview({
   const [cover, setCover] = useState<ImageBitmap | null>(null);
   const [peaks, setPeaks] = useState<{ values: Float32Array; done: number } | null>(null);
   const [skipped, setSkipped] = useState(false);
-  const [position, setPosition] = useState(0);
-  const [paused, setPaused] = useState(true);
-  const audio = useRef<HTMLAudioElement>(null);
+  // Selected, so another file's playback does not re-render this one.
+  const current = usePlayerValue((snapshot) => snapshot.track?.key === fileKey);
+  const position = usePlayerValue((snapshot) => (snapshot.track?.key === fileKey ? snapshot.time : 0));
+  const paused = usePlayerValue((snapshot) => (snapshot.track?.key === fileKey ? snapshot.paused : true));
+  const failed = usePlayerValue((snapshot) => snapshot.track?.key === fileKey && snapshot.failed);
+  const host = useDock(fileKey, current);
 
   useEffect(() => {
     let live = true;
@@ -559,12 +579,14 @@ function AudioPreview({
   // ImageBitmaps hold decoded pixels until closed.
   useEffect(() => () => cover?.close(), [cover]);
 
+  const track = trackFor(fileKey, url, meta, "audio");
+  const trackRef = useRef(track);
+  trackRef.current = track;
+
   const toggle = useCallback(() => {
-    const element = audio.current;
-    if (!element) return;
-    if (element.paused) void element.play().catch(() => {});
-    else element.pause();
-  }, []);
+    if (current) togglePlayback();
+    else play(trackRef.current, 0);
+  }, [current]);
 
   useEffect(() => {
     if (!control) return;
@@ -577,27 +599,29 @@ function AudioPreview({
   const duration = meta.duration ?? 0;
   const seek = useCallback(
     (fraction: number) => {
-      const element = audio.current;
-      if (!element || !(duration > 0)) return;
-      element.currentTime = fraction * duration;
-      if (element.paused) void element.play().catch(() => {});
+      if (duration > 0) play(trackRef.current, fraction * duration);
     },
     [duration],
   );
 
-  if (state === "undecodable" || state === "unplayable") {
+  if (state === "undecodable" || failed) {
     return (
-      <Fallback
-        url={url}
-        name={fileKey.split("/").pop() ?? fileKey}
-        size={size}
-        meta={meta}
-        message={
-          state === "undecodable"
-            ? "This browser can't decode this audio."
-            : "This browser can't play this audio."
-        }
-      />
+      <>
+        {/* Still docked, so the box does not repeat the failure over this page. */}
+        {failed && <span ref={host} hidden />}
+        <Fallback
+          url={url}
+          name={fileKey.split("/").pop() ?? fileKey}
+          size={size}
+          meta={meta}
+          message={
+            state === "undecodable"
+              ? "This browser can't decode this audio."
+              : "This browser can't play this audio."
+          }
+          onRetry={failed ? () => play(trackRef.current, 0) : undefined}
+        />
+      </>
     );
   }
 
@@ -646,17 +670,8 @@ function AudioPreview({
             {formatClock(position)} / {formatClock(duration)}
           </span>
         </div>
-        {/* biome-ignore lint/a11y/useMediaCaption: arbitrary uploads have no captions to offer */}
-        <audio
-          ref={audio}
-          src={url}
-          preload="metadata"
-          onTimeUpdate={(e) => setPosition(e.currentTarget.currentTime)}
-          onPlay={() => setPaused(false)}
-          onPause={() => setPaused(true)}
-          onError={() => setState("unplayable")}
-          className="hidden"
-        />
+        {/* Holds the site-wide player's element while this file plays; see useDock. */}
+        <span ref={host} hidden />
       </div>
     </div>
   );
@@ -773,18 +788,33 @@ export function Waveform({
 
 /* -------------------------------------------------------------------------- */
 
-/** Settled once per page: whether this reader is the owner. */
+/**
+ * Settled once per visit to /files: whether this reader is the owner. A
+ * visitor gets a 200 saying no, so a failed probe (throttled, down) is not
+ * an answer and is asked again next time.
+ */
 let ownerCheck: Promise<boolean> | null = null;
 
 function checkOwner(): Promise<boolean> {
-  ownerCheck ??= fetch("/api/files/thumbs")
-    .then((r) => (r.ok ? (r.json() as Promise<{ owner?: boolean }>) : { owner: false }))
+  if (ownerCheck) return ownerCheck;
+  const probe: Promise<boolean> = fetch("/api/files/thumbs")
+    .then((r) => {
+      if (!r.ok) throw new Error(`owner probe ${r.status}`);
+      return r.json() as Promise<{ owner?: boolean }>;
+    })
     .then((body) => body.owner === true)
     .catch(() => {
-      ownerCheck = null;
+      // Only this probe's own slot: a later visit may have started another.
+      if (ownerCheck === probe) ownerCheck = null;
       return false;
     });
-  return ownerCheck;
+  ownerCheck = probe;
+  return probe;
+}
+
+/** Leaving /files: the next visit asks again. */
+export function forgetOwnerCheck(): void {
+  ownerCheck = null;
 }
 
 type FolderThumbs = Record<string, { uploaded: number; kinds: ThumbKind[] }>;

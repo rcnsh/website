@@ -165,14 +165,9 @@ const homeActive = isActive("/");
 </style>
 
 <script>
-  // A second run must not leave the first run's `window` listener pinning a
-  // detached rail.
-  let binding: AbortController | null = null;
+  import { onPage } from "@/lib/page-lifecycle";
 
-  function setupNav() {
-    binding?.abort();
-    binding = null;
-
+  function setupNav(signal: AbortSignal) {
     const rail = document.querySelector<HTMLElement>("[data-nav-rail]");
     if (!rail) return;
 
@@ -210,9 +205,6 @@ const homeActive = isActive("/");
 
     const rest = () => place(activeTab(), true);
 
-    binding = new AbortController();
-    const { signal } = binding;
-
     for (const item of items) {
       item.addEventListener("pointerenter", () => place(item, true), { signal });
       item.addEventListener("focus", () => place(item, true), { signal });
@@ -242,8 +234,9 @@ const homeActive = isActive("/");
     );
   }
 
-  // Module scripts are deferred, so the DOM is parsed by the time this runs.
-  setupNav();
-  publishHeaderHeight();
+  onPage((signal) => {
+    setupNav(signal);
+    publishHeaderHeight();
+  });
   window.addEventListener("resize", publishHeaderHeight, { passive: true });
 </script>

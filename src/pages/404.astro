@@ -140,10 +140,13 @@ const subtitles: Record<string, string> = {
 </style>
 
 <script>
+  import { onPage } from "@/lib/page-lifecycle";
+
   // Prerendered, so only the browser knows what was asked for.
-  const line = document.querySelector<HTMLElement>("[data-nf-path]");
-  const path = line?.querySelector("code");
-  if (line && path && !/^\/404(\.html)?$/.test(location.pathname)) {
+  onPage(() => {
+    const line = document.querySelector<HTMLElement>("[data-nf-path]");
+    const path = line?.querySelector("code");
+    if (!line || !path || /^\/404(\.html)?$/.test(location.pathname)) return;
     let shown = location.pathname;
     try {
       shown = decodeURIComponent(shown);
@@ -152,5 +155,5 @@ const subtitles: Record<string, string> = {
     }
     path.textContent = shown;
     line.hidden = false;
-  }
+  });
 </script>

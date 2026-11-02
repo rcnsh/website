@@ -86,10 +86,13 @@ const irl = groups[0];
 }
 
 <script>
-  const root = document.querySelector<HTMLElement>("[data-uses-inspector]");
-  const items = document.querySelectorAll<HTMLElement>("[data-uses-item]");
+  import { onPage } from "@/lib/page-lifecycle";
 
-  if (root && items.length) {
+  onPage((signal) => {
+    const root = document.querySelector<HTMLElement>("[data-uses-inspector]");
+    const items = document.querySelectorAll<HTMLElement>("[data-uses-item]");
+    if (!root || !items.length) return;
+
     const $ = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
     const heading = $("[data-in-heading]");
     const pos = $("[data-in-pos]");
@@ -110,6 +113,7 @@ const irl = groups[0];
     let showing: HTMLElement | null = fallback;
     let revert: ReturnType<typeof setTimeout> | undefined;
     let swapped = 0;
+    signal.addEventListener("abort", () => clearTimeout(revert));
 
     const show = (el: HTMLElement) => {
       clearTimeout(revert);
@@ -183,7 +187,7 @@ const irl = groups[0];
     root.addEventListener("pointerleave", () => {
       if (showing !== fallback) later();
     });
-  }
+  });
 </script>
 
 <style>

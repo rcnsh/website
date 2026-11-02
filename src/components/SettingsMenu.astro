@@ -146,13 +146,9 @@ const settings = [
     setLiveUpdates,
     setMotionReduced,
   } from "@/lib/prefs";
+  import { onPage } from "@/lib/page-lifecycle";
 
-  let bindings: AbortController | null = null;
-
-  function setupSettings() {
-    bindings?.abort();
-    bindings = null;
-
+  function setupSettings(signal: AbortSignal) {
     const root = document.querySelector<HTMLElement>("[data-settings]");
     if (!root) return;
 
@@ -165,9 +161,6 @@ const settings = [
     const live = switchFor("live");
     const motion = switchFor("motion");
     if (!trigger || !panel || !live || !motion) return;
-
-    bindings = new AbortController();
-    const { signal } = bindings;
 
     const setOpen = (open: boolean) => {
       // Takes the command palette down with it — see lib/overlays.
@@ -233,6 +226,5 @@ const settings = [
     root.setAttribute("data-settings-ready", "");
   }
 
-  // Module scripts are deferred, so the DOM is parsed by the time this runs.
-  setupSettings();
+  onPage(setupSettings);
 </script>

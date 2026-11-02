@@ -3,6 +3,9 @@
 
 import { isHiddenKey, objectKey, THUMBS_PREFIX } from "../../shared/bucket-keys.ts";
 
+/** The owner-only route private files are read through. */
+export const DOWNLOAD_PATH = "/api/files/download";
+
 /**
  * The public URL for a key: on the bucket's own domain when it has one,
  * otherwise through /api/files/download.
@@ -11,7 +14,7 @@ export function publicUrl(base: string, key: string): string {
   const encoded = key.split("/").map(encodeURIComponent).join("/");
   return base
     ? `${base}/${encoded}`
-    : `/api/files/download?key=${encodeURIComponent(key)}`;
+    : `${DOWNLOAD_PATH}?key=${encodeURIComponent(key)}`;
 }
 
 /**

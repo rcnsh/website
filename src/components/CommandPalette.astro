@@ -150,15 +150,11 @@ const items = [...nav, ...externalLinks].map((item) => ({
 </style>
 
 <script>
+  import { navigate } from "astro:transitions/client";
   import { closeOnOtherOverlay, overlayOpened } from "@/lib/overlays";
+  import { onPage } from "@/lib/page-lifecycle";
 
-  // Each run retires the last one's listeners — same shape as TopBar's rail.
-  let binding: AbortController | null = null;
-
-  function setupPalette() {
-    binding?.abort();
-    binding = null;
-
+  function setupPalette(signal: AbortSignal) {
     document.body.style.overflow = "";
 
     const palette = document.querySelector<HTMLElement>("[data-palette]");
@@ -374,7 +370,7 @@ const items = [...nav, ...externalLinks].map((item) => ({
       if (result.navigate) {
         const href = result.navigate;
         setTimeout(() => {
-          window.location.href = href;
+          void navigate(href);
         }, 180);
       }
     };
@@ -435,9 +431,6 @@ const items = [...nav, ...externalLinks].map((item) => ({
 
       return false;
     };
-
-    binding = new AbortController();
-    const { signal } = binding;
 
     closeOnOtherOverlay("palette", () => setOpen(false), signal);
 
@@ -529,6 +522,5 @@ const items = [...nav, ...externalLinks].map((item) => ({
     filter();
   }
 
-  // Module scripts are deferred, so the DOM is parsed by the time this runs.
-  setupPalette();
+  onPage(setupPalette);
 </script>

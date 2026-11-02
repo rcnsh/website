@@ -30,16 +30,57 @@ record.
 runs is their **intersection**. A permission present in only one of them is not
 a permission. Both known CSP bugs here were that mistake.
 
-**Do not reintroduce `<ClientRouter />`.** `security.csp` is enabled, so Astro
-publishes per-page inline-script hashes in a `<meta>` policy. A meta CSP binds
-the document it was parsed with, and a view-transition swap does not reparse
-it — so from the second soft navigation onward every page's island hydration
-hashes to something absent from the entry page's list and is blocked. Invisible
-on a direct load, which is what makes it expensive to diagnose.
+**Every prerendered page carries the same `<meta>` CSP.** `<ClientRouter />`
+keeps one document and swaps pages into it, and a meta CSP binds the document
+it was parsed with, so the entry page's policy must already allow every
+page's inline scripts. Astro writes per-page hashes; the `csp-union`
+integration (`astro.config.ts`, `scripts/csp-union.ts`) rewrites every page's
+meta to the union of them all on `astro:build:done`, and fails the build if any
+page holds an inline `<script>` or `<style>` that union does not hash. It is a
+build hook rather than an npm script so Workers Builds runs it whatever command
+it uses. The union stays in the meta, not `_headers`: it is already ~1,900
+characters of hashes, and a `_headers` line stops at 2,000. Without it, every
+soft navigation after the first blocks the new page's islands — invisible on a
+direct load, which is what made it expensive to diagnose.
 
-Consequences already absorbed: `astro:page-load` is not dispatched without the
-router, so `TopBar`, `CommandPalette` and `SettingsMenu` self-invoke instead of
-binding to it. `ClockTile` needs no swap teardown.
+**The router is on prerendered pages only** (`Astro.isPrerendered` in
+`Layout`). An SSR page's policy is Astro's per-response header naming only its
+own scripts, and its server-island placeholders carry props encrypted per
+request, so no build-time union can cover them. The router full-loads into any
+page without `<ClientRouter />`, but only after fetching and discarding it, so
+`SERVER_PAGES` (`src/lib/server-pages.ts`, pinned to `src/pages` by its test)
+sends links into them, and into `/api/`, straight to a full load. Links out of
+one are ordinary loads. Never
+give a `prerender = false` page the router: soft navigation from it would run
+every other page's scripts under its policy.
+
+**Scripts run once per document, not once per page.** Anything bound to a
+page's markup goes through `onPage` (`src/lib/page-lifecycle.ts`): it runs at
+once, again after every swap, and aborts its signal when the page leaves, so
+window and document listeners, observers and timers must take that signal. A
+page's own setup keeps firing on every later page once loaded, so it must bail
+when its markup is absent. Not `astro:page-load`: the router fires the first one
+on window `load`, after every image. Module state outlives the page too
+(`forgetOwnerView` exists for that), and a page back from the back-forward
+cache never re-runs it, so `/files` reloads there if the owner hint changed
+meanwhile (signing out on `/guestbook`, then Back). Navigate from code with `navigate()` from
+`astro:transitions/client`, never `location.href`, or the player stops.
+
+**The router replaces `<html>`'s attributes on every swap** with the incoming
+page's, which were rendered without the reader's. `keepReaderAttributes`
+(`page-lifecycle.ts`) carries `data-motion` and `data-owner` across; a new
+attribute about the reader goes in its list. Page-level ones (`data-stats-year`,
+the owner hold) are meant to drop. TopBar republishes `--header-h` per page.
+
+**No `transition:animate`.** It emits an inline `<style>` Astro does not hash,
+which the build refuses. The browser's crossfade is off in `global.css`.
+
+**One CSP violation per navigation to a page with server islands is expected.**
+The router waits for inline module scripts by appending a `data:` script, which
+`script-src` refuses; the refusal fires `error`, which is all it waits for.
+Adding `data:` to `script-src` to quiet it would be a real hole. Astro's script
+inlining is off (`vite.build.assetsInlineLimit`) so page scripts are files and
+never depend on that wait.
 
 **`script-src 'unsafe-inline'` must stay in `shared/security.ts`.** A browser
 enforces every policy present, and prerendered pages carry both the `_headers`
@@ -73,12 +114,10 @@ hosts must then be in both policies. `worker-src` is the trap: it falls back to
 `script-src`, which the meta *does* bind.
 
 **A new `is:inline` script must be registered in `shared/inline-scripts.ts`.**
-Astro never hashes an `is:inline` script; that is what `is:inline` means. One
-that is not registered still *works* on prerendered pages by accident — the
-meta tag is injected after it in `<head>`, and a meta policy does not govern
-what precedes it — and fails on any `prerender = false` route, where the policy
-is a real header covering the whole document. `astro.config.ts` hashes whatever
-that file exports.
+Astro never hashes an `is:inline` script; that is what `is:inline` means.
+`astro.config.ts` hashes whatever that file exports. An unregistered one fails
+the build on a prerendered page (`csp-union` checks) and is blocked on any
+`prerender = false` route, where the policy is a real header.
 
 ### Caching
 
@@ -259,8 +298,10 @@ it tests under node. It reports the probe settled exactly once, on every path,
 and `src/components/files/owner-view.ts` is the only thing that lifts the
 owner hold: at once unless the owner's tree went out, then as soon as nothing
 on the page shows the visitors' view, with the 5s timer as the floor. Lifting
-it while an island still shows that view flashes it at the owner. The page
-script in `files.astro` starts the hold, since it must run before hydration.
+it while an island still shows that view flashes it at the owner.
+`holdOwnerViewOnFiles`, registered by `Layout` in every document, starts the
+hold, since it must run before hydration: on the first soft navigation into
+/files the page's own script would load after the islands.
 
 **Rules fail closed.** `rulesLoader` (`shared/visibility.ts`) throws rather
 than returning `{}`, and an unknown stored value reads as `private`. Both
@@ -315,6 +356,44 @@ that check the session.
 **Sign-in's `?next=` goes through `returnPath()`** on the way in and again on
 the way out, since the cookie comes back from the browser. Loosening it turns
 `/api/auth/login` into an open redirect.
+
+**The preview is sanitised (`renderSafePreview`).** Posts may carry raw HTML,
+and the preview renders it inside the owner's session, where markup pasted
+from elsewhere could act as the owner. CSP on `/blog/edit` already refuses
+inline handlers; DOMPurify is the second layer. Never render
+`renderPreview`'s output directly. The preview also sits outside the editor's
+`<form>` (the fields join it by `form=` id): HTML parsed inside a form joins
+it, so a pasted `<button>` would save, and commit, when clicked.
+
+### Site-wide player
+
+**One media element for the session, owned by `src/lib/player.ts`.** Created
+there and never rendered, so nothing that re-renders can drop it. It lives in
+the floating box (`src/components/player/MiniPlayer.astro`, in `Layout` with
+`transition:persist`), or docked in the /files preview of the same file while
+that is open (`useDock` in `MediaPreview.tsx`). Previews own no `<video>` or
+`<audio>`: they call `play`, `toggle` and `dock`, and read `usePlayer()`.
+
+**The box holds the element in a shadow root.** After every swap the router
+replaces each `<video>` and `<audio>` it can find in the new body with a fresh,
+paused copy (`reifyMediaElements`), persisted elements included.
+`querySelectorAll` does not reach into a shadow root. The element's styles are
+inline because the box's stylesheet does not either.
+
+**A media element out of the document at the next stable state is paused.**
+So docking is a ref callback (`useDock`): React removes a host and runs the
+ref's cleanup in one synchronous commit, where a passive effect would run too
+late.
+A swap removes the old body before islands unmount, so the player takes the
+element back into the box on `astro:before-swap`.
+
+**A full load (an SSR page, a reload) resumes from `sessionStorage`.**
+`rcn:player` is written on `pagehide` and read through `parseSavedPlayback`
+(`player-state.ts`), which drops any media URL not from the site or
+`BUCKET_ORIGIN`. A private file (the `/api/files/download` route) is dropped
+too once the owner hint is gone, so signing out does not leave its name in the
+box. Resuming with sound may be refused without a fresh click; it then waits
+paused at the same spot.
 
 ### Owner playback
 
