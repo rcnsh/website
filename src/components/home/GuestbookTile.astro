@@ -8,7 +8,7 @@ let detail = "Sign with GitHub";
 let faces: { src: string; name: string }[] = [];
 try {
   const [stats, page] = await Promise.all([getStats(), getPage()]);
-  detail = `${stats.total.toLocaleString("en-GB")} signature${stats.total === 1 ? "" : "s"} · sign with GitHub`;
+  detail = `${stats.total.toLocaleString("en-GB")} signature${stats.total === 1 ? "" : "s"}`;
   faces = page.entries
     .filter((entry) => entry.avatarUrl)
     .slice(0, 4)
