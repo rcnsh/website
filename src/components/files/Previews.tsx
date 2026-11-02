@@ -5,7 +5,8 @@ import { firstLines, TEXT_PREVIEW_BYTES } from "@/lib/text-preview";
 import { parsePeaksSidecar, publicUrl } from "@/lib/thumbs";
 import { fileKind, formatBytes } from "@/lib/utils";
 import { DetailList, Fallback, Waveform } from "@/components/react/MediaPreview";
-import { fetchJson, fetchMeta, formatClock, loadPreview, queue, thumbUrl } from "./client";
+import { formatClock } from "@/lib/clock";
+import { fetchJson, fetchMeta, loadPreview, queue, thumbUrl } from "./client";
 import { KIND_COLOUR } from "./kinds";
 import { FileIcon, FolderIcon, PlayIcon } from "./icons";
 

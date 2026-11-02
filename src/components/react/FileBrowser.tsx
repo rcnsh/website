@@ -40,8 +40,10 @@ import MediaPreview, {
   Backfill,
   DetailList,
   Fallback,
+  forgetOwnerCheck,
   previewKind,
 } from "@/components/react/MediaPreview";
+import { forgetMeta } from "@/components/files/client";
 import { useFilesSource } from "@/components/files/useFilesSource";
 import { CardThumb, EntryIcon, ImagePreview, TextPreview } from "@/components/files/Previews";
 import {
@@ -104,6 +106,16 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   const curCol = useRef<HTMLDivElement>(null);
   const parentCol = useRef<HTMLDivElement>(null);
   const playback = useRef<(() => void) | null>(null);
+
+  // The router keeps this document while the reader moves on, so caches that
+  // were "per page" would outlive the visit. Unmounting is leaving /files.
+  useEffect(
+    () => () => {
+      forgetMeta();
+      forgetOwnerCheck();
+    },
+    [],
+  );
 
   // The current folder and its parent, whenever either is missing, and again
   // once the owner's view replaces the visitors'. Failed ones wait for the
@@ -273,17 +285,33 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   applyHashRef.current = applyHash;
 
   const hashApplied = useRef(false);
+  /** Tells the hash listener what the browser now shows, so it skips repeats. */
+  const shownHash = useRef<(hash: string) => void>(() => {});
   // Layout effect so a deep link is in place before the first paint after
   // hydration, not one frame after it.
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount only
   useLayoutEffect(() => {
     applyHash();
+    const page = window.location.pathname;
+    let applied = window.location.hash;
     const onHash = () => {
+      // A Back between two hashes fires both events; once is enough.
+      if (window.location.pathname !== page || window.location.hash === applied) return;
+      applied = window.location.hash;
       clearSearch();
       applyHashRef.current();
     };
+    shownHash.current = (hash) => {
+      applied = hash;
+    };
+    // The router moves to a same-page `#` link with pushState, which fires no
+    // hashchange, then dispatches a popstate of its own.
     window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    window.addEventListener("popstate", onHash);
+    return () => {
+      window.removeEventListener("hashchange", onHash);
+      window.removeEventListener("popstate", onHash);
+    };
   }, []);
 
   // Until the owner check settles, a link into a folder visitors cannot see
@@ -304,6 +332,7 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
     if (hash === window.location.hash || (!hash && !window.location.hash)) return;
     // Replace, not push: walking a folder with j/k would bury the back button.
     history.replaceState(history.state, "", `${window.location.pathname}${window.location.search}${hash}`);
+    shownHash.current(hash);
   }, [linkPath]);
 
   /* ---- Keeping the selection in view ---- */

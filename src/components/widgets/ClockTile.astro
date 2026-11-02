@@ -53,8 +53,9 @@ const city = clock.timeZone.split("/").at(-1)!.replaceAll("_", " ");
 
 <script>
   import { liveUpdates, onPrefChange } from "@/lib/prefs";
+  import { onPage } from "@/lib/page-lifecycle";
 
-  const start = () => {
+  const start = (signal: AbortSignal) => {
     const node = document.querySelector<HTMLElement>("[data-clock]");
     const hm = node?.querySelector<HTMLElement>("[data-clock-hm]");
     const sec = node?.querySelector<HTMLElement>("[data-clock-s]");
@@ -106,8 +107,8 @@ const city = clock.timeZone.split("/").at(-1)!.replaceAll("_", " ");
     };
     let lastFraction = 0;
 
-    const bindings = new AbortController();
     let id = 0;
+    signal.addEventListener("abort", () => window.clearInterval(id));
 
     /** Start or stop the tick; the reading is redrawn either way, so a
      * stopped clock is never a wrong one. */
@@ -123,13 +124,12 @@ const city = clock.timeZone.split("/").at(-1)!.replaceAll("_", " ");
       () => {
         if (!document.hidden && !liveUpdates()) render();
       },
-      { signal: bindings.signal },
+      { signal },
     );
 
-    onPrefChange("live", sync, bindings.signal);
+    onPrefChange("live", sync, signal);
     sync();
   };
 
-  // One document, one start: there is no router, so nothing to rebind on.
-  start();
+  onPage(start);
 </script>

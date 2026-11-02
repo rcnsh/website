@@ -9,8 +9,13 @@ export type Meta = MediaMeta & { size?: number; uploaded?: number; thumbs?: Thum
 /** Mediabunny and the generators, fetched the first time anything needs them. */
 export const loadPreview = () => import("@/lib/media-preview");
 
-/** Per page: metadata is immutable for an upload, and the API caches it too. */
+/** Per visit to /files: metadata is immutable for an upload, and the API caches it too. */
 const metaCache = new Map<string, Promise<Meta>>();
+
+/** Leaving /files: a file re-uploaded meanwhile must not show stale details. */
+export function forgetMeta(): void {
+  metaCache.clear();
+}
 
 export function fetchMeta(key: string, reload = false): Promise<Meta> {
   const cached = metaCache.get(key);
@@ -42,13 +47,6 @@ export function thumbUrl(base: string, key: string, kind: ThumbKind): string | n
   return target ? publicUrl(base, target) : null;
 }
 
-export function formatClock(seconds: number): string {
-  const s = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`;
-}
 
 /**
  * Runs at most `limit` tasks at once, in the order asked. A grid of cards

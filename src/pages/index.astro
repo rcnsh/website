@@ -109,7 +109,7 @@ const pgp = externalLinks.find((link) => link.icon === "key");
     </section>
 
     <Contributions server:defer>
-      <section slot="fallback" class="tile flex flex-col [grid-area:hm]" aria-hidden="true">
+      <section slot="fallback" class="tile flex flex-col [grid-area:hm]" aria-hidden="true" data-contrib-pending>
         <div class="mb-4 flex items-center">
           <div class="placeholder-block h-2.5 w-24 rounded-xs" />
           <div class="placeholder-block ml-auto h-2.5 w-28 rounded-xs" />

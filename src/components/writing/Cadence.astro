@@ -107,10 +107,13 @@ const summary = `Posts per month, ${MONTH_YEAR.format(at(first))} to ${MONTH_YEA
 </style>
 
 <script>
-  const bars = document.querySelector<HTMLElement>("[data-cadence]");
-  const tip = document.querySelector<HTMLElement>("[data-cadence-tip]");
+  import { onPage } from "@/lib/page-lifecycle";
 
-  if (bars && tip) {
+  onPage(() => {
+    const bars = document.querySelector<HTMLElement>("[data-cadence]");
+    const tip = document.querySelector<HTMLElement>("[data-cadence-tip]");
+    if (!bars || !tip) return;
+
     const idle = tip.textContent ?? "";
     bars.addEventListener("pointerover", (event) => {
       const label = (event.target as HTMLElement).dataset.label;
@@ -119,5 +122,5 @@ const summary = `Posts per month, ${MONTH_YEAR.format(at(first))} to ${MONTH_YEA
     bars.addEventListener("pointerleave", () => {
       tip.textContent = idle;
     });
-  }
+  });
 </script>

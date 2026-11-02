@@ -432,6 +432,15 @@
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
+/* The router swaps pages inside a view transition. It is there to keep the
+   player alive, not to change how moving between pages looks, so the
+   browser's default crossfade is off. Not `transition:animate="none"`: that
+   emits an inline <style> Astro does not hash. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
 :root[data-motion="reduce"]::view-transition-group(*),
 :root[data-motion="reduce"]::view-transition-old(*),
 :root[data-motion="reduce"]::view-transition-new(*) {

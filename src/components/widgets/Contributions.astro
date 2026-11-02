@@ -169,6 +169,7 @@ const weekCount = data?.weeks.length ?? 53;
 
 <script>
   import { edgeFade } from "@/lib/edge-fade";
+  import { onPage } from "@/lib/page-lifecycle";
 
   // The graph is wider than the scroller on phones with the scrollbar
   // suppressed, so fade whichever edge is cutting content off and start
@@ -176,7 +177,7 @@ const weekCount = data?.weeks.length ?? 53;
   // unit-tested — see CLAUDE.md § Maintenance › Gotchas.
   //
   // Island markup arrives after this script has run, hence the observer below.
-  function initScroller(scroller: HTMLElement) {
+  function initScroller(scroller: HTMLElement, signal: AbortSignal) {
     if (scroller.hasAttribute("data-contrib-ready")) return;
     scroller.setAttribute("data-contrib-ready", "");
 
@@ -196,7 +197,7 @@ const weekCount = data?.weeks.length ?? 53;
 
     sync();
     scroller.addEventListener("scroll", sync, { passive: true });
-    window.addEventListener("resize", sync, { passive: true });
+    window.addEventListener("resize", sync, { passive: true, signal });
 
     // The footer echoes the hovered day; the title attribute covers touch and
     // assistive tech, so this is pointer-only.
@@ -213,17 +214,21 @@ const weekCount = data?.weeks.length ?? 53;
     }
   }
 
-  function setupContributions(): boolean {
+  function setupContributions(signal: AbortSignal): boolean {
     const scrollers = document.querySelectorAll<HTMLElement>("[data-contrib-scroller]");
-    for (const scroller of scrollers) initScroller(scroller);
+    for (const scroller of scrollers) initScroller(scroller, signal);
     return scrollers.length > 0;
   }
 
-  if (!setupContributions()) {
+  onPage((signal) => {
+    if (setupContributions(signal)) return;
+    // Not this page's widget, or not one still on its way.
+    if (!document.querySelector("[data-contrib-pending]")) return;
     // Disconnects as soon as the island lands, so this is not a standing cost.
     const observer = new MutationObserver(() => {
-      if (setupContributions()) observer.disconnect();
+      if (setupContributions(signal)) observer.disconnect();
     });
     observer.observe(document.body, { childList: true, subtree: true });
-  }
+    signal.addEventListener("abort", () => observer.disconnect());
+  });
 </script>

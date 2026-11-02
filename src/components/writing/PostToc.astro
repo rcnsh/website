@@ -59,11 +59,13 @@ const indent: Record<number, string> = { 2: "pl-3.5", 3: "pl-[26px] text-[0.8125
 
 <script>
   import { activeHeading, readingProgress } from "@/lib/reading-progress";
+  import { onPage } from "@/lib/page-lifecycle";
 
-  const toc = document.querySelector<HTMLElement>("[data-toc]");
-  const body = document.querySelector<HTMLElement>("[data-post-body]");
+  onPage((signal) => {
+    const toc = document.querySelector<HTMLElement>("[data-toc]");
+    const body = document.querySelector<HTMLElement>("[data-post-body]");
+    if (!toc || !body) return;
 
-  if (toc && body) {
     const pct = toc.querySelector<HTMLElement>("[data-toc-pct]");
     const bar = toc.querySelector<HTMLElement>("[data-toc-bar]");
     const links = [...toc.querySelectorAll<HTMLAnchorElement>("a[href^='#']")];
@@ -93,8 +95,9 @@ const indent: Record<number, string> = { 2: "pl-3.5", 3: "pl-[26px] text-[0.8125
       if (!frame) frame = requestAnimationFrame(update);
     };
 
-    addEventListener("scroll", schedule, { passive: true });
-    addEventListener("resize", schedule, { passive: true });
+    addEventListener("scroll", schedule, { passive: true, signal });
+    addEventListener("resize", schedule, { passive: true, signal });
+    signal.addEventListener("abort", () => cancelAnimationFrame(frame));
     update();
-  }
+  });
 </script>
