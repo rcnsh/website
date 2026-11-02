@@ -19,8 +19,9 @@ function storage(): Storage | null {
 }
 
 /**
- * Progressive enhancement: this is a normal <form method="POST"> that the page
- * handles server-side. React only adds the live counter and pending state.
+ * A normal <form method="POST"> that /api/guestbook/sign handles and answers
+ * with a redirect back to /guestbook. The router posts it and swaps in the
+ * page it lands on; React only adds the live counter and pending state.
  */
 export default function GuestbookForm({ maxLength, restoreDraft }: Props) {
   const [message, setMessage] = useState("");
@@ -32,7 +33,8 @@ export default function GuestbookForm({ maxLength, restoreDraft }: Props) {
     store?.removeItem(DRAFT_KEY);
     if (restoreDraft && draft) setMessage(draft.slice(0, maxLength));
 
-    // Back from the POST restores this page from bfcache with the button stuck.
+    // Back to a natively posted form (the router was not running) restores it
+    // from bfcache with the button stuck.
     const reset = (event: PageTransitionEvent) => {
       if (event.persisted) setPending(false);
     };
@@ -46,6 +48,7 @@ export default function GuestbookForm({ maxLength, restoreDraft }: Props) {
   return (
     <form
       method="POST"
+      action="/api/guestbook/sign#gb-sign"
       className="mt-4 flex flex-1 flex-col"
       onSubmit={() => {
         try {

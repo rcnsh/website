@@ -103,7 +103,7 @@ describe("the CSP is route-invariant", () => {
   });
 });
 
-// Astro sends its own CSP header on prerender = false pages (/guestbook).
+// Astro sends its own CSP header on prerender = false pages (/blog/edit).
 describe("completePolicy", () => {
   const astro =
     "script-src 'self' 'sha256-abc'; style-src 'self' 'sha256-def'; style-src-attr 'unsafe-inline';";

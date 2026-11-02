@@ -1,0 +1,49 @@
+---
+import { getPage, getStats } from "@/lib/guestbook";
+import { relativeTime } from "@/lib/utils";
+
+// Server island, never cached (`islandPolicy` in lib/http): a signer's own
+// signature must count on the page their post redirects to. Both reads are
+// the KV copies a write drops.
+let total = 0;
+let countries = 0;
+let latest: Date | null = null;
+let failed = false;
+
+try {
+  const [stats, page] = await Promise.all([getStats(), getPage()]);
+  total = stats.total;
+  countries = Object.keys(stats.counts).length;
+  latest = page.entries[0] ? new Date(page.entries[0].createdAt * 1000) : null;
+} catch (error) {
+  failed = true;
+  console.error("[guestbook] totals island failed", error);
+}
+
+const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+---
+
+{
+  !failed && (
+    <dl class="mt-auto flex flex-wrap gap-x-8 gap-y-3.5 pt-5 sm:pt-[26px]">
+      <div class="flex flex-col-reverse gap-[5px]">
+        <dt class="font-mono text-[10.5px] text-ink-faint">{plural(total, "Signature", "Signatures")}</dt>
+        <dd class="font-mono text-lg font-semibold tracking-[-0.02em] text-ink tabular-nums">{total}</dd>
+      </div>
+      {countries > 0 && (
+        <div class="flex flex-col-reverse gap-[5px]">
+          <dt class="font-mono text-[10.5px] text-ink-faint">{plural(countries, "Country", "Countries")}</dt>
+          <dd class="font-mono text-lg font-semibold tracking-[-0.02em] text-ink tabular-nums">{countries}</dd>
+        </div>
+      )}
+      {latest && (
+        <div class="flex flex-col-reverse gap-[5px]">
+          <dt class="font-mono text-[10.5px] text-ink-faint">Latest</dt>
+          <dd class="font-mono text-lg font-semibold tracking-[-0.02em] text-ink">
+            <time datetime={latest.toISOString()}>{relativeTime(latest)}</time>
+          </dd>
+        </div>
+      )}
+    </dl>
+  )
+}

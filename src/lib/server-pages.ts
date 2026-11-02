@@ -5,7 +5,7 @@
  * straight to a full load instead. server-pages.test.ts keeps the list in
  * step with src/pages.
  */
-export const SERVER_PAGES: readonly string[] = ["/blog/edit", "/guestbook"];
+export const SERVER_PAGES: readonly string[] = ["/blog/edit"];
 
 /** A file rather than a page: `/rss.xml`, `/now.svg`. Pages have no extension. */
 const FILE = /\.[a-z0-9]+$/i;

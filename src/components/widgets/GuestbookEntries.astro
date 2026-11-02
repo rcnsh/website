@@ -1,0 +1,36 @@
+---
+import GuestbookList from "@/components/react/GuestbookList";
+import { encodeCursor, getPage, getStats, type GuestbookEntry } from "@/lib/guestbook";
+
+// Server island, never cached (`islandPolicy` in lib/http): the page a post
+// or delete redirects to must show it. Both reads are the KV copies a write
+// drops.
+let total = 0;
+let entries: GuestbookEntry[] = [];
+let cursor: string | null = null;
+let failed = false;
+
+try {
+  const [page, stats] = await Promise.all([getPage(), getStats()]);
+  entries = page.entries;
+  cursor = page.next ? encodeCursor(page.next) : null;
+  total = stats.total;
+} catch (error) {
+  failed = true;
+  console.error("[guestbook] entries island failed", error);
+}
+---
+
+<div class="mb-4 flex items-center gap-2.5">
+  <h2 id="gb-list-title" class="label">
+    {failed ? "Signatures" : `${total} ${total === 1 ? "signature" : "signatures"}`}
+  </h2>
+  {total > 1 && <span class="ml-auto font-mono text-[11px] text-ink-faint">newest first</span>}
+</div>
+{
+  failed ? (
+    <p class="py-2 text-sm text-ink-faint">Couldn't load the signatures. Try again in a moment.</p>
+  ) : (
+    <GuestbookList client:load initial={entries} initialCursor={cursor} />
+  )
+}

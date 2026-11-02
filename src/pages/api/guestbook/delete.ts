@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import type { APIRoute } from "astro";
-import { getSession } from "@/lib/auth";
+import { getSession, type SessionUser } from "@/lib/auth";
 import { getDb, schema } from "@/lib/db";
 import { forbidden, sameOrigin } from "@/lib/csrf";
 import { invalidate } from "@/lib/guestbook";
@@ -12,12 +12,15 @@ export const prerender = false;
 export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
   if (!sameOrigin(request, url.origin)) return forbidden();
 
-  const session = await getSession(cookies);
-  if (!session) return redirect("/guestbook", 302);
-
-  const formData = await request.formData();
-  const id = Number(formData.get("id"));
-  if (!Number.isInteger(id)) return redirect("/guestbook", 302);
+  let session: SessionUser | null;
+  let id: number;
+  try {
+    session = await getSession(cookies);
+    id = Number((await request.formData()).get("id"));
+  } catch {
+    return redirect("/guestbook", 302);
+  }
+  if (!session || !Number.isInteger(id)) return redirect("/guestbook", 302);
 
   const db = getDb();
 
@@ -44,3 +47,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
 
   return redirect("/guestbook", 302);
 };
+
+// Where the router lands a refused post (a 429 or 403 is not HTML, so it
+// retries the action as a GET).
+export const GET: APIRoute = ({ redirect }) => redirect("/guestbook", 302);

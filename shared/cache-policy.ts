@@ -41,8 +41,9 @@ export const uncachedError: CachePolicy = noStore;
 export const privateNoStore: CachePolicy = "private, no-store";
 
 /**
- * Everything under `/_server-islands/*`, as a class. Only sound while every
- * island renders public data; see CLAUDE.md § Maintenance › Caching.
+ * Everything under `/_server-islands/*`, as a class, but for the live ones
+ * (`islandPolicy` in src/lib/http.ts). Only sound while every island renders
+ * public data; see CLAUDE.md § Maintenance › Caching.
  */
 export const serverIslands: CachePolicy = publicFor(60, { edge: 300, swr: 3600 });
 
