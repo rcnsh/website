@@ -1,4 +1,4 @@
-import { publicFor } from "../../shared/cache-policy.ts";
+import { type CachePolicy, noStore, publicFor, serverIslands } from "../../shared/cache-policy.ts";
 import { FRESH_SECONDS as GUESTBOOK_FRESH_SECONDS } from "./guestbook-cache.ts";
 import { CACHE_SECONDS as NOW_PLAYING_SECONDS } from "./now-playing.ts";
 
@@ -33,5 +33,19 @@ export const policies = {
   thumbObject: publicFor(86400),
   shellFs: publicFor(3600),
 } as const;
+
+/**
+ * Islands a reader's own write must show on their next view, so nothing keeps
+ * them: the guestbook's totals, countries and first page, on the page a post
+ * or delete redirects to. Each reads the KV copies that write drops. Named as
+ * the page imports them: Astro names an island after its import.
+ */
+export const LIVE_ISLANDS = ["GuestbookTotals", "GuestbookCountries", "GuestbookEntries"];
+
+/** The policy for a response under `/_server-islands/`. */
+export function islandPolicy(pathname: string): CachePolicy {
+  const name = pathname.slice(pathname.lastIndexOf("/") + 1);
+  return LIVE_ISLANDS.includes(name) ? noStore : serverIslands;
+}
 
 export { json, type JsonInit, privateJson } from "./json.ts";

@@ -52,7 +52,20 @@ page without `<ClientRouter />`, but only after fetching and discarding it, so
 sends links into them, and into `/api/`, straight to a full load. Links out of
 one are ordinary loads. Never
 give a `prerender = false` page the router: soft navigation from it would run
-every other page's scripts under its policy.
+every other page's scripts under its policy. A page that only needs to know
+the reader stays prerendered and asks after load (`/guestbook`, see Caching).
+
+**The router submits same-origin forms itself:** it posts with `fetch`,
+follows the route's redirect and swaps in the page it lands on, so the player
+keeps going. `loadServerPagesDirectly` must leave form posts alone: refused,
+the router retries one as a GET. A post that changes who the reader is
+(signing out) carries `data-astro-reload`, since the document holds state for
+the old reader. A fragment on the form's `action` survives into the page the
+redirect lands on; the redirect's own fragment does not. A form's route must
+answer with a redirect to a prerendered page: for a post, the router swaps in
+whatever HTML comes back, router or not, under the union policy. Anything not
+HTML (a 429, a 403) makes it retry the action as a GET, so those routes export
+a `GET` that redirects back to the form.
 
 **Scripts run once per document, not once per page.** Anything bound to a
 page's markup goes through `onPage` (`src/lib/page-lifecycle.ts`): it runs at
@@ -125,13 +138,18 @@ the build on a prerendered page (`csp-union` checks) and is blocked on any
 everything under `/_server-islands/*` the public `serverIslands` policy as a
 class, because every island today renders public data. Add one that reads the session
 and the edge will serve one reader's fragment to another. Nothing enforces
-this.
+this. The exceptions are `LIVE_ISLANDS` (`islandPolicy` in `src/lib/http.ts`),
+public but never cached: the guestbook's totals, countries and first page,
+which the page a post or delete redirects to must show.
 
-**`/guestbook`'s document must not get a public `Cache-Control`.** It renders
-differently for the signer, and Cloudflare's default cache key ignores cookies
-— an anonymous copy at the edge would be served to signed-in readers, showing a
-sign-in prompt to someone holding a valid session. Fixing that properly needs a
-cookie-varying cache key, which is zone config, not code.
+**`/guestbook` is prerendered; who is reading comes from
+`/api/guestbook/signer`** (`private, no-store`), through `loadSigner()`
+(`src/lib/guestbook-signer.ts`), one request per page shown. The form, the
+signed-in line and the delete buttons render from it in the browser. Nothing
+about the reader may go into the page or its islands: both are served alike
+to everyone. Signing posts to `/api/guestbook/sign`, which redirects back with
+`?posted` or `?error=`. Back from the back-forward cache asks again
+(`useSigner`), since the page may predate a sign-out.
 
 **Every `Cache-Control` is a named policy; never type one in a route.** The
 builders (`publicFor`, `noStore`, `uncachedError`, `privateNoStore`,
@@ -317,7 +335,7 @@ private bytes are refused at once.
 **Every owner check goes through `src/lib/owner.ts`.** `requireOwner(context,
 { refuse, sameOrigin })` returns the refusal, or null for the owner;
 `identify(context)` answers without refusing, for routes that serve both.
-Never check `isOwner` in a route. The guestbook's signer session is not an owner check, so `guestbook.astro` and `api/guestbook/delete.ts` call `getSession` directly. The refusal styles keep
+Never check `isOwner` in a route. The guestbook's signer session is not an owner check, so `api/guestbook/{sign,signer,delete}.ts` call `getSession` directly. The refusal styles keep
 existence private: `not-found`/`not-found-json` match the route's own 404, so
 download and meta never confirm a private key exists. Writes pass
 `sameOrigin: true` (see `src/lib/csrf.ts`). The decisions live in

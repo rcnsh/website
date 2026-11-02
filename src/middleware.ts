@@ -1,7 +1,8 @@
 import { defineMiddleware } from "astro:middleware";
-import { type CachePolicy, privateNoStore, serverIslands } from "../shared/cache-policy.ts";
+import { type CachePolicy, privateNoStore } from "../shared/cache-policy.ts";
 import { completePolicy, securityHeaders } from "../shared/security.ts";
 import { SESSION_COOKIE } from "@/lib/auth";
+import { islandPolicy } from "@/lib/http";
 import { ownerCacheControl } from "@/lib/owner-guard";
 import { throttle } from "@/lib/throttle";
 
@@ -58,12 +59,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   const response = await next();
 
-  // Islands are cached as a class, so every island must stay non-personalised
-  // — see CLAUDE.md § Maintenance › Caching. An island that reads the session
-  // must be excluded here, or the edge will serve one reader's fragment to
-  // another.
+  // Islands are cached as a class (the live ones aside, never cached), so every
+  // island must stay non-personalised — see CLAUDE.md § Maintenance › Caching.
+  // One that read the session would have the edge serve one reader's fragment
+  // to another.
   if (context.url.pathname.startsWith("/_server-islands/")) {
-    return finish(response, serverIslands);
+    return finish(response, islandPolicy(context.url.pathname));
   }
 
   // A signed-in render is nobody else's to see. The anonymous branch gets no

@@ -22,7 +22,8 @@ test("SERVER_PAGES is exactly the .astro pages that opt out of prerendering", as
 
 test("API routes and server pages load in full; prerendered pages do not", () => {
   assert.equal(needsFullLoad("/api/auth/login"), true);
-  assert.equal(needsFullLoad("/guestbook"), true);
+  assert.equal(needsFullLoad("/blog/edit"), true);
+  assert.equal(needsFullLoad("/guestbook"), false);
   assert.equal(needsFullLoad("/files"), false);
   assert.equal(needsFullLoad("/blog/building-terminus"), false);
 });

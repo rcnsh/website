@@ -55,9 +55,14 @@ export function keepReaderAttributes(): void {
  * Links into SSR pages and API routes go straight to a full load. Left to
  * itself the router would fetch the page, see it has no <ClientRouter />,
  * throw it away and load it again: two renders, two session lookups.
+ *
+ * Form posts are left to the router, which posts them and swaps in the page
+ * the route redirects to. Refused here, the router would retry one as a GET.
+ * A post that must reset the document (signing out) carries data-astro-reload.
  */
 export function loadServerPagesDirectly(): void {
   document.addEventListener("astro:before-preparation", (event) => {
-    if (needsFullLoad((event as TransitionBeforePreparationEvent).to.pathname)) event.preventDefault();
+    const { formData, to } = event as TransitionBeforePreparationEvent;
+    if (!formData && needsFullLoad(to.pathname)) event.preventDefault();
   });
 }

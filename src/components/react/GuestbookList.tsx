@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GuestbookEntry } from "@/lib/guestbook";
+import { useSigner } from "./useSigner";
 import { cn, relativeTime } from "@/lib/utils";
 
 /**
- * The signature list, loaded a page at a time as the reader scrolls. A
- * server-rendered island, so the first page is in the document before React
- * runs — the no-JavaScript fallback is a short guestbook, not an empty one.
+ * The signature list, loaded a page at a time as the reader scrolls. The
+ * first page arrives as HTML in the GuestbookEntries server island, before
+ * React runs.
  */
 
 type Props = {
@@ -13,18 +14,16 @@ type Props = {
   initial: GuestbookEntry[];
   /** Cursor for the page after `initial`, or null if that was all of them. */
   initialCursor: string | null;
-  /** The signed-in reader, so their own entries get a delete control. */
-  sessionGithubId: number | null;
 };
 
 type Page = { entries: GuestbookEntry[]; next: string | null; error?: boolean };
 
-export default function GuestbookList({
-  initial,
-  initialCursor,
-  sessionGithubId,
-}: Props) {
+export default function GuestbookList({ initial, initialCursor }: Props) {
   const [entries, setEntries] = useState(initial);
+  // The signed-in reader, so their own entries get a delete control. Asked
+  // after load: the list is rendered alike for everyone.
+  const signer = useSigner();
+  const signerId = signer && signer !== "failed" ? (signer.signer?.githubId ?? null) : null;
   const [cursor, setCursor] = useState(initialCursor);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -105,8 +104,7 @@ export default function GuestbookList({
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3">
         {entries.map((entry) => {
           const posted = new Date(entry.createdAt * 1000);
-          const mine =
-            sessionGithubId !== null && sessionGithubId === entry.githubId;
+          const mine = signerId !== null && signerId === entry.githubId;
 
           return (
             <li

@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { json, policies, privateJson } from "./http.ts";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { islandPolicy, json, LIVE_ISLANDS, policies, privateJson } from "./http.ts";
 
 // Every public route's Cache-Control. A change here changes what a route tells
 // browsers and the edge, so it should show up in review as a change to this.
@@ -46,4 +48,21 @@ test("privateJson is never cacheable", () => {
   const response = privateJson({ error: "x" }, 400);
   assert.equal(response.status, 400);
   assert.equal(response.headers.get("cache-control"), "private, no-store");
+});
+
+test("the guestbook's live islands are never cached; the rest share one policy", () => {
+  assert.equal(islandPolicy("/_server-islands/GuestbookTotals"), "no-store");
+  assert.equal(islandPolicy("/_server-islands/GuestbookEntries"), "no-store");
+  assert.equal(islandPolicy("/_server-islands/GuestbookMapIsland"), "public, max-age=60, s-maxage=300, stale-while-revalidate=3600");
+  assert.equal(islandPolicy("/_server-islands/GuestbookCountries"), "no-store");
+});
+
+// Astro names an island after the page's import, so a rename there would
+// quietly cache a live island.
+test("each live island is a deferred import of the guestbook under that name", async () => {
+  const page = await readFile(join(import.meta.dirname, "..", "pages", "guestbook.astro"), "utf8");
+  for (const name of LIVE_ISLANDS) {
+    assert.match(page, new RegExp(`import ${name} from "[^"]+/${name}\\.astro";`));
+    assert.match(page, new RegExp(`<${name} server:defer>`));
+  }
 });
