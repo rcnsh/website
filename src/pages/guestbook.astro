@@ -54,14 +54,6 @@ const MAX_LENGTH = page.maxMessageLength;
       class="tile col-span-12 flex animate-rise scroll-mt-[calc(var(--header-h)+1.5rem)] flex-col [animation-delay:30ms] min-[1021px]:col-span-7"
       aria-labelledby="gb-sign-title"
     >
-      <div class="mb-4 flex items-center gap-2.5">
-        <h2 id="gb-sign-title" class="label">
-          Sign the guestbook
-        </h2>
-        <span class="ml-auto hidden font-mono text-[11px] whitespace-nowrap text-ink-faint sm:inline">
-          {MAX_LENGTH} characters
-        </span>
-      </div>
       <GuestbookSign client:load maxLength={MAX_LENGTH} />
       <noscript>
         <p class="text-sm text-ink-faint">Signing the guestbook needs JavaScript.</p>
