@@ -38,9 +38,6 @@ const MAX_LENGTH = page.maxMessageLength;
       >
         {page.title}
       </h1>
-      <p class="mt-3 max-w-[52ch] text-[0.9375rem] leading-[1.65] text-ink-dim sm:text-[0.96875rem]">
-        {page.description}
-      </p>
       <GuestbookTotals server:defer>
         <!-- One fact's height, as GuestbookTotals renders it. -->
         <div slot="fallback" aria-hidden="true" class="mt-auto pt-5 sm:pt-[26px]">
@@ -62,7 +59,7 @@ const MAX_LENGTH = page.maxMessageLength;
           Sign the guestbook
         </h2>
         <span class="ml-auto hidden font-mono text-[11px] whitespace-nowrap text-ink-faint sm:inline">
-          one message a day · {MAX_LENGTH} characters
+          {MAX_LENGTH} characters
         </span>
       </div>
       <GuestbookSign client:load maxLength={MAX_LENGTH} />
@@ -144,7 +141,7 @@ const MAX_LENGTH = page.maxMessageLength;
 
   // Rows and map shapes meet on the ISO code. Both arrive in server islands,
   // after this runs and in either order, so everything is delegated.
-  const IDLE_TIP = "Hover a country";
+  const IDLE_TIP = "";
 
   const setTip = (text: string) => {
     const tip = document.querySelector<HTMLElement>("[data-map-tip]");
