@@ -226,7 +226,8 @@ export function DetailList({ rows }: { rows: [string, string][] }) {
 
 /** Whether what is on screen came from stored thumbs or this browser's decoder. */
 function ThumbsNote({ kind, thumbs, base }: { kind: PreviewKind; thumbs?: ThumbSet; base: string }) {
-  if (!base) return null;
+  const owner = useIsOwner();
+  if (!base || !owner) return null;
   const stored = kind === "video" ? thumbs?.poster && thumbs.strip : thumbs?.peaks;
   return (
     <p className={stored ? "fb-thumbs" : "fb-thumbs live"}>
@@ -817,6 +818,19 @@ export function forgetOwnerCheck(): void {
   ownerCheck = null;
 }
 
+/** False until the probe says otherwise, so visitors never see owner-only UI. */
+function useIsOwner(): boolean {
+  const [owner, setOwner] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void checkOwner().then((o) => live && setOwner(o));
+    return () => {
+      live = false;
+    };
+  }, []);
+  return owner;
+}
+
 type FolderThumbs = Record<string, { uploaded: number; kinds: ThumbKind[] }>;
 
 /** Waits out a 429 as the server asks, a few times, then gives up. */
@@ -841,19 +855,17 @@ type Progress = { done: number; total: number; current: string | null; stored: n
 
 /** Owner only: stores previews for every media file directly in `folder`. */
 export function Backfill({ folder, base, onDone }: { folder: string; base: string; onDone?: () => void }) {
-  const [owner, setOwner] = useState(false);
+  const owner = useIsOwner();
   const [progress, setProgress] = useState<Progress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const cancelled = useRef(false);
 
-  useEffect(() => {
-    let live = true;
-    void checkOwner().then((o) => live && setOwner(o));
-    return () => {
-      live = false;
+  useEffect(
+    () => () => {
       cancelled.current = true;
-    };
-  }, []);
+    },
+    [],
+  );
 
   if (!owner) return null;
 
