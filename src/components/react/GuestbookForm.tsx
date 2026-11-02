@@ -80,10 +80,6 @@ export default function GuestbookForm({ maxLength, restoreDraft }: Props) {
           {pending ? "Signing…" : "Sign"}
         </button>
 
-        <span className="hidden min-w-0 truncate font-mono text-[11px] text-ink-faint sm:inline">
-          Shown with your avatar and country
-        </span>
-
         <span
           id="gb-remaining"
           className={cn(
