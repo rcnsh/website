@@ -136,9 +136,6 @@ const summary = dominant
         >
           {columns.map((_, i) => <span class="whitespace-nowrap">{ticks.get(i) ?? ""}</span>)}
         </div>
-        <p class="mt-2 font-mono text-[10.5px] text-ink-dim">
-          Lower strip: plays per quarter, so a thin quarter's big share reads as thin. Credited to each song's lead artist.
-        </p>
 
         {years.map((year) => (
           <div data-year={year.period} class="mt-6 grid gap-6 sm:grid-cols-2">
@@ -229,42 +226,6 @@ const summary = dominant
             );
           })}
         </ol>
-
-        <details class="mt-4 text-[12.5px] text-ink-dim">
-          <summary class="cursor-pointer font-mono text-[11px] text-ink-faint hover:text-ink">Show as a table</summary>
-          <div class="mt-3 max-h-80 overflow-auto">
-            <table class="w-full font-mono text-[11px] tabular-nums">
-              <caption class="sr-only">Share of each quarter's plays by artist, as charted, and the quarter's top artist</caption>
-              <thead>
-                <tr class="text-left text-ink-dim">
-                  <th scope="col" class="py-1 pr-3 font-normal">Quarter</th>
-                  <th scope="col" class="py-1 pr-3 font-normal">Plays</th>
-                  {leaders.map((leader) => <th scope="col" class="py-1 pr-3 font-normal whitespace-nowrap">{leader.name}</th>)}
-                  <th scope="col" class="py-1 pr-3 font-normal whitespace-nowrap">Everyone else</th>
-                  <th scope="col" class="py-1 pr-3 font-normal">#1</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-line-soft">
-                {columns.map((column, qi) => (
-                  <tr>
-                    <th scope="row" class="py-1 pr-3 text-left font-normal">
-                      {quarterLabel(column.period)}
-                      {column.partial ? " (so far)" : ""}
-                    </th>
-                    <td class="py-1 pr-3">{column.plays.toLocaleString("en-GB")}</td>
-                    {leaders.map((leader) => (
-                      <td class="py-1 pr-3">{percent(leader.share[qi] ?? 0)}</td>
-                    ))}
-                    <td class="py-1 pr-3">{percent(column.rest)}</td>
-                    <td class="py-1 pr-3 whitespace-nowrap">
-                      {column.artists[0] ? `${column.artists[0].name} ${percent(column.artists[0].share)}` : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </details>
       </>
     )
   }
