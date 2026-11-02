@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
 
 type Props = {
   maxLength: number;
   /** The last submit was refused, so put the reader's text back. */
   restoreDraft: boolean;
+  /** The tile's header shows the count, so it lives above this form. */
+  onRemaining: (remaining: number) => void;
 };
 
 /** Survives the post/redirect/get round trip, which re-renders an empty form. */
@@ -21,9 +22,9 @@ function storage(): Storage | null {
 /**
  * A normal <form method="POST"> that /api/guestbook/sign handles and answers
  * with a redirect back to /guestbook. The router posts it and swaps in the
- * page it lands on; React only adds the live counter and pending state.
+ * page it lands on; React only reports the remaining count and adds pending state.
  */
-export default function GuestbookForm({ maxLength, restoreDraft }: Props) {
+export default function GuestbookForm({ maxLength, restoreDraft, onRemaining }: Props) {
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
 
@@ -44,6 +45,11 @@ export default function GuestbookForm({ maxLength, restoreDraft }: Props) {
 
   const remaining = maxLength - message.length;
   const empty = message.trim().length === 0;
+
+  useEffect(() => {
+    onRemaining(remaining);
+    return () => onRemaining(maxLength);
+  }, [remaining, maxLength, onRemaining]);
 
   return (
     <form
@@ -79,17 +85,6 @@ export default function GuestbookForm({ maxLength, restoreDraft }: Props) {
         >
           {pending ? "Signing…" : "Sign"}
         </button>
-
-        <span
-          id="gb-remaining"
-          className={cn(
-            "ml-auto font-mono text-[11px] tabular-nums",
-            remaining <= 20 ? "text-warn" : "text-ink-faint",
-          )}
-        >
-          <span className="sr-only">Characters left: </span>
-          {remaining}
-        </span>
       </div>
     </form>
   );

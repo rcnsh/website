@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { GithubIcon } from "@/components/react/BrandIcons";
 import type { SignerView } from "@/lib/guestbook-signer";
-import { relativeTime } from "@/lib/utils";
+import { cn, relativeTime } from "@/lib/utils";
 import GuestbookForm from "./GuestbookForm";
 import { useSigner } from "./useSigner";
 
@@ -42,6 +42,7 @@ type Status = { error: string | null; posted: boolean };
 export default function GuestbookSign({ maxLength }: Props) {
   const view = useSigner();
   const [status, setStatus] = useState<Status>({ error: null, posted: false });
+  const [remaining, setRemaining] = useState(maxLength);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -52,7 +53,26 @@ export default function GuestbookSign({ maxLength }: Props) {
 
   return (
     <>
-      <Body view={view} maxLength={maxLength} restoreDraft={Boolean(status.error)} />
+      <div className="mb-4 flex items-center gap-2.5">
+        <h2 id="gb-sign-title" className="label">
+          Sign the guestbook
+        </h2>
+        <span
+          id="gb-remaining"
+          className={cn(
+            "ml-auto font-mono text-[11px] whitespace-nowrap tabular-nums",
+            remaining <= 20 ? "text-warn" : "text-ink-faint",
+          )}
+        >
+          {remaining} characters<span className="sr-only"> left</span>
+        </span>
+      </div>
+      <Body
+        view={view}
+        maxLength={maxLength}
+        restoreDraft={Boolean(status.error)}
+        onRemaining={setRemaining}
+      />
       <div role="status">
         {error && <p className="mt-3 text-[0.84375rem] text-bad">{error}</p>}
         {status.posted && !status.error && (
@@ -67,10 +87,12 @@ function Body({
   view,
   maxLength,
   restoreDraft,
+  onRemaining,
 }: {
   view: SignerView | "failed" | null;
   maxLength: number;
   restoreDraft: boolean;
+  onRemaining: (remaining: number) => void;
 }) {
   if (view === null) {
     // The signed-out prompt's footprint, the commoner answer.
@@ -152,7 +174,7 @@ function Body({
           </span>
         </p>
       ) : (
-        <GuestbookForm maxLength={maxLength} restoreDraft={restoreDraft} />
+        <GuestbookForm maxLength={maxLength} restoreDraft={restoreDraft} onRemaining={onRemaining} />
       )}
     </div>
   );
