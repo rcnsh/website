@@ -55,6 +55,13 @@ describe("security headers", () => {
     assert.ok(SCRIPT_SOURCES.includes("'self'"));
   });
 
+  // wterm compiles its core with WebAssembly.compile, which script-src must
+  // allow in the meta too; 'unsafe-eval' would allow far more.
+  test("WebAssembly may compile, and eval may not", () => {
+    assert.ok(SCRIPT_SOURCES.includes("'wasm-unsafe-eval'"));
+    assert.ok(!SCRIPT_SOURCES.includes("'unsafe-eval'"));
+  });
+
   test("every script source reaches the header", () => {
     const policy = securityHeaders()["Content-Security-Policy"];
 

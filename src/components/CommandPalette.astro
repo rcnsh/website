@@ -1,4 +1,6 @@
 ---
+// Here, not beside the lazily loaded terminal: see CLAUDE.md § Palette shell.
+import "@wterm/dom/css";
 import Icon from "./Icon.astro";
 import { externalLinks, nav } from "@/lib/site";
 
@@ -32,12 +34,8 @@ const items = [...nav, ...externalLinks].map((item) => ({
     aria-label="Command palette"
     class="relative w-full max-w-[35rem] overflow-hidden rounded-tile border border-line bg-base shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]"
   >
-    <div class="flex items-center gap-3 border-b border-line-soft px-4">
-      <Icon name="search" class="palette-search h-3.5 w-3.5 shrink-0 text-ink-faint" />
-      <span
-        data-palette-prompt
-        hidden
-        class="shrink-0 whitespace-nowrap font-mono text-sm text-brand"></span>
+    <div data-palette-searchbar class="flex items-center gap-3 border-b border-line-soft px-4">
+      <Icon name="search" class="h-3.5 w-3.5 shrink-0 text-ink-faint" />
       <input
         type="text"
         data-palette-input
@@ -49,16 +47,19 @@ const items = [...nav, ...externalLinks].map((item) => ({
       <kbd class="shrink-0 rounded border border-line-soft px-1.5 py-0.5 font-mono text-[10px] text-ink-faint">esc</kbd>
     </div>
 
+    <p data-palette-shell-error hidden class="px-4 pt-3 font-mono text-[12px] text-ink-faint">
+      couldn't load the shell — try again
+    </p>
+
     {/*
-      Shell scrollback. Empty and hidden until someone types `$` — the engine
-      and the filesystem are both fetched on demand, so the palette costs
-      nothing extra until it is actually used as one.
+      The shell: a wterm terminal, mounted here on the first `$`. The engine,
+      the terminal and the filesystem are all fetched then, so the palette
+      costs nothing extra until it is used as one. Collapsed rather than
+      hidden in search mode, so the terminal keeps its size and never refits
+      its scrollback to nothing.
     */}
-    <div
-      data-palette-shell
-      hidden
-      class="max-h-[21.5rem] overflow-y-auto px-4 py-3 font-mono text-[12px] leading-[1.65]"
-    >
+    <div data-palette-shell inert>
+      <div data-palette-term aria-label="Shell" class="h-[21.5rem]"></div>
     </div>
 
     {/* Tall enough that the full, unfiltered list lands without scrolling. */}
@@ -95,9 +96,12 @@ const items = [...nav, ...externalLinks].map((item) => ({
       class="flex gap-3.5 border-t border-line-soft px-4 py-2.5 font-mono text-[10.5px] text-ink-faint"
       aria-hidden="true"
     >
-      <span><kbd class="palette-key">↑</kbd> <kbd class="palette-key">↓</kbd> move</span>
-      <span><kbd class="palette-key">↵</kbd> open</span>
-      <span><kbd class="palette-key">$</kbd> shell</span>
+      <span data-search-hint><kbd class="palette-key">↑</kbd> <kbd class="palette-key">↓</kbd> move</span>
+      <span data-search-hint><kbd class="palette-key">↵</kbd> open</span>
+      <span data-search-hint><kbd class="palette-key">$</kbd> shell</span>
+      <span data-shell-hint><kbd class="palette-key">tab</kbd> complete</span>
+      <span data-shell-hint><kbd class="palette-key">↑</kbd> history</span>
+      <span data-shell-hint><kbd class="palette-key">esc</kbd> close</span>
     </div>
   </div>
 </div>
@@ -138,14 +142,41 @@ const items = [...nav, ...externalLinks].map((item) => ({
     color: var(--color-brand-alt);
   }
 
-  /* In shell mode the row list gives way to the scrollback. */
+  /* In shell mode the search bar and the rows give way to the terminal. */
+  [data-palette][data-shell] [data-palette-searchbar],
   [data-palette][data-shell] [data-palette-list],
-  [data-palette][data-shell] :global(.palette-search) {
+  [data-palette][data-shell] [data-search-hint],
+  [data-palette]:not([data-shell]) [data-shell-hint] {
     display: none;
   }
 
-  [data-palette][data-shell] [data-palette-input] {
-    font-family: var(--font-mono);
+  [data-palette]:not([data-shell]) [data-palette-shell] {
+    height: 0;
+    overflow: hidden;
+  }
+
+  /* The terminal in the site's colours. The session writes indexed colours
+     (34 blue, 31 red, 90 faint), so these decide what they look like. */
+  [data-palette] :global(.wterm) {
+    --term-fg: var(--color-ink);
+    --term-bg: var(--color-base);
+    --term-cursor: var(--color-brand);
+    --term-selection-bg: color-mix(in oklab, var(--color-brand) 35%, transparent);
+    --term-color-0: var(--color-base);
+    --term-color-1: #f87171;
+    --term-color-4: var(--color-brand);
+    --term-color-7: var(--color-ink-dim);
+    --term-color-8: var(--color-ink-faint);
+    --term-color-9: #f87171;
+    --term-color-12: var(--color-brand-alt);
+    --term-color-15: var(--color-ink);
+    --term-font-family: var(--font-mono);
+    --term-font-size: 12px;
+    --term-line-height: 1.65;
+    --term-row-height: 20px;
+    padding: 12px 16px;
+    border-radius: 0;
+    box-shadow: none;
   }
 </style>
 
@@ -153,6 +184,23 @@ const items = [...nav, ...externalLinks].map((item) => ({
   import { navigate } from "astro:transitions/client";
   import { closeOnOtherOverlay, overlayOpened } from "@/lib/overlays";
   import { onPage } from "@/lib/page-lifecycle";
+  import type { PaletteTerminal } from "@/lib/palette-terminal";
+  import type { SessionState } from "@/lib/shell-session";
+
+  // Module state outlives the page, so the working directory, the history and
+  // the downloaded filesystem carry across soft navigations. The terminal
+  // itself belongs to one page's markup and is mounted afresh on each. The
+  // promise, not its value, so pages that ask while it is in flight share it.
+  let shellLoad: Promise<SessionState> | null = null;
+  let bannerShown = false;
+
+  async function loadShellState(): Promise<SessionState> {
+    const response = await fetch("/shell-fs.json");
+    if (!response.ok) throw new Error(`shell-fs.json responded ${response.status}`);
+    // The one place the filesystem crosses an untyped boundary.
+    const root = (await response.json()) as SessionState["root"];
+    return { root, cwd: "/", history: [] };
+  }
 
   function setupPalette(signal: AbortSignal) {
     document.body.style.overflow = "";
@@ -172,18 +220,13 @@ const items = [...nav, ...externalLinks].map((item) => ({
     );
 
     const shellPane = palette.querySelector<HTMLElement>("[data-palette-shell]");
-    const prompt = palette.querySelector<HTMLElement>("[data-palette-prompt]");
+    const termHost = palette.querySelector<HTMLElement>("[data-palette-term]");
+    const shellError = palette.querySelector<HTMLElement>("[data-palette-shell-error]");
 
-    /** Shell mode. Engine and filesystem are fetched on the first `$`, never before. */
-    type Shell = typeof import("../lib/shell");
-    /** The filesystem shape, taken from the engine rather than restated. */
-    type Root = Parameters<Shell["run"]>[0]["root"];
-    let shell: { mod: Shell; root: Root } | null = null;
+    let terminal: PaletteTerminal | null = null;
+    let loading = false;
     let shellOn = false;
-    let cwd = "/";
-    const history: string[] = [];
-    /** Position while arrowing back through history; -1 is the live input. */
-    let recall = -1;
+    signal.addEventListener("abort", () => terminal?.destroy());
 
     /** The matching rows, in the order they are drawn. */
     let visible = rows;
@@ -273,163 +316,76 @@ const items = [...nav, ...externalLinks].map((item) => ({
       }
     };
 
-    const line = (text: string, cls: string) => {
-      const el = document.createElement("div");
-      el.className = cls;
-      el.textContent = text;
-      return el;
-    };
-
-    const setPrompt = () => {
-      if (prompt) prompt.textContent = `${cwd} $`;
-    };
-
     const enterShell = async () => {
-      if (!shellPane || !prompt) return;
+      if (!shellPane || !termHost || !shellError || loading) return;
 
-      if (!shell) {
-        // Guarded: without it a failure leaves a live prompt over a shell
-        // whose filesystem never arrived, answering as if the bucket were empty.
-        let mod: typeof import("../lib/shell");
-        let root: Root;
+      if (!terminal) {
+        loading = true;
         try {
-          [mod, root] = await Promise.all([
-            import("../lib/shell"),
-            // The one place the filesystem crosses an untyped boundary.
-            fetch("/shell-fs.json").then((response) => {
-              if (!response.ok) {
-                throw new Error(`shell-fs.json responded ${response.status}`);
-              }
-              return response.json() as Promise<Root>;
-            }),
+          // Only a failed fetch is forgotten: a later failure keeps the
+          // visit's cwd and history.
+          shellLoad ??= loadShellState().catch((error) => {
+            shellLoad = null;
+            throw error;
+          });
+          const [{ mountTerminal }, state] = await Promise.all([
+            import("../lib/palette-terminal"),
+            shellLoad,
           ]);
+          // Closed, moved on to another page, or deleted the `$`, while that loaded.
+          if (signal.aborted || !open || !input.value.startsWith("$")) return;
+
+          terminal = await mountTerminal(termHost, state, {
+            banner: !bannerShown,
+            // Let the line land before the browser leaves the page.
+            navigate: (href) => {
+              const cancel = () => clearTimeout(timer);
+              const timer = setTimeout(() => {
+                signal.removeEventListener("abort", cancel);
+                void navigate(href);
+              }, 180);
+              signal.addEventListener("abort", cancel, { once: true });
+            },
+            exit: () => exitShell(),
+          });
+          if (signal.aborted) {
+            terminal.destroy();
+            return;
+          }
+          bannerShown = true;
+          // Mounted, but the reader has moved on; the next `$` resumes it.
+          if (!open || !input.value.startsWith("$")) return;
         } catch (error) {
-          console.error("[palette] shell filesystem failed to load", error);
-          shellPane.appendChild(
-            line("couldn't load the filesystem — try again", "text-ink-faint"),
-          );
+          // Guarded: without it a failure leaves a prompt over a shell whose
+          // filesystem never arrived, answering as if the bucket were empty.
+          console.error("[palette] shell failed to load", error);
+          shellError.hidden = false;
           return;
+        } finally {
+          loading = false;
         }
-        shell = { mod, root };
-        shellPane.appendChild(
-          line(
-            "Type help for the commands, ls to look around. Backspace on an empty line goes back to search.",
-            "text-ink-faint",
-          ),
-        );
+      } else {
+        terminal.resume();
       }
 
+      // Whatever was typed after the `$` while the shell loaded is its first input.
+      const ahead = input.value.slice(1);
       shellOn = true;
+      shellError.hidden = true;
       palette.setAttribute("data-shell", "");
-      prompt.hidden = false;
-      shellPane.hidden = false;
-      setPrompt();
+      shellPane.inert = false;
       input.value = "";
-      input.placeholder = "";
+      terminal.focus();
+      if (ahead) terminal.type(ahead);
     };
 
     const exitShell = () => {
-      if (!shellPane || !prompt) return;
+      if (!shellPane) return;
       shellOn = false;
       palette.removeAttribute("data-shell");
-      prompt.hidden = true;
-      shellPane.hidden = true;
-      input.placeholder = "Jump to…  ($ for a shell)";
+      shellPane.inert = true;
       filter();
-    };
-
-    const runCommand = (text: string) => {
-      if (!shell || !shellPane) return;
-
-      const result = shell.mod.run({ root: shell.root, cwd, history }, text);
-      if (text.trim()) history.push(text);
-      recall = -1;
-
-      if (result.cleared) {
-        shellPane.replaceChildren();
-      } else {
-        shellPane.appendChild(line(`${cwd} $ ${text}`, "mt-2.5 text-ink-faint"));
-        if (result.output.length > 0) {
-          shellPane.appendChild(
-            line(
-              result.output.join("\n"),
-              `whitespace-pre-wrap break-words ${
-                result.failed ? "text-red-400/90" : "text-ink-dim"
-              }`,
-            ),
-          );
-        }
-      }
-
-      cwd = result.cwd;
-      setPrompt();
-      input.value = "";
-      shellPane.scrollTop = shellPane.scrollHeight;
-
-      // Let the line land before the browser leaves the page.
-      if (result.navigate) {
-        const href = result.navigate;
-        setTimeout(() => {
-          void navigate(href);
-        }, 180);
-      }
-    };
-
-    /** Returns true when the key was the shell's to handle. */
-    const shellKey = (event: KeyboardEvent): boolean => {
-      if (!shellOn || !shell) return false;
-
-      if (event.key === "Enter") {
-        event.preventDefault();
-        runCommand(input.value);
-        return true;
-      }
-
-      if (event.key === "Tab") {
-        // Never let Tab move focus out of the prompt.
-        event.preventDefault();
-        const at = input.selectionStart ?? input.value.length;
-        const result = shell.mod.complete(
-          { root: shell.root, cwd, history },
-          input.value,
-          at,
-        );
-
-        if (result.candidates.length > 0 && shellPane) {
-          shellPane.appendChild(line(`${cwd} $ ${input.value}`, "mt-2.5 text-ink-faint"));
-          shellPane.appendChild(line(result.candidates.join("  "), "text-ink-dim"));
-          shellPane.scrollTop = shellPane.scrollHeight;
-        } else if (result.line !== input.value) {
-          input.value = result.line;
-          input.setSelectionRange(result.cursor, result.cursor);
-        }
-        return true;
-      }
-
-      if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-        event.preventDefault();
-        if (event.key === "ArrowUp") {
-          const next = recall === -1 ? history.length - 1 : Math.max(recall - 1, 0);
-          if (history[next] !== undefined) {
-            recall = next;
-            input.value = history[next]!;
-          }
-        } else if (recall !== -1) {
-          const next = recall + 1;
-          recall = next >= history.length ? -1 : next;
-          input.value = recall === -1 ? "" : history[recall]!;
-        }
-        return true;
-      }
-
-      // Backspacing off an empty prompt returns to search.
-      if (event.key === "Backspace" && input.value === "") {
-        event.preventDefault();
-        exitShell();
-        return true;
-      }
-
-      return false;
+      if (open) input.focus();
     };
 
     closeOnOtherOverlay("palette", () => setOpen(false), signal);
@@ -443,6 +399,7 @@ const items = [...nav, ...externalLinks].map((item) => ({
     input.addEventListener(
       "input",
       () => {
+        if (shellError) shellError.hidden = true;
         if (!shellOn && input.value === "$") {
           void enterShell();
           return;
@@ -455,8 +412,6 @@ const items = [...nav, ...externalLinks].map((item) => ({
     input.addEventListener(
       "keydown",
       (event) => {
-        if (shellKey(event)) return;
-
         if (event.key === "ArrowDown") {
           event.preventDefault();
           setActive(active + 1);
@@ -496,6 +451,8 @@ const items = [...nav, ...externalLinks].map((item) => ({
     );
 
     // Global ⌘K / Ctrl+K, and "/" as a shortcut when not already typing.
+    // Capturing, and stopped here, because the terminal claims both Ctrl+K and
+    // Escape for itself and stops them before they would bubble up.
     window.addEventListener(
       "keydown",
       (event) => {
@@ -507,16 +464,18 @@ const items = [...nav, ...externalLinks].map((item) => ({
 
         if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
           event.preventDefault();
+          event.stopPropagation();
           setOpen(!open);
         } else if (event.key === "/" && !typing && !open) {
           event.preventDefault();
           setOpen(true);
         } else if (event.key === "Escape" && open) {
           event.preventDefault();
+          event.stopPropagation();
           setOpen(false);
         }
       },
-      { signal },
+      { signal, capture: true },
     );
 
     filter();
