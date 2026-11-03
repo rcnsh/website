@@ -50,18 +50,22 @@ function baseDirectives(): string[] {
 }
 
 /**
- * Every script host, for both surfaces: this header and, via astro.config.ts,
- * Astro's `<meta>` policy. A host named in only one is blocked. Keep `'self'`
+ * Every script source, for both surfaces: this header and, via astro.config.ts,
+ * Astro's `<meta>` policy. A source named in only one is blocked. Keep `'self'`
  * — Astro's `resources` replaces its default rather than extending it. See
  * CLAUDE.md § Maintenance.
  *
  * The insights entry is the Cloudflare Web Analytics beacon: the host, not the
  * file, because the injected URL carries a version and a CSP path must match
  * exactly.
+ *
+ * `'wasm-unsafe-eval'` lets the palette's terminal (wterm) compile its WASM
+ * core. It admits WebAssembly compilation only, not `eval` or `new Function`.
  */
 export const SCRIPT_SOURCES = [
   "'self'",
   "https://static.cloudflareinsights.com",
+  "'wasm-unsafe-eval'",
 ];
 
 /**

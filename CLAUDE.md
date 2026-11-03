@@ -114,6 +114,10 @@ asserting on the header stayed green.
 default rather than extending it, so dropping it would take every same-origin
 script out of the meta policy.
 
+`'wasm-unsafe-eval'` is in it too, for the palette shell's terminal, whose
+WASM core will not compile without it. It is there rather than in the header
+alone for the same reason as a host: the meta binds `script-src`.
+
 **`style-src-attr 'unsafe-inline'` is required** (`astro.config.ts`). CSP
 hashes do not apply to *style attributes*, so without it every runtime
 `element.style.setProperty` is refused — including the nav underline placing
@@ -428,6 +432,32 @@ in `src/lib/warehouse-client.ts`, where `read` sends the read token and `play`
 the control token, so keep any new warehouse call inside that client. The
 button sits beside the title, never inside a link: rows use a stretched link
 (`after:absolute after:inset-0`) so the button can be a sibling.
+
+### Palette shell
+
+**`$` in the palette mounts a wterm terminal** (`src/lib/palette-terminal.ts`),
+loaded with `import()` along with the engine and `/shell-fs.json`, so none of
+it is in the page bundle. wterm hands over raw keystrokes and draws nothing
+itself: `src/lib/line-editor.ts` is the readline (keys, editing, wrapped-line
+redraw) and `src/lib/shell-session.ts` drives `run()`/`complete()` from
+`src/lib/shell.ts`. Both are DOM-free and tested under node. Output goes
+through `toTerminal()`, which strips control characters, so file contents and
+bucket names cannot send escape sequences to the terminal.
+
+**The palette's ⌘K/Ctrl+K and Escape listener is capturing.** wterm claims
+Ctrl+K and Escape as input and stops their propagation, so a bubbling listener
+never sees them while the terminal has focus.
+
+**The terminal is collapsed, never `hidden`, in search mode.** wterm sizes its
+grid from its element when it mounts, and a row written to a grid that later
+narrows is cut, not rewrapped. Its host keeps a fixed height inside a wrapper
+that collapses to `height: 0` and goes `inert`; never size `.wterm` by
+percentage, which resolves against that zero.
+
+**wterm's CSS is imported by `CommandPalette.astro`, not by the lazy module.**
+CSS that arrives with an `import()` chunk is injected into `<head>` once; the
+router's head swap drops it on the next soft navigation, and the cached module
+never injects it again. The same holds for any lazily loaded module's CSS.
 
 ### Gotchas that cost time
 
