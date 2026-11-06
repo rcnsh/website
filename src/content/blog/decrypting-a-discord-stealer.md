@@ -1,24 +1,24 @@
 ---
 title: "Making a Discord stealer decrypt itself"
-description: "How a fake indie game stole a friend's Discord account, and how I got the malware to give up its own secrets"
+description: "Using dynamic analysis to reverse engineer a Turkish info-stealer"
 pubDate: 2026-10-31
 ---
 
-In early October one of my friends had their Discord account stolen. They had downloaded a game called "MateFall" from a site that looked like a small indie studio's page: "a cozy 2D adventure platformer", currently in beta. The game never opened, and soon after, someone else had their Discord account.
+In early October one of my friends had their Discord account stolen. They had downloaded a game called "MateFall" from a Cloudflare Pages site that looked like a small group project: "a cozy 2D adventure platformer", currently in beta. The game never opened, and soon after, someone else had their Discord account.
 
-Then the account came for me. Just before 1am on 5 October it messaged me, turned down a call, and pitched a game it had been "working on with few friends for four weeks":
+Just before 1am on 5th October my friend's hacked account messaged me, rejected my call, and pitched a game it had been "working on with few friends for four weeks":
 
 ![Discord DMs from my friend's stolen account: small talk, "no need vc", then a pitch for a 2D adventure game and a link to matefall.pages.dev](../../assets/blog/decrypting-a-discord-stealer/dm-1.png)
 
 The account told me to check VirusTotal, which showed zero detections, so it was almost believable.
 
-I wanted to know what had actually run on my friend's PC, so I took the malware apart with Claude's help. The usual way of reading Java malware failed on it. What worked was letting the malware decrypt its own strings and catching them as it did.
+I wanted to know what had actually run on my friend's PC, so I took the malware apart with Claude's help. The usual way of reading Java malware (static analysis) failed on it. What worked was letting the malware decrypt its own strings and catching them as it did (aka. dynamic analysis).
 
 ## The infection chain
 
-There are five steps between clicking Download and losing your account.
+There were five steps between clicking Download and losing your account.
 
-1. The lure is `matefall[.]pages[.]dev`, a Cloudflare Pages site dressed up as an indie game. The comments in its code are in Turkish, and the page script comes from a template called "HAISE". By the time I looked, Cloudflare was already showing a warning page in front of it.
+1. The lure is `matefall[.]pages[.]dev`, a Cloudflare Pages site dressed up as an indie game. The comments in its code are in Turkish, and the page script comes from a template called "HAISE". When I first went to this page, Cloudflare had not yet put a warning page in front of it. At the time of writing, there is now.
 2. The Download button first looks up the visitor's IP address and location (with ipapi.co, falling back to api.ipify.org) and posts them to a Discord webhook, so the operators know who took the bait. Then it fetches the installer from a Dropbox link.
 3. The installer, `MateFall-nstaller Setup 1.0.0.exe` (the missing "I" is theirs), is 155 MB. It's an NSIS installer (a common Windows installer format), and inside it is an Electron app (a desktop app built from web code, like Discord itself) plus a complete Java 21 runtime.
 4. The Electron app has one real file, `index.js`, run through an obfuscator. It starts Java in the background, hidden and detached, with the malware jar and one argument: `ira-ed6140ab`. No game window ever appears.
@@ -38,7 +38,7 @@ Under all that, the 7,894-byte file starts `javaw` hidden and detached, with the
 
 The usual way to study Java malware is to decompile it: turn the compiled `.class` files back into readable Java source. Java is normally easy to decompile because its compiled form keeps a lot of structure.
 
-This jar was built to defeat that. Its own code lives in a package with the Turkish name `izini_birakir_arkasinda_geceler`, alongside normal libraries (OkHttp for web requests, JNA for calling Windows functions, a SQLite driver for reading browser databases). I ran the [Vineflower](https://github.com/Vineflower/vineflower) decompiler over its 176 classes and got 48 MB of "source" back, full of errors like `Statement cannot be decomposed although reducible!`. The entry class, `V`, wouldn't decompile at all.
+However this jar was built with that in mind. Its code lives in a package with the Turkish name `izini_birakir_arkasinda_geceler`, alongside normal libraries (OkHttp for web requests, JNA for calling Windows functions, a SQLite driver for reading browser databases). I ran the [Vineflower](https://github.com/Vineflower/vineflower) decompiler over its 176 classes and got 48 MB of "source" back, full of errors like `Statement cannot be decomposed although reducible!`. The entry class, `V`, wouldn't decompile at all.
 
 The raw bytecode showed why: three layers of obfuscation, stacked on top of each other.
 
