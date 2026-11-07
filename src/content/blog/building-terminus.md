@@ -1,6 +1,6 @@
 ---
 title: "Building terminus"
-description: "How I built a shuttle bus planner for NUS students on one Cloudflare Worker"
+description: "Building a shuttle bus planner for NUS students on one Cloudflare Worker"
 pubDate: 2026-10-10
 updatedDate: 2026-10-15
 ---
