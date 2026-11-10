@@ -2,7 +2,7 @@
 title: "Building terminus"
 description: "Building a shuttle bus planner for NUS students on one Cloudflare Worker"
 pubDate: 2026-10-10
-updatedDate: 2026-10-15
+updatedDate: 2026-11-11
 ---
 
 I'm on exchange at NUS this year, and getting to lectures on time means taking the internal shuttle buses. There are decent trackers for them already (bar the official uNivUS app), but the trouble is that a question that should take three seconds (which bus, from where, and when do I leave?) takes about six taps: open the app, find the stop, pick the right side of the road, read the table, then work out which service goes where you're going.
@@ -94,3 +94,9 @@ Most of the rest is stuff you'd only notice if it was wrong. Countdowns round th
 I'm at NUS for about a year, so terminus has to be something another student can pick up after I leave. That's why the repo has a long `internals.md` that records the reasons behind each rule, from the cache times to the side-of-the-road tracking.
 
 You can use it at [terminus.run](https://terminus.run). The Android and Mac apps are on the download page, and the API is documented at [/docs](https://terminus.run/docs).
+
+## The story so far
+
+*Update 11/11/26: terminus's first 75 days, told from its git history.*
+
+<video src="https://upload.rcn.sh/video/terminus-timeline.mp4" poster="https://upload.rcn.sh/image/terminus-timeline.jpg" controls muted playsinline preload="none"></video>
