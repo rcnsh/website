@@ -55,6 +55,7 @@ const canonical =
 
 // Absolute — a relative og:image is ignored by every scraper that reads it.
 const ogImage = new URL(image, site.url).toString();
+const imageAlt = `${site.author} — ${site.name}`;
 ---
 
 <!doctype html>
@@ -88,8 +89,16 @@ const ogImage = new URL(image, site.url).toString();
         </>
       )
     }
-    <meta property="og:image:alt" content={`${site.author} — ${site.name}`} />
+    <meta property="og:image:alt" content={imageAlt} />
+    {
+      /* X falls back to og:*, but card validators and some other scrapers
+         read only twitter:*, so name the image there too. */
+    }
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={metaDescription} />
+    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image:alt" content={imageAlt} />
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-icon-180x180.png" />
