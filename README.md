@@ -45,6 +45,8 @@ In `.dev.vars` locally, Worker secrets in production. Declared by hand in
 | `GITHUB_CLIENT_SECRET` | same app |
 | `GITHUB_TOKEN` | classic PAT with `read:user`. Contribution graph (GraphQL needs auth) and the 5000/hr REST limit |
 | `MUSIC_WAREHOUSE_TOKEN` | read-only token for the music-warehouse Worker (its `READ_TOKEN`) |
+| `MUSIC_WAREHOUSE_CONTROL_TOKEN` | the warehouse's `CONTROL_TOKEN`: starts playback from the owner's play buttons and nothing else |
+| `BLOG_REPO_TOKEN` | fine-grained PAT, Contents: write on this repo only. The /blog/edit editor commits posts through it |
 
 ```bash
 npx wrangler secret put GITHUB_CLIENT_SECRET
@@ -144,6 +146,8 @@ npm run db:migrate:remote        # only when migrations/ changed
 ```
 
 Migrations are not part of `deploy`; applying them is separate and deliberate.
+
+Pushes to `main` deploy through Workers Builds (`npm run build`, then `npx wrangler deploy`); other branches upload a preview version. `npm run deploy` does the same by hand.
 Secrets are set once with `wrangler secret put`, above.
 
 The build needs Cloudflare credentials and a filled-in `.dev.vars`:

@@ -6,7 +6,7 @@ Cloudflare Workers, with D1, R2 and KV.
 ```
 npm run dev        # astro dev, port 4321
 npm run build      # generate → wrangler types → astro check → astro build → verify:headers
-npm test           # node --test over src/, shared/
+npm test           # node --test over src/, shared/, workers/
 npm run lint       # biome lint (NOT format — the repo is not biome-formatted)
 npm run preview    # build, then wrangler dev on the real bindings
 ```
