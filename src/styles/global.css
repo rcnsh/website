@@ -425,6 +425,19 @@
   animation: pulse-dim 1.8s ease-in-out infinite;
 }
 
+/* A skeleton's stand-in for a line that wraps with its content: sample text
+   of the loaded line's shape, drawn invisibly on the pulse, so it wraps where
+   the real text will at every width. */
+@utility placeholder-ghost {
+  color: transparent;
+  border-radius: 0.125rem;
+  background: var(--color-raised);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  animation: pulse-dim 1.8s ease-in-out infinite;
+  user-select: none;
+}
+
 /* --- Long-form prose ---
    Post bodies, and nothing else. Narrow on purpose: fenced code belongs to
    Expressive Code, which renders <figure>/<figcaption>/<pre>, so none of those

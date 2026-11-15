@@ -117,7 +117,7 @@ function SignedOut({ placeholder = false }: { placeholder?: boolean }) {
       <p
         className={cn(
           "max-w-[58ch] text-[0.8125rem] leading-[1.55]",
-          placeholder ? "placeholder-block rounded-xs text-transparent" : "text-ink-faint",
+          placeholder ? "placeholder-ghost" : "text-ink-faint",
         )}
       >
         Signing in stores your GitHub username, avatar, and approximate country with your

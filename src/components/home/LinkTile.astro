@@ -47,7 +47,7 @@ const { href, title, detail, icon, external = false, class: className } = Astro.
         typeof detail === "string" ? (
           detail
         ) : (
-          <span class="placeholder-block rounded-xs text-transparent box-decoration-clone" aria-hidden="true">
+          <span class="placeholder-ghost" aria-hidden="true">
             {detail.pending}
           </span>
         )

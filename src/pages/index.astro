@@ -66,8 +66,8 @@ const pgp = externalLinks.find((link) => link.icon === "key");
 
     <Stats server:defer>
       <Fragment slot="fallback">
-        <StatTile class="[grid-area:s1]" label="Repos" />
-        <StatTile class="[grid-area:s2]" label="Followers" />
+        <StatTile class="[grid-area:s1]" label="Repos" detail="public" />
+        <StatTile class="[grid-area:s2]" label="Followers" detail="on GitHub" />
         <StatTile class="[grid-area:s3]" label="On GitHub since" />
       </Fragment>
     </Stats>

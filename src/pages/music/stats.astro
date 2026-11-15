@@ -14,8 +14,13 @@ const page = pages.musicStats;
 // Fixed at build. A new year appears in the switch on the next deploy; until
 // then its panels exist but nothing selects them.
 const years = statsYears(new Date());
-// A skeleton line that wraps the way its text will; see the fallbacks below.
-const ghost = "placeholder-block rounded-xs text-transparent [box-decoration-break:clone]";
+// The fallbacks draw the year view as well as all time, tagged with the
+// choices that show each shape (`data-skel-years`, matched by the script
+// below). The year being built in is still running, so its streaks read like
+// all time's.
+const allYears = years.join(" ");
+const liveYears = ["all", years.at(-1)].join(" ");
+const pastYears = years.slice(0, -1).join(" ");
 ---
 
 <Layout title={page.title} description={page.description} image={pageOgHref("music")}>
@@ -71,12 +76,12 @@ const ghost = "placeholder-block rounded-xs text-transparent [box-decoration-bre
             <span class="ml-auto font-mono text-[11px]"><span class="placeholder-text w-24"></span></span>
           </div>
           <div class="grid gap-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
-            <div class="flex flex-col">
+            <div class="flex flex-col" data-skel-years={liveYears}>
               <p class="font-mono text-[3.25rem] font-semibold leading-none tracking-[-0.05em]">
                 <span class="placeholder-text w-10"></span>
               </p>
               <p class="mt-2 font-mono text-[11px]">
-                <span class={ghost}>weeks in a row with something playing every day</span>
+                <span class="placeholder-ghost">weeks in a row with something playing every day</span>
               </p>
               <dl class="mt-5 grid grid-cols-2 gap-x-6 gap-y-4">
                 {
@@ -93,12 +98,37 @@ const ghost = "placeholder-block rounded-xs text-transparent [box-decoration-bre
                 {
                   [0, 1].map(() => (
                     <div class="flex flex-col-reverse gap-1">
-                      <dt class="font-mono text-[10.5px]"><span class={ghost}>10+ plays a day</span></dt>
-                      <dd class="font-mono text-[13px]"><span class={ghost}>2 weeks now · best 68 days</span></dd>
+                      <dt class="font-mono text-[10.5px]"><span class="placeholder-ghost">10+ plays a day</span></dt>
+                      <dd class="font-mono text-[13px]"><span class="placeholder-ghost">2 weeks now · best 68 days</span></dd>
                     </div>
                   ))
                 }
               </dl>
+            </div>
+            <div class="flex flex-col" data-skel-years={pastYears}>
+              <p class="font-mono text-[3.25rem] font-semibold leading-none tracking-[-0.05em]">
+                <span class="placeholder-text w-10"></span>
+              </p>
+              <p class="mt-2 font-mono text-[11px]">
+                <span class="placeholder-ghost">days in a row, the longest run of 2024</span>
+              </p>
+              <dl class="mt-5 grid grid-cols-2 gap-x-6 gap-y-4">
+                <div class="flex flex-col-reverse gap-1">
+                  <dt class="font-mono text-[10.5px] text-ink-dim">Days with a play</dt>
+                  <dd class="font-mono text-lg font-semibold tracking-[-0.02em]"><span class="placeholder-text w-12" /></dd>
+                </div>
+                {
+                  [0, 1].map(() => (
+                    <div class="flex flex-col-reverse gap-1">
+                      <dt class="font-mono text-[10.5px]"><span class="placeholder-ghost">10+ plays a day</span></dt>
+                      <dd class="font-mono text-[13px]"><span class="placeholder-ghost">best 21 days</span></dd>
+                    </div>
+                  ))
+                }
+              </dl>
+              <p class="mt-auto pt-5 font-mono text-[11px]">
+                <span class="placeholder-ghost">Runs crossing into another year count only their 2024 days.</span>
+              </p>
             </div>
             <div>
               <p class="mb-2 font-mono text-[11px] text-ink-dim">Longest runs</p>
@@ -129,6 +159,7 @@ const ghost = "placeholder-block rounded-xs text-transparent [box-decoration-bre
             <span class="label">On repeat</span>
             <span class="ml-auto font-mono text-[11px] text-ink-dim">Last 14 days</span>
           </div>
+          <p data-year-note class="-mt-2 mb-3 font-mono text-[11px] text-ink-dim">Always the last two weeks, whichever year is picked.</p>
           <ol class="divide-y divide-line-soft border-t border-line-soft">
             {
               Array.from({ length: 6 }).map(() => (
@@ -179,7 +210,10 @@ const ghost = "placeholder-block rounded-xs text-transparent [box-decoration-bre
         <div slot="fallback" aria-hidden="true" class="select-none">
           <div class="mb-4 flex min-h-4 items-center gap-2.5">
             <span class="label">Most-played albums</span>
-            <span class="ml-auto font-mono text-[11px] text-ink-dim">all time</span>
+            <span class="ml-auto font-mono text-[11px] text-ink-dim">
+              <span data-skel-years="all">all time</span>
+              <span data-skel-years={allYears}><span class="placeholder-text w-8" /></span>
+            </span>
           </div>
           <ol class="flex flex-col gap-3.5">
             {
@@ -217,7 +251,7 @@ const ghost = "placeholder-block rounded-xs text-transparent [box-decoration-bre
               [4, 15, 17, 11, 10, 10, 14].map((length) => (
                 <li class="flex items-center gap-1.5">
                   <span class="placeholder-block inline-block h-2 w-2 rounded-[2px]" />
-                  <span class={ghost}>{"x".repeat(length)}</span>
+                  <span class="placeholder-ghost">{"x".repeat(length)}</span>
                 </li>
               ))
             }
@@ -229,6 +263,41 @@ const ghost = "placeholder-block rounded-xs text-transparent [box-decoration-bre
           <div class="placeholder-block h-[180px] rounded-xs max-sm:h-[140px]" />
           <div class="mt-1.5 h-6" />
           <div class="mt-1.5 font-mono text-[10px]"><span class="placeholder-text w-full" /></div>
+          <div data-skel-years={allYears} class="mt-6 grid gap-6 sm:grid-cols-2">
+            <div>
+              <p class="mb-2.5 font-mono text-[11px]"><span class="placeholder-ghost">Top artists, 2024</span></p>
+              <ol class="flex flex-col gap-2">
+                {
+                  [1, 2, 3, 4, 5].map((rank) => (
+                    <li class="grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
+                      <span class="font-mono text-[11px] text-ink-dim tabular-nums">{rank}</span>
+                      <span class="text-[13.5px]"><span class="placeholder-text w-28" /></span>
+                      <span class="font-mono text-[11px]"><span class="placeholder-text w-7" /></span>
+                      <span />
+                      <span class="col-span-2 block h-1 rounded-full bg-line-soft" />
+                    </li>
+                  ))
+                }
+              </ol>
+            </div>
+            <div>
+              <p class="mb-2.5 font-mono text-[11px] text-ink-dim">Top songs</p>
+              <ol class="flex flex-col gap-2.5">
+                {
+                  [0, 1, 2].map(() => (
+                    <li class="flex items-center gap-3">
+                      <span class="placeholder-block h-9 w-9 shrink-0 rounded-xs" />
+                      <span class="min-w-0 flex-1">
+                        <span class="block text-[13.5px]"><span class="placeholder-text w-32" /></span>
+                        <span class="block text-[12px]"><span class="placeholder-text w-20" /></span>
+                      </span>
+                      <span class="font-mono text-[11px]"><span class="placeholder-text w-12" /></span>
+                    </li>
+                  ))
+                }
+              </ol>
+            </div>
+          </div>
           <ol class="mt-6 grid grid-cols-2 gap-2.5 sm:max-[1020px]:grid-cols-3 min-[1021px]:grid-cols-7">
             {
               years.map(() => (
@@ -263,41 +332,56 @@ const ghost = "placeholder-block rounded-xs text-transparent [box-decoration-bre
             <span class="label shrink-0 whitespace-nowrap">Time of day</span>
             <span class="ml-auto min-w-0 truncate font-mono text-[11px] text-ink-dim">Share of plays by local hour</span>
           </div>
-          <ul class="mb-3 flex flex-wrap gap-x-5 gap-y-1 font-mono text-[11px]">
-            {
-              ["Newcastle Sep 2024–May 2026", "Singapore Jul 2026–now"].map((text) => (
-                <li class="flex items-center gap-2">
-                  <span class="placeholder-block h-1 w-4 rounded-full" />
-                  <span class={ghost}>{text}</span>
-                </li>
-              ))
-            }
-          </ul>
-          <div class="placeholder-block h-[150px] rounded-xs" />
-          <div class="mt-2 h-3" />
-          <p class="mt-4 text-[13px] leading-relaxed">
-            <span class={ghost}>
-              Newcastle: busiest at 15:00, 24% of plays between midnight and 6am. Singapore: busiest at
-              21:00, 20% of plays between midnight and 6am.
-            </span>
-          </p>
-          <div class="mt-6">
-            <p class="mb-3 font-mono text-[11px]"><span class="placeholder-text w-52" /></p>
-            <div class="grid gap-[2px]" style="grid-template-columns: 2.25rem repeat(24, minmax(0, 1fr))">
+          <div data-skel-years="all">
+            <ul class="mb-3 flex flex-wrap gap-x-5 gap-y-1 font-mono text-[11px]">
               {
-                WEEKDAYS.map((day) => (
-                  <>
-                    <span class="self-center font-mono text-[10px] text-ink-faint">{day}</span>
-                    {Array.from({ length: 24 }).map(() => <i class="placeholder-block block aspect-square rounded-[2px]" />)}
-                  </>
+                ["Newcastle Sep 2024–May 2026", "Singapore Jul 2026–now"].map((text) => (
+                  <li class="flex items-center gap-2">
+                    <span class="placeholder-block h-1 w-4 rounded-full" />
+                    <span class="placeholder-ghost">{text}</span>
+                  </li>
                 ))
               }
+            </ul>
+            <div class="placeholder-block h-[150px] rounded-xs" />
+            <div class="mt-2 h-3" />
+            <p class="mt-4 text-[13px] leading-relaxed">
+              <span class="placeholder-ghost">
+                Newcastle: busiest at 15:00, 24% of plays between midnight and 6am. Singapore: busiest at
+                21:00, 20% of plays between midnight and 6am.
+              </span>
+            </p>
+            <div class="mt-6">
+              <p class="mb-3 font-mono text-[11px]"><span class="placeholder-text w-52" /></p>
+              <div class="grid animate-[pulse-dim_1.8s_ease-in-out_infinite] gap-[2px]" style="grid-template-columns: 2.25rem repeat(24, minmax(0, 1fr))">
+                {
+                  WEEKDAYS.map((day) => (
+                    <>
+                      <span class="self-center font-mono text-[10px] text-ink-faint">{day}</span>
+                      {Array.from({ length: 24 }).map(() => <i class="block aspect-square rounded-[2px] bg-raised" />)}
+                    </>
+                  ))
+                }
+              </div>
+              <div class="mt-2 flex items-center justify-end gap-2 font-mono text-[10px] text-ink-faint">
+                less
+                <span class="inline-block h-1.5 w-20 rounded-full bg-raised" />
+                more
+              </div>
             </div>
-            <div class="mt-2 flex items-center justify-end gap-2 font-mono text-[10px] text-ink-faint">
-              less
-              <span class="inline-block h-1.5 w-20 rounded-full bg-raised" />
-              more
-            </div>
+          </div>
+          <div data-skel-years={allYears}>
+            <ul class="mb-3 flex flex-wrap gap-x-5 gap-y-1 font-mono text-[11px]">
+              <li class="flex items-center gap-2">
+                <span class="placeholder-block h-1 w-4 rounded-full" />
+                <span class="placeholder-ghost">Newcastle Sep 2024–Dec 2024</span>
+              </li>
+            </ul>
+            <div class="placeholder-block h-[150px] rounded-xs" />
+            <div class="mt-2 h-3" />
+            <p class="mt-4 text-[13px] leading-relaxed">
+              <span class="placeholder-ghost">Newcastle: busiest at 14:00, 18% of plays between midnight and 6am.</span>
+            </p>
           </div>
         </div>
       </TimeOfDay>
@@ -313,12 +397,13 @@ const ghost = "placeholder-block rounded-xs text-transparent [box-decoration-bre
             <span class="label shrink-0 whitespace-nowrap">Newcastle → Singapore</span>
             <span class="ml-auto font-mono text-[11px]"><span class="placeholder-text w-24" /></span>
           </div>
+          <p data-year-note class="-mt-2 mb-3 font-mono text-[11px] text-ink-dim">Always the months either side of the move, whichever year is picked.</p>
           <ul class="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px]">
             {
               [0, 1].map(() => (
                 <li class="flex items-center gap-1.5">
                   <span class="placeholder-block inline-block h-2 w-2 rounded-full" />
-                  <span class={ghost}>Apr–Jun 2026</span>
+                  <span class="placeholder-ghost">Apr–Jun 2026</span>
                 </li>
               ))
             }
@@ -354,7 +439,9 @@ const ghost = "placeholder-block rounded-xs text-transparent [box-decoration-bre
      or no script, all time shows. */
   html:not([data-stats-year]) [data-year]:not([data-year="all"]),
   html:not([data-stats-year]) [data-year-note],
-  html[data-stats-year] [data-year]:not([data-year-match]) {
+  html[data-stats-year] [data-year]:not([data-year-match]),
+  html:not([data-stats-year]) [data-skel-years]:not([data-skel-years~="all"]),
+  html[data-stats-year] [data-skel-years]:not([data-year-match]) {
     display: none;
   }
 
@@ -382,10 +469,15 @@ const ghost = "placeholder-block rounded-xs text-transparent [box-decoration-bre
   onPage((signal) => {
     const switcher = document.querySelector<HTMLFieldSetElement>("[data-year-switch]");
     if (!switcher) return;
-    const TAGGED = "[data-year], [data-col-year], [data-card-year]";
+    const TAGGED = "[data-year], [data-col-year], [data-card-year], [data-skel-years]";
     let chosen = "all";
 
     const markOne = (el: HTMLElement) => {
+      // A fallback's shape answers to every year it stands in for.
+      if (el.dataset.skelYears !== undefined) {
+        el.toggleAttribute("data-year-match", el.dataset.skelYears.split(" ").includes(chosen));
+        return;
+      }
       const year = el.dataset.year ?? el.dataset.colYear ?? el.dataset.cardYear;
       el.toggleAttribute("data-year-match", year === chosen);
     };
