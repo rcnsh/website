@@ -253,6 +253,8 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   let to: Source = from;
   let mixStarted = Number.NEGATIVE_INFINITY;
   let revealStarted = performance.now();
+  /** A page was just bound, and nothing has been shown on it yet. */
+  let arrived = false;
   let frame = 0;
   let visible = false;
   let ratio = 1;
@@ -341,8 +343,12 @@ export function startLattice(canvas: HTMLCanvasElement): void {
    * a tab left open through a listening session would keep them all.
    */
   const prune = () => {
+    // The playing track's cover stays through pages that do not draw it, or
+    // coming back to one that does waits on the image and shows the mark.
+    const cover = currentCover();
+    const playing = cover ? `cover:${cover.image}` : "";
     for (const key of covers.keys()) {
-      if (key === from.key || key === to.key || key === want) continue;
+      if (key === from.key || key === to.key || key === want || key === playing) continue;
       const texture = textures.get(key);
       if (texture) gl.deleteTexture(texture);
       textures.delete(key);
@@ -353,10 +359,19 @@ export function startLattice(canvas: HTMLCanvasElement): void {
 
   /** Swap to another picture with the sweep, or at once when nothing is drawn yet. */
   const show = (key: string) => {
+    const fresh = arrived;
+    arrived = false;
     if (to.key === key) return;
     from = to;
     to = replace({ texture: markTexture, kind: key.startsWith("cover:") ? 0 : 1, rect: place(key), key });
-    mixStarted = still() ? Number.NEGATIVE_INFINITY : performance.now();
+    if (fresh) {
+      // A new page: its picture arrives on its own. Sweeping from the last
+      // page's would first redraw that one in this page's field, where it
+      // reads as the old page left behind.
+      from = to;
+      mixStarted = Number.NEGATIVE_INFINITY;
+      revealStarted = performance.now();
+    } else mixStarted = still() ? Number.NEGATIVE_INFINITY : performance.now();
     prune();
     wake();
   };
@@ -524,6 +539,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
       if (visible) wake();
     });
     watching.observe(host);
+    arrived = true;
     resolve();
   };
 

@@ -52,8 +52,12 @@ page marks one element `data-lattice` and says what to draw there:
 | `mark` | the rcn mark, exact on the grid | every other title band, post headers |
 | `text:404` | the status code | the 404 |
 
-Moving between pages sweeps one picture into the next along the slant; the
-canvas is persisted, so it is one continuous surface for the whole visit.
+The canvas is persisted, so it is one surface for the whole visit. Two pages
+that draw the same picture keep it across the move. A page with a different
+picture has it arrive on the slant from nothing: sweeping from the last
+page's picture meant drawing that one in the new page's field first, where
+it read as the old page left behind. A change on the same page (the next
+track) still sweeps one picture into the next.
 
 - **Idle:** each triangle breathes a little out of step, and a band of light
   crosses on the slant every twelve seconds.
