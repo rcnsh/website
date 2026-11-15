@@ -38,6 +38,7 @@ uniform float uMix;       // 0..1, from one source to the next
 uniform float uFade;      // 0..1, how far the field has scrolled away
 uniform float uNarrow;    // 1 on a phone: dissolve downwards, not sideways
 uniform vec3 uPointer;    // x, y in px, strength 0..1
+uniform float uReach;     // how far round the pointer it uncovers, px
 
 uniform sampler2D uFrom;
 uniform sampler2D uTo;
@@ -60,15 +61,20 @@ vec2 latticePx(vec2 uv) {
 }
 
 // Where a cover dissolves, across its square (uv). Wide: gone left of
-// GONE_X, which clears the home name's last letter at 1440px (it reaches
-// 0.18), solid from SOLID_X. Phone: solid down to SOLID_Y, gone by GONE_Y,
-// above the name. RANK is how much brightness, against chance, decides
-// which triangles in the band survive.
-const float COVER_GONE_X = 0.2;
-const float COVER_SOLID_X = 0.47;
+// GONE_X and solid from SOLID_X. The home name's last letter reaches about
+// 0.19 at 1440px, and tone mapping lights more of a cover than a plain
+// stretch did, so the band starts a little clear of it. Phone: solid down to
+// SOLID_Y, gone by GONE_Y, above the name. RANK is how much brightness,
+// against chance, decides which triangles in the band survive.
+const float COVER_GONE_X = 0.24;
+const float COVER_SOLID_X = 0.5;
 const float COVER_SOLID_Y = 0.5;
 const float COVER_GONE_Y = 0.7;
 const float COVER_RANK = 0.45;
+// How far a cover's ordered dither moves a triangle, in level steps. A full
+// step weaves a tone-mapped cover all over, since most of it sits between
+// two levels; 0.6 still grades a glow without patterning the flat areas.
+const float COVER_DITHER = 0.6;
 
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -126,8 +132,9 @@ vec2 source(sampler2D tex, vec4 rect, float kind, vec2 centre, vec2 c0, vec2 c1,
   float tall = (1.0 - smoothstep(COVER_SOLID_Y, COVER_GONE_Y, uv.y)) * inside;
   float band = mix(wide, tall, uNarrow);
 
-  // Inside the band the darkest triangles go first, so the picture's bright
-  // shapes are the last of it. main() draws a triangle when its hash id2 is
+  // Inside the band the darkest triangles go first, judged on the same
+  // averaged, tone-mapped lum the triangle is drawn with, so the picture's
+  // bright shapes are the last of it. main() draws a triangle when its hash id2 is
   // under the presence, so this is "drawn when mix(id2, 1 - lum, RANK) <
   // band", solved for id2: the hash keeps the edge ragged, not a contour.
   float ranked = clamp((band - COVER_RANK * (1.0 - lum)) / (1.0 - COVER_RANK), 0.0, 1.0);
@@ -180,8 +187,7 @@ void main() {
   mixFront = mix(1.0, mixFront, inField);
 
   // The pointer uncovers the lattice around it and lifts what is there.
-  float reach = uCell * 6.5;
-  float near = uPointer.z * (1.0 - smoothstep(0.0, reach, distance(centre, uPointer.xy - uField.xy)));
+  float near = uPointer.z * (1.0 - smoothstep(0.0, uReach, distance(centre, uPointer.xy - uField.xy)));
 
   float presence = s.y * (1.0 - uFade) + near * 0.85;
   if (id2 > presence || revealFront < 0.0) {
@@ -206,9 +212,9 @@ void main() {
   float cover = (1.0 - kind) * inField;
   lum = clamp(lum + (breath * (1.0 - cover) + sweep) * lit * inField + near * 0.22 * inField, 0.0, 1.0);
 
-  // A cover is dithered, so five levels show the tones between them and a
-  // gradient reads as one instead of flat bands; a glyph's levels are exact.
-  float dither = (threshold(cell, upper) - 0.5) * cover;
+  // A cover is dithered, so a gradient grades off instead of stepping
+  // between the five levels; a glyph's levels are exact.
+  float dither = (threshold(cell, upper) - 0.5) * COVER_DITHER * cover;
   float level = clamp(floor(lum * 5.0 + dither), 0.0, 4.0);
   level = mix(level, floor(lum * 4.999), kind);
   vec3 colour = uLevel0;

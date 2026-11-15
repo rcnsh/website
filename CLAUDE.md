@@ -491,22 +491,35 @@ arrives in a server island, so the field waits for the selector to match.
 triangle and a top row whose parity matches it. Position it any other way and
 the mark comes out as scattered triangles.
 
-**A cover triangle is its picture's mean, a glyph triangle its centre.**
-The shader reads a cover at nine equal-area points per triangle
-(`triangleTaps(3)`, `geometry.ts`) from a texture sized to the lattice
-(`coverTexels`: four texels to a side), so a stray pixel cannot decide a
-triangle. The texture is redrawn whenever the cover's rect or the cell
-changes; a fixed size would make the taps skip or blur. The min-to-max
-stretch is still read from a 72px copy, so it does not move with that size.
-Glyphs keep the single centre read: their edges are lattice edges, and
-averaging would grey them.
+**A cover's pipeline is `lattice/cover.ts`, then the shader.** The tone
+curve (`tone.ts`: percentiles, then a mean-seeking gamma) is measured once
+per cover on a fixed 72px copy (`coverTone`) and applied to a texture sized
+to the lattice (`drawCover` at `coverTexels`: four texels to a triangle's
+side), redrawn whenever the cover's rect or the cell changes. Measure the
+curve on the texture itself and the picture shifts tone on every resize. The
+shader reads a cover at nine equal-area points per triangle
+(`triangleTaps(3)`, `geometry.ts`), so a stray pixel cannot decide a
+triangle; a fixed-size texture would make the taps skip or blur. Glyphs keep
+the single centre read: their edges are lattice edges, and averaging would
+grey them. The dissolve's darkest-first rank uses that same averaged,
+tone-mapped `lum`, so a triangle is kept on the brightness it is drawn with.
+The tone target, the dissolve band (`COVER_GONE_X`, `COVER_SOLID_X`) and the
+dither amplitude (`COVER_DITHER`) were tuned together against real covers:
+change one and look at a dark sleeve, Trench and the home name again.
 
 **The cover reaches the field through `lattice-source.ts`**, published by
 `NowPlaying.tsx`. It is loaded with `crossOrigin`, since its pixels go into a
 texture, so a cover host must answer with CORS as well as being in `img-src`.
 
+**Dev has two query parameters for the field**, both behind
+`import.meta.env.DEV` and compiled out of production. `?cover=<image url>`
+draws that cover and holds it against the now-playing widget, since local
+dev has no warehouse token. `?cell=<px>` draws the home field on triangles of
+that side, to compare cell sizes; the pointer's reach stays on the designed
+cell (`designedCell` in `field.ts`), so its light keeps its size on screen.
+
 **A cover is ordered-dithered; a glyph never is.** Each triangle's level is
-`floor(lum * 5 + t - 0.5)` with `t` from a 4x4 Bayer matrix on the lattice
+`floor(lum * 5 + (t - 0.5) * COVER_DITHER)` with `t` from a 4x4 Bayer matrix on the lattice
 cells, up and down triangles half a cycle apart (`threshold` in `shader.ts`),
 so the five levels show the tones between them. It is fixed per triangle, so
 nothing shimmers. The idle breath is kept out of a cover's level and

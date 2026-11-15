@@ -117,20 +117,25 @@ leading 0.86, sized so the surname ends before the cover turns solid.
   screen, in a hidden tab, and whenever the field is still.
 - No GSAP, Lenis or OGL: the field is one fragment shader and about 300 lines
   of plain WebGL, so the page budget barely moved.
-- Covers are tone-mapped before being drawn (`lattice/tone.ts`): stretched
-  between their 2nd and 98th luminance percentiles, then given the gamma that
-  brings their mean to 0.35. A min-to-max stretch let one bright pixel push a
-  dark sleeve into the bottom two levels; the gamma lifts a dark cover's
-  mid-tones but barely touches one whose highlights already carry its mean.
-- Each cover triangle shows the mean of the picture under it, not the pixel at
-  its centre, so detail finer than a triangle evens out instead of speckling.
-- A cover is solid over its far half and dissolves in a short band that ends
-  before the home name's last letter (`COVER_*` in `shader.ts`). In the band
-  the darkest triangles go first, mixed with chance so the edge stays ragged:
-  a random thinning across most of the width erased the picture where it is
-  widest.
-- Covers are ordered-dithered across the five levels (a Bayer matrix on the
-  lattice, measured against white noise and interleaved gradient noise: it
-  holds gradients and flat colour best and never clumps), so a soft glow
-  grades off instead of stepping. Their breath is in brightness, not level,
-  so the dither stays put.
+- A cover goes through four steps, each against a way the old picture failed
+  (`lattice/cover.ts` and `shader.ts`):
+  - **Tone mapping** (`lattice/tone.ts`): stretched between its 2nd and 98th
+    luminance percentiles, then given the gamma (0.4 to 1.25) that brings its
+    mean to 0.28. A min-to-max stretch let one bright pixel push a dark sleeve
+    into the bottom two levels. The target is lower than a cover looked at on
+    its own would want, because the dissolve keeps bright triangles longest
+    and the dither lifts mid-tones: at 0.35 a dark sleeve came out lighter
+    than it feels, and Trench lost its black.
+  - **Area average**: each triangle shows the mean of the picture under it,
+    not the pixel at its centre, so detail finer than a triangle evens out
+    instead of speckling.
+  - **Dissolve**: solid from half its width, gone left of a quarter, so it
+    ends clear of the home name's last letter. In the band the darkest
+    triangles go first, mixed with chance so the edge stays ragged: a random
+    thinning across most of the width erased the picture where it is widest.
+    The name and bio stay legible before the cover is complete.
+  - **Ordered dither** (a Bayer matrix on the lattice, measured against
+    white noise and interleaved gradient noise: it holds gradients and flat
+    colour best and never clumps) at 0.6 of a level step, so a glow grades
+    off without weaving the whole of a tone-mapped cover. A cover breathes in
+    brightness, not level, so the dither stays put.

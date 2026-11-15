@@ -1,6 +1,6 @@
 /**
  * How a cover's luminance is spread over the field's five levels. Pure, so
- * `field.ts` runs it on the shrunk cover's pixels and the tests run it on
+ * `cover.ts` runs it on a shrunk copy's pixels and the tests run it on
  * numbers.
  *
  * Two steps. The range is taken between low and high percentiles, not the
@@ -17,8 +17,13 @@ export const TONE = {
   /** Percentiles that become black and white. */
   low: 0.02,
   high: 0.98,
-  /** Where the mean of the mapped cover should land, 0..1. */
-  mean: 0.35,
+  /**
+   * Where the mean of the mapped cover should land, 0..1. Lower than a
+   * plain look would pick: the dissolve keeps bright triangles longest and
+   * the dither spreads mid-tones up a level, so at 0.35 a dark sleeve came
+   * out lighter than it feels and black-on-yellow lost its black.
+   */
+  mean: 0.28,
   minGamma: 0.4,
   maxGamma: 1.25,
 } as const;

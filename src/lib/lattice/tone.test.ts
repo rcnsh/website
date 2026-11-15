@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { TONE, gammaForMean, percentile, toneMap } from "./tone.ts";
+import { applyTone, TONE, gammaForMean, percentile, toneCurve, toneMap } from "./tone.ts";
 
 /** The level the shader snaps a tone to. */
 const level = (tone: number) => Math.floor(tone * 4.999);
@@ -26,7 +26,7 @@ test("one bright pixel no longer pushes a dark cover into the bottom levels", ()
 });
 
 test("a dark cover is lifted towards the target mean", () => {
-  const cover = Array.from({ length: 900 }, (_, i) => (i % 30) ** 2 / 4);
+  const cover = Array.from({ length: 900 }, (_, i) => ((i % 30) / 29) ** 4 * 210);
   const tones = toneMap(cover);
   const stretched = cover.map((lum) => lum / Math.max(...cover));
   assert.equal(mean(tones) > mean(stretched), true);
@@ -69,4 +69,17 @@ test("tones stay in 0..1 and keep the order of their luminances", () => {
 test("a flat cover comes out mid-grey, not black", () => {
   assert.deepEqual(Array.from(toneMap([128, 128, 128])), [0.5, 0.5, 0.5]);
   assert.equal(toneMap([]).length, 0);
+});
+
+test("a curve measured on a small copy maps a large copy to the same tones", () => {
+  // The same dark picture at two sizes: every 4th pixel of the large one is
+  // the small one, as a shrunk copy would roughly be.
+  const large = Array.from({ length: 4096 }, (_, i) => 8 + 60 * Math.sin(i / 300) ** 2 + (i % 97 === 0 ? 200 : 0));
+  const small = large.filter((_, i) => i % 4 === 0);
+  const fromSmall = toneCurve(small);
+  const fromLarge = toneCurve(large);
+  for (const lum of [10, 30, 50, 68]) {
+    assert.equal(Math.abs(applyTone(lum, fromSmall) - applyTone(lum, fromLarge)) < 0.02, true);
+  }
+  assert.deepEqual(Array.from(toneMap(large)), Array.from(Float32Array.from(large, (lum) => applyTone(lum, fromLarge))));
 });

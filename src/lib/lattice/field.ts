@@ -1,9 +1,10 @@
 import { LOGO_POLYGONS, LOGO_VIEWBOX } from "../logo.ts";
 import { COVER_EVENT, currentCover } from "../lattice-source.ts";
 import { liveUpdates, motionReduced, onPrefChange } from "../prefs.ts";
+import { coverTone, drawCover } from "./cover.ts";
 import { coverTexels, placeCover, placeMark, type Rect } from "./geometry.ts";
 import { FRAGMENT, VERTEX } from "./shader.ts";
-import { applyTone, luminance, type ToneCurve, toneCurve } from "./tone.ts";
+import type { ToneCurve } from "./tone.ts";
 
 /**
  * The lattice field: one canvas fixed behind every page, drawing a picture on
@@ -28,6 +29,19 @@ const CELL_SMALL = 13;
 const SMALL_FIELD = 900;
 const NARROW_BELOW = 768;
 const MAX_PIXEL_RATIO = 1.5;
+
+/** How far round the pointer the lattice uncovers, in cells of the field's own size. */
+const POINTER_REACH_CELLS = 6.5;
+
+/**
+ * Dev only: `?cell=<px>` draws the home field on triangles of that side, to
+ * compare cell sizes on real covers. Compiled out of production builds.
+ */
+const cellOverride = (): number | null => {
+  if (!import.meta.env.DEV) return null;
+  const px = Number(new URLSearchParams(location.search).get("cell"));
+  return px >= 6 && px <= 64 ? px : null;
+};
 
 /** How long the lattice stays uncovered after the pointer last moved. */
 const POINTER_LINGER_MS = 900;
@@ -85,50 +99,6 @@ function drawText(text: string): HTMLCanvasElement {
   context.textBaseline = "middle";
   context.fillStyle = "#ffffff";
   context.fillText(text, canvas.width / 2, canvas.height / 2 + 24, canvas.width);
-  return canvas;
-}
-
-function shrink(image: HTMLImageElement, size: number) {
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const context = canvas.getContext("2d")!;
-  context.imageSmoothingQuality = "high";
-  context.drawImage(image, 0, 0, size, size);
-  return { canvas, context };
-}
-
-/** The fixed side of the copy a cover's tone curve is measured on. */
-const TONE_SAMPLE = 72;
-
-/**
- * A cover's tone curve (`tone.ts`), measured on a fixed-size copy so it does
- * not depend on how large the texture happens to be: the picture keeps its
- * tone when the window resizes and the texture is redrawn.
- */
-function coverTone(image: HTMLImageElement): ToneCurve {
-  const { context } = shrink(image, TONE_SAMPLE);
-  const data = context.getImageData(0, 0, TONE_SAMPLE, TONE_SAMPLE).data;
-  const lums = new Float32Array(data.length / 4);
-  for (let i = 0; i < lums.length; i++) lums[i] = luminance(data[i * 4]!, data[i * 4 + 1]!, data[i * 4 + 2]!);
-  return toneCurve(lums);
-}
-
-/**
- * The cover at `size` texels square (`coverTexels`: a few to each triangle's
- * side), so the shader's taps across a triangle add up to its mean, and
- * tone-mapped over all five levels, or a dark sleeve draws as one flat tone
- * with a few bright blobs.
- */
-function drawCover(image: HTMLImageElement, size: number, curve: ToneCurve): HTMLCanvasElement {
-  const { canvas, context } = shrink(image, size);
-  const pixels = context.getImageData(0, 0, size, size);
-  const data = pixels.data;
-  for (let i = 0; i < data.length; i += 4) {
-    const tone = applyTone(luminance(data[i]!, data[i + 1]!, data[i + 2]!), curve);
-    data[i] = data[i + 1] = data[i + 2] = Math.round(tone * 255);
-  }
-  context.putImageData(pixels, 0, 0);
   return canvas;
 }
 
@@ -255,6 +225,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
         fade: uniform("uFade"),
         narrow: uniform("uNarrow"),
         pointer: uniform("uPointer"),
+        reach: uniform("uReach"),
         from: uniform("uFrom"),
         to: uniform("uTo"),
         fromRect: uniform("uFromRect"),
@@ -289,7 +260,10 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   const smallField = () => fieldSize.h < 520 * ratio;
   /** A block inside the page frame (a post's header), not a full-bleed band. */
   const boxed = () => narrow || fieldSize.w < SMALL_FIELD * ratio;
-  const cellSize = () => (smallField() ? CELL_SMALL : narrow ? CELL_NARROW : CELL_WIDE) * ratio;
+  const wideCell = cellOverride() ?? CELL_WIDE;
+  /** The cell each field is designed around, before any `?cell=` override. */
+  const designedCell = () => (smallField() ? CELL_SMALL : narrow ? CELL_NARROW : CELL_WIDE) * ratio;
+  const cellSize = () => (smallField() ? CELL_SMALL : narrow ? CELL_NARROW : wideCell) * ratio;
 
   /** Where a picture sits in the field, in device pixels. */
   const place = (key: string): Rect => {
@@ -472,6 +446,9 @@ export function startLattice(canvas: HTMLCanvasElement): void {
       gl.uniform1f(locations.mix, easeInOut(mix));
       gl.uniform1f(locations.fade, Math.min(Math.max(-box.top / Math.max(box.height, 1), 0), 1) * 0.85);
       gl.uniform1f(locations.narrow, narrow && !smallField() ? 1 : 0);
+      // Reach follows the designed cell, not the drawn one, so a finer
+      // `?cell=` keeps the pointer's light the same size on screen.
+      gl.uniform1f(locations.reach, designedCell() * POINTER_REACH_CELLS);
       gl.uniform3f(locations.pointer, pointer.x * ratio, pointer.y * ratio, frozen ? 0 : pointer.strength);
       gl.uniform4f(locations.fromRect, from.rect.x, from.rect.y, from.rect.w, from.rect.h);
       gl.uniform4f(locations.toRect, to.rect.x, to.rect.y, to.rect.w, to.rect.h);
