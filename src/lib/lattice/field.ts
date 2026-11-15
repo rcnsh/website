@@ -48,6 +48,11 @@ const cellOverride = (): number | null => {
   return px >= 6 && px <= 64 ? px : null;
 };
 
+/** The key of no picture at all. */
+const BLANK = "blank";
+/** How long a page's drawing may take before the mark stands in for it. */
+const DRAWING_OVERDUE_MS = 4000;
+
 /** How long the lattice stays uncovered after the pointer last moved. */
 const POINTER_LINGER_MS = 900;
 
@@ -216,6 +221,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
     textures.clear();
     coverSizes.clear();
     textures.set("mark", mark);
+    textures.set(BLANK, textureOf(new ImageData(1, 1)));
 
     return {
       mark,
@@ -273,6 +279,8 @@ export function startLattice(canvas: HTMLCanvasElement): void {
 
   /** Where a picture sits in the field, in device pixels. */
   const place = (key: string): Rect => {
+    // Nowhere: off the field, so not even a glyph's scatter is drawn.
+    if (key === BLANK) return { x: -1e6, y: -1e6, w: 1, h: 1 };
     const cell = cellSize();
     if (key.startsWith("cover:")) return placeCover(fieldSize, narrow && !smallField(), smallField());
     if (key.startsWith("text:")) {
@@ -360,7 +368,8 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   /** Swap to another picture with the sweep, or at once when nothing is drawn yet. */
   const show = (key: string) => {
     const fresh = arrived;
-    arrived = false;
+    // Still arriving while the page's picture is on its way.
+    if (key !== BLANK) arrived = false;
     if (to.key === key) return;
     from = to;
     to = replace({ texture: markTexture, kind: key.startsWith("cover:") ? 0 : 1, rect: place(key), key });
@@ -389,12 +398,18 @@ export function startLattice(canvas: HTMLCanvasElement): void {
           ? // Keyed on every shape's level, so it is redrawn whenever what it
             // shows changes: a signature from a new country, or one deleted.
             `${asked}:${[...drawing.querySelectorAll<SVGElement>("[data-level]")].map((shape) => shape.dataset.level).join("")}`
-          : "mark";
+          : asked.startsWith("svg:")
+            ? BLANK
+            : "mark";
     want = key;
 
     // An island's drawing lands after the page does: ask again when it has.
+    // Until then the field is empty; the mark would read as the wrong
+    // picture and then be swept away. It stands in only if nothing comes.
     pending?.disconnect();
+    clearTimeout(overdue);
     if (asked.startsWith("svg:") && !drawing) {
+      overdue = window.setTimeout(() => want === BLANK && show("mark"), DRAWING_OVERDUE_MS);
       pending = new MutationObserver(() => {
         if (document.querySelector(asked.slice(4))) resolve();
       });
@@ -412,8 +427,11 @@ export function startLattice(canvas: HTMLCanvasElement): void {
       return show(key);
     }
 
-    // The mark stands in until the picture arrives.
-    show("mark");
+    // A cover's stand-in is the mark, which is also what nothing playing
+    // looks like; a drawing's is the empty field.
+    // A redrawn drawing (a new signature on the map) keeps the old one up.
+    if (!drawing) show("mark");
+    else if (!to.key.startsWith(`${asked}:`)) show(BLANK);
     if (!cover && !drawing) return;
     loadImage(cover ? cover.image : svgPicture(drawing!))
       .then((image) => {
@@ -512,6 +530,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   }
 
   let pending: MutationObserver | null = null;
+  let overdue = 0;
   let watching: IntersectionObserver | null = null;
   let arriving: MutationObserver | null = null;
 
