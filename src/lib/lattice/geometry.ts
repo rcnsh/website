@@ -57,3 +57,34 @@ export function placeCover(field: { w: number; h: number }, narrow: boolean, com
   const side = Math.min(field.h, field.w * (compact ? 0.4 : 0.56));
   return { x: field.w - side, y: (field.h - side) / 2, w: side, h: side };
 }
+
+/** Texels along one triangle's side in a cover's texture. */
+export const COVER_TEXELS_PER_SIDE = 4;
+
+/**
+ * How many texels square a cover's texture is, so its resolution follows the
+ * lattice that draws it: a few texels to a triangle's side, whatever the cell
+ * or the cover's size on screen. Coarser and a triangle's taps blur into its
+ * neighbours; finer and they skip pixels between them.
+ */
+export function coverTexels(rect: Rect, cell: number): number {
+  return Math.min(512, Math.max(16, Math.round((rect.w / cell) * COVER_TEXELS_PER_SIDE)));
+}
+
+/**
+ * Where a triangle reads its picture, as barycentric weights of its three
+ * corners: the centroids of the `n * n` equal triangles it splits into when
+ * each side is cut into `n`. Equal areas, so the plain mean of the reads is
+ * the picture's mean over the whole triangle.
+ */
+export function triangleTaps(n: number): [number, number, number][] {
+  const taps: [number, number, number][] = [];
+  for (let a = 0; a < n; a++) {
+    for (let b = 0; a + b < n; b++) {
+      const c = n - 1 - a - b;
+      taps.push([(a + 1 / 3) / n, (b + 1 / 3) / n, (c + 1 / 3) / n]);
+      if (c > 0) taps.push([(a + 2 / 3) / n, (b + 2 / 3) / n, (c - 1 / 3) / n]);
+    }
+  }
+  return taps;
+}

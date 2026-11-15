@@ -119,3 +119,5 @@ leading 0.86, sized so the surname ends before the cover turns solid.
   of plain WebGL, so the page budget barely moved.
 - Covers are stretched to their own luminance range before being drawn, or a
   dark sleeve comes out as one flat tone.
+- Each cover triangle shows the mean of the picture under it, not the pixel at
+  its centre, so detail finer than a triangle evens out instead of speckling.

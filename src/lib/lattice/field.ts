@@ -1,7 +1,7 @@
 import { LOGO_POLYGONS, LOGO_VIEWBOX } from "../logo.ts";
 import { COVER_EVENT, currentCover } from "../lattice-source.ts";
 import { liveUpdates, motionReduced, onPrefChange } from "../prefs.ts";
-import { placeCover, placeMark, type Rect } from "./geometry.ts";
+import { coverTexels, placeCover, placeMark, type Rect } from "./geometry.ts";
 import { FRAGMENT, VERTEX } from "./shader.ts";
 
 /**
@@ -87,19 +87,25 @@ function drawText(text: string): HTMLCanvasElement {
   return canvas;
 }
 
-/** Shrunk first, so one read at a triangle's centre is the average under it. */
-function drawCover(image: HTMLImageElement): HTMLCanvasElement {
+type Range = { low: number; high: number };
+
+function shrink(image: HTMLImageElement, size: number) {
   const canvas = document.createElement("canvas");
-  canvas.width = 72;
-  canvas.height = 72;
+  canvas.width = size;
+  canvas.height = size;
   const context = canvas.getContext("2d")!;
   context.imageSmoothingQuality = "high";
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0, size, size);
+  return { canvas, context };
+}
 
-  // Stretch the cover's own range across all five levels, or a dark sleeve
-  // draws as one flat tone.
-  const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-  const data = pixels.data;
+/**
+ * The cover's luminance range, read from a 72px copy so the stretch does not
+ * depend on how large the texture happens to be.
+ */
+function coverRange(image: HTMLImageElement): Range {
+  const { context } = shrink(image, 72);
+  const data = context.getImageData(0, 0, 72, 72).data;
   let low = 255;
   let high = 0;
   for (let i = 0; i < data.length; i += 4) {
@@ -107,10 +113,24 @@ function drawCover(image: HTMLImageElement): HTMLCanvasElement {
     if (lum < low) low = lum;
     if (lum > high) high = lum;
   }
+  return { low, high };
+}
+
+/**
+ * The cover at `size` texels square (`coverTexels`: a few to each triangle's
+ * side), so the shader's taps across a triangle add up to its mean.
+ */
+function drawCover(image: HTMLImageElement, size: number, { low, high }: Range): HTMLCanvasElement {
+  const { canvas, context } = shrink(image, size);
+
+  // Stretch the cover's own range across all five levels, or a dark sleeve
+  // draws as one flat tone.
+  const pixels = context.getImageData(0, 0, size, size);
+  const data = pixels.data;
   const range = Math.max(high - low, 1);
   for (let i = 0; i < data.length; i += 4) {
     const lum = 0.299 * data[i]! + 0.587 * data[i + 1]! + 0.114 * data[i + 2]!;
-    const stretched = Math.round(((lum - low) / range) * 255);
+    const stretched = Math.min(255, Math.max(0, Math.round(((lum - low) / range) * 255)));
     data[i] = data[i + 1] = data[i + 2] = stretched;
   }
   context.putImageData(pixels, 0, 0);
@@ -177,6 +197,10 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   };
 
   const textures = new Map<string, WebGLTexture>();
+  /** Each loaded cover, kept to redraw at a new size when the lattice changes. */
+  const covers = new Map<string, { image: HTMLImageElement; range: Range }>();
+  /** The size each cover's texture in `textures` was drawn at. */
+  const coverSizes = new Map<string, number>();
   /** Width over height of each `svg:` picture, for placing it. */
   const aspects = new Map<string, number>();
 
@@ -220,6 +244,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
 
     const mark = textureOf(drawMark());
     textures.clear();
+    coverSizes.clear();
     textures.set("mark", mark);
 
     return {
@@ -315,11 +340,32 @@ export function startLattice(canvas: HTMLCanvasElement): void {
     gl.viewport(0, 0, width, height);
   };
 
+  /** A cover's texture at the size its rect on the lattice calls for. */
+  const coverTexture = (key: string, rect: Rect): WebGLTexture | undefined => {
+    const art = covers.get(key);
+    if (!art) return textures.get(key);
+    const size = coverTexels(rect, cellSize());
+    const drawn = textures.get(key);
+    if (drawn && coverSizes.get(key) === size) return drawn;
+    // Safe to drop: `draw` binds a picture's texture from the map, not from its source.
+    if (drawn) gl.deleteTexture(drawn);
+    const texture = textureOf(drawCover(art.image, size, art.range));
+    textures.set(key, texture);
+    coverSizes.set(key, size);
+    return texture;
+  };
+
+  /** Place a picture again, redrawing a cover's texture if its size moved. */
+  const replace = (source: Source): Source => {
+    const rect = place(source.key);
+    return { ...source, rect, texture: coverTexture(source.key, rect) ?? source.texture };
+  };
+
   /** Swap to another picture with the sweep, or at once when nothing is drawn yet. */
   const show = (key: string, texture: WebGLTexture) => {
     if (to.key === key) return;
     from = to;
-    to = { texture, kind: key.startsWith("cover:") ? 0 : 1, rect: place(key), key };
+    to = replace({ texture, kind: key.startsWith("cover:") ? 0 : 1, rect: place(key), key });
     mixStarted = still() ? Number.NEGATIVE_INFINITY : performance.now();
     wake();
   };
@@ -361,14 +407,18 @@ export function startLattice(canvas: HTMLCanvasElement): void {
       return show(key, texture);
     }
 
+    // A lost context took the texture, not the cover.
+    if (covers.has(key)) return show(key, coverTexture(key, place(key))!);
+
     // The mark stands in until the picture arrives.
     show("mark", markTexture);
     if (!cover && !drawing) return;
     loadImage(cover ? cover.image : svgPicture(drawing!))
       .then((image) => {
-        if (!cover) aspects.set(key, image.naturalWidth / Math.max(image.naturalHeight, 1));
-        const texture = textureOf(cover ? drawCover(image) : image);
-        textures.set(key, texture);
+        if (cover) covers.set(key, { image, range: coverRange(image) });
+        else aspects.set(key, image.naturalWidth / Math.max(image.naturalHeight, 1));
+        const texture = cover ? coverTexture(key, place(key))! : textureOf(image);
+        if (!cover) textures.set(key, texture);
         if (want === key) show(key, texture);
       })
       .catch(() => {
@@ -396,8 +446,8 @@ export function startLattice(canvas: HTMLCanvasElement): void {
     const field = { x: box.left * ratio, y: box.top * ratio, w: box.width * ratio, h: box.height * ratio };
     if (field.w !== fieldSize.w || field.h !== fieldSize.h) {
       fieldSize = { w: field.w, h: field.h };
-      from = { ...from, rect: place(from.key) };
-      to = { ...to, rect: place(to.key) };
+      from = replace(from);
+      to = replace(to);
     }
 
     const frozen = still();
@@ -434,10 +484,10 @@ export function startLattice(canvas: HTMLCanvasElement): void {
       gl.uniform1f(locations.toKind, to.kind);
 
       gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, from.texture);
+      gl.bindTexture(gl.TEXTURE_2D, textures.get(from.key) ?? from.texture);
       gl.uniform1i(locations.from, 0);
       gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, to.texture);
+      gl.bindTexture(gl.TEXTURE_2D, textures.get(to.key) ?? to.texture);
       gl.uniform1i(locations.to, 1);
 
       gl.drawArrays(gl.TRIANGLES, 0, 3);

@@ -1,8 +1,11 @@
+import { triangleTaps } from "./geometry.ts";
+
 /**
  * The field's two programs. One full-screen triangle; the fragment shader
- * finds which lattice triangle a pixel is in, reads the source picture at
- * that triangle's centre, and paints the whole triangle one of five levels,
- * the same five the contribution graph uses.
+ * finds which lattice triangle a pixel is in, reads the source picture under
+ * that triangle (a glyph at its centre, a cover averaged over its area), and
+ * paints the whole triangle one of five levels, the same five the
+ * contribution graph uses.
  *
  * Lattice coordinates (see `geometry.ts`): `v` counts rows, `u` counts sides
  * along a row and shifts half a side per row, so a unit cell is a rhombus and
@@ -15,6 +18,12 @@ void main() {
   gl_Position = vec4(aPosition, 0.0, 1.0);
 }
 `;
+
+/** Each side cut in three: nine equal triangles, one read at each centroid. */
+const TAPS = triangleTaps(3);
+const tapReads = TAPS.map(
+  ([a, b, c]) => `  sum += texture2D(tex, clamp(texelAt(rect, a * ${a.toFixed(6)} + b * ${b.toFixed(6)} + c * ${c.toFixed(6)}), 0.0, 1.0)).rgb;`,
+).join("\n");
 
 export const FRAGMENT = /* glsl */ `
 precision highp float;
@@ -45,28 +54,47 @@ uniform vec3 uLevel4;
 
 const float ROW = 0.8660254;
 
+// Lattice coordinates to px within the field.
+vec2 latticePx(vec2 uv) {
+  return vec2((uv.x - 0.5 * uv.y) * uCell, uv.y * uCell * ROW);
+}
+
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
   p += dot(p, p + 45.32);
   return fract(p.x * p.y);
 }
 
+vec2 texelAt(vec4 rect, vec2 point) {
+  return (point - rect.xy) / rect.zw;
+}
+
+// The cover's mean over the triangle with corners a, b, c (px).
+float coverMean(sampler2D tex, vec4 rect, vec2 a, vec2 b, vec2 c) {
+  vec3 sum = vec3(0.0);
+${tapReads}
+  return dot(sum / ${TAPS.length.toFixed(1)}, vec3(0.299, 0.587, 0.114));
+}
+
 // x: luminance 0..1, y: how likely the triangle is to be drawn at all.
-vec2 source(sampler2D tex, vec4 rect, float kind, vec2 centre, vec2 field) {
-  vec2 uv = (centre - rect.xy) / rect.zw;
+vec2 source(sampler2D tex, vec4 rect, float kind, vec2 centre, vec2 c0, vec2 c1, vec2 c2, vec2 field) {
+  vec2 uv = texelAt(rect, centre);
   float inside = step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
-  vec4 texel = texture2D(tex, clamp(uv, 0.0, 1.0)) * inside;
-  float lum = dot(texel.rgb, vec3(0.299, 0.587, 0.114));
 
   if (kind > 0.5) {
-    // A glyph: its own triangles always, and a thinning scatter around it.
+    // A glyph's edges lie on triangle edges, so its centre says it all: its
+    // own triangles always, and a thinning scatter around it.
+    vec4 texel = texture2D(tex, clamp(uv, 0.0, 1.0)) * inside;
+    float lum = dot(texel.rgb, vec3(0.299, 0.587, 0.114));
     vec2 away = (centre - (rect.xy + rect.zw * 0.5)) / (rect.zw * vec2(0.9, 1.9));
     float ambient = 0.3 * (1.0 - smoothstep(0.25, 1.0, length(away)));
     return vec2(lum, mix(ambient, 1.0, step(0.5, texel.a)));
   }
 
-  // A cover: solid at the far edge, dissolving towards the text. On a phone
-  // it stays inside its own square and thins out down it.
+  // A cover: the mean of what the triangle covers, so one stray pixel at its
+  // centre cannot decide it. Solid at the far edge, dissolving towards the
+  // text; on a phone it stays inside its own square and thins out down it.
+  float lum = coverMean(tex, rect, c0, c1, c2) * inside;
   vec2 n = centre / field;
   float wide = smoothstep(0.1, 0.7, uv.x) * (1.0 - smoothstep(0.9, 1.0, n.y)) * mix(0.4, 1.0, inside);
   float tall = (1.0 - smoothstep(0.38, 1.0, uv.y)) * inside;
@@ -88,7 +116,10 @@ void main() {
     upper
   );
   vec2 centreUv = cell + mix(vec2(1.0 / 3.0, 2.0 / 3.0), vec2(2.0 / 3.0, 1.0 / 3.0), upper);
-  vec2 centre = vec2((centreUv.x - 0.5 * centreUv.y) * uCell, centreUv.y * uCell * ROW);
+  vec2 centre = latticePx(centreUv);
+  vec2 c0 = latticePx(cell);
+  vec2 c1 = latticePx(cell + mix(vec2(0.0, 1.0), vec2(1.0, 0.0), upper));
+  vec2 c2 = latticePx(cell + 1.0);
 
   // The picture stops at the field's own box, part-way through a triangle if
   // need be. Past it the lattice is empty until the pointer uncovers it.
@@ -107,8 +138,8 @@ void main() {
 
   float mixFront = diagonal - (uMix * 1.5 - 0.25);
   float useTo = step(mixFront, 0.0);
-  vec2 a = source(uFrom, uFromRect, uFromKind, centre, uField.zw);
-  vec2 b = source(uTo, uToRect, uToKind, centre, uField.zw);
+  vec2 a = source(uFrom, uFromRect, uFromKind, centre, c0, c1, c2, uField.zw);
+  vec2 b = source(uTo, uToRect, uToKind, centre, c0, c1, c2, uField.zw);
   vec2 s = mix(a, b, useTo) * inField;
   float kind = mix(uFromKind, uToKind, useTo);
 

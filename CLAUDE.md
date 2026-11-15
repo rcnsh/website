@@ -491,6 +491,16 @@ arrives in a server island, so the field waits for the selector to match.
 triangle and a top row whose parity matches it. Position it any other way and
 the mark comes out as scattered triangles.
 
+**A cover triangle is its picture's mean, a glyph triangle its centre.**
+The shader reads a cover at nine equal-area points per triangle
+(`triangleTaps(3)`, `geometry.ts`) from a texture sized to the lattice
+(`coverTexels`: four texels to a side), so a stray pixel cannot decide a
+triangle. The texture is redrawn whenever the cover's rect or the cell
+changes; a fixed size would make the taps skip or blur. The min-to-max
+stretch is still read from a 72px copy, so it does not move with that size.
+Glyphs keep the single centre read: their edges are lattice edges, and
+averaging would grey them.
+
 **The cover reaches the field through `lattice-source.ts`**, published by
 `NowPlaying.tsx`. It is loaded with `crossOrigin`, since its pixels go into a
 texture, so a cover host must answer with CORS as well as being in `img-src`.

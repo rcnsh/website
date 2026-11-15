@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { MARK_ROWS, MARK_SIDES, ROW, placeCover, placeMark } from "./geometry.ts";
+import {
+  COVER_TEXELS_PER_SIDE,
+  coverTexels,
+  MARK_ROWS,
+  MARK_SIDES,
+  ROW,
+  placeCover,
+  placeMark,
+  triangleTaps,
+} from "./geometry.ts";
 
 const CELL = 24;
 
@@ -45,4 +54,57 @@ test("a wide field hangs the cover off its far edge", () => {
 
 test("a narrow field runs the cover edge to edge across the top", () => {
   assert.deepEqual(placeCover({ w: 390, h: 1000 }, true), { x: 0, y: 0, w: 390, h: 390 });
+});
+
+test("a triangle's taps are its sub-triangles' centroids, n squared of them, inside it", () => {
+  for (const n of [1, 2, 3, 4]) {
+    const taps = triangleTaps(n);
+    assert.equal(taps.length, n * n);
+    for (const tap of taps) {
+      assert.equal(Math.abs(tap[0] + tap[1] + tap[2] - 1) < 1e-12, true);
+      assert.equal(Math.min(...tap) > 0, true);
+    }
+    assert.equal(new Set(taps.map((tap) => tap.map((w) => w.toFixed(9)).join())).size, n * n);
+    // Equal areas: the taps' mean is the triangle's centroid.
+    for (const corner of [0, 1, 2]) {
+      const mean = taps.reduce((sum, tap) => sum + tap[corner]!, 0) / taps.length;
+      assert.equal(Math.abs(mean - 1 / 3) < 1e-12, true);
+    }
+  }
+});
+
+test("the taps' mean is close to a curved picture's mean over the triangle", () => {
+  const corners = [
+    [0, 0],
+    [1, 0],
+    [0.5, ROW],
+  ] as const;
+  const f = (x: number, y: number) => x * x + 3 * y;
+  const at = (w: readonly number[]) => {
+    const x = w[0]! * corners[0][0] + w[1]! * corners[1][0] + w[2]! * corners[2][0];
+    const y = w[0]! * corners[0][1] + w[1]! * corners[1][1] + w[2]! * corners[2][1];
+    return f(x, y);
+  };
+  // The true mean, by brute force over a fine grid of barycentric points.
+  let sum = 0;
+  let count = 0;
+  const steps = 600;
+  for (let i = 0; i <= steps; i++) {
+    for (let j = 0; i + j <= steps; j++) {
+      sum += at([i / steps, j / steps, 1 - (i + j) / steps]);
+      count++;
+    }
+  }
+  const truth = sum / count;
+  const taps = triangleTaps(3);
+  const estimate = taps.reduce((total, tap) => total + at(tap), 0) / taps.length;
+  assert.equal(Math.abs(estimate - truth) < 0.01, true, `${estimate} vs ${truth}`);
+});
+
+test("a cover's texture has a fixed number of texels to a triangle's side", () => {
+  assert.equal(coverTexels({ x: 0, y: 0, w: 806, h: 806 }, 24), Math.round((806 / 24) * COVER_TEXELS_PER_SIDE));
+  // Twice the cell, half the texels: the triangle's share stays the same.
+  assert.equal(coverTexels({ x: 0, y: 0, w: 960, h: 960 }, 48) * 2, coverTexels({ x: 0, y: 0, w: 960, h: 960 }, 24));
+  assert.equal(coverTexels({ x: 0, y: 0, w: 1, h: 1 }, 24), 16);
+  assert.equal(coverTexels({ x: 0, y: 0, w: 1e5, h: 1e5 }, 24), 512);
 });
