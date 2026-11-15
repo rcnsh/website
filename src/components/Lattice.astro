@@ -1,6 +1,6 @@
 ---
 /**
- * The canvas the lattice field draws on: fixed behind the page, and persisted
+ * The canvas the lattice field draws on: pinned behind the page, and persisted
  * so one WebGL context serves every page and the picture can sweep from one
  * page's to the next's. See src/lib/lattice/field.ts.
  */
@@ -9,12 +9,19 @@
 <canvas class="lattice" data-lattice-canvas aria-hidden="true" transition:persist="lattice"></canvas>
 
 <style>
+  /* Sticky rather than fixed: a rubber-band bounce moves the page's content,
+     sticky elements included, but leaves fixed ones behind, so a fixed field
+     would slide off the page it draws. The negative margin takes it out of
+     the flow, so it covers the viewport exactly as fixed did. It must stay a
+     direct child of <body>, the box it sticks within. */
   .lattice {
-    position: fixed;
-    inset: 0;
+    position: sticky;
+    top: 0;
     z-index: 0;
+    display: block;
     width: 100%;
-    height: 100%;
+    height: 100dvh;
+    margin-bottom: -100dvh;
     pointer-events: none;
   }
 </style>

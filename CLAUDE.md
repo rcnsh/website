@@ -479,7 +479,10 @@ never injects it again. The same holds for any lazily loaded module's CSS.
 **One canvas behind every page draws on the mark's triangle grid**
 (`src/components/Lattice.astro`, `src/lib/lattice/field.ts`; the why is in
 `DESIGN.md`). It is persisted across soft navigations, so its script runs once
-per document and rebinds on `astro:after-swap`. A page opts in with
+per document and rebinds on `astro:after-swap`. It is sticky, not fixed, and
+must stay a direct child of `<body>`: a macOS rubber-band bounce moves the
+page and its sticky header but leaves fixed elements behind, so a fixed
+canvas slides off the page it draws. A page opts in with
 `data-lattice` on one element (`cover`, `mark`, `text:…` or `svg:<selector>`),
 and that element must have no background of its own: the canvas is under the
 page, so a fill hides it. `page-band` and `page-hero` are transparent for this
