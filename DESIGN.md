@@ -124,3 +124,8 @@ leading 0.86, sized so the surname ends before the cover turns solid.
   mid-tones but barely touches one whose highlights already carry its mean.
 - Each cover triangle shows the mean of the picture under it, not the pixel at
   its centre, so detail finer than a triangle evens out instead of speckling.
+- A cover is solid over its far half and dissolves in a short band that ends
+  before the home name's last letter (`COVER_*` in `shader.ts`). In the band
+  the darkest triangles go first, mixed with chance so the edge stays ragged:
+  a random thinning across most of the width erased the picture where it is
+  widest.

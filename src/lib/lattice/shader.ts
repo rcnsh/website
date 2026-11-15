@@ -59,6 +59,17 @@ vec2 latticePx(vec2 uv) {
   return vec2((uv.x - 0.5 * uv.y) * uCell, uv.y * uCell * ROW);
 }
 
+// Where a cover dissolves, across its square (uv). Wide: gone left of
+// GONE_X, which clears the home name's last letter at 1440px (it reaches
+// 0.18), solid from SOLID_X. Phone: solid down to SOLID_Y, gone by GONE_Y,
+// above the name. RANK is how much brightness, against chance, decides
+// which triangles in the band survive.
+const float COVER_GONE_X = 0.2;
+const float COVER_SOLID_X = 0.47;
+const float COVER_SOLID_Y = 0.5;
+const float COVER_GONE_Y = 0.7;
+const float COVER_RANK = 0.45;
+
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
   p += dot(p, p + 45.32);
@@ -92,13 +103,21 @@ vec2 source(sampler2D tex, vec4 rect, float kind, vec2 centre, vec2 c0, vec2 c1,
   }
 
   // A cover: the mean of what the triangle covers, so one stray pixel at its
-  // centre cannot decide it. Solid at the far edge, dissolving towards the
-  // text; on a phone it stays inside its own square and thins out down it.
+  // centre cannot decide it. Solid over most of its square, dissolving in a
+  // short band that ends before the text starts. On a phone it stays inside
+  // its own square and thins out down it, clear of the name below.
   float lum = coverMean(tex, rect, c0, c1, c2) * inside;
   vec2 n = centre / field;
-  float wide = smoothstep(0.1, 0.7, uv.x) * (1.0 - smoothstep(0.9, 1.0, n.y)) * mix(0.4, 1.0, inside);
-  float tall = (1.0 - smoothstep(0.38, 1.0, uv.y)) * inside;
-  return vec2(lum, mix(wide, tall, uNarrow));
+  float wide = clamp((uv.x - COVER_GONE_X) / (COVER_SOLID_X - COVER_GONE_X), 0.0, 1.0) * (1.0 - smoothstep(0.9, 1.0, n.y)) * mix(0.4, 1.0, inside);
+  float tall = (1.0 - smoothstep(COVER_SOLID_Y, COVER_GONE_Y, uv.y)) * inside;
+  float band = mix(wide, tall, uNarrow);
+
+  // Inside the band the darkest triangles go first, so the picture's bright
+  // shapes are the last of it. main() draws a triangle when its hash id2 is
+  // under the presence, so this is "drawn when mix(id2, 1 - lum, RANK) <
+  // band", solved for id2: the hash keeps the edge ragged, not a contour.
+  float ranked = clamp((band - COVER_RANK * (1.0 - lum)) / (1.0 - COVER_RANK), 0.0, 1.0);
+  return vec2(lum, mix(band, ranked, inside));
 }
 
 void main() {
