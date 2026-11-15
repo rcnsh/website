@@ -71,10 +71,15 @@
       {
         "title": "EVERY DAY",
         "items": [
-          { "name": "VS Code", "url": "https://code.visualstudio.com/", "art": "vscode" },
-          { "name": "Terminal", "detail": "macOS", "art": "terminal" },
+          { "name": "Rex", "url": "https://www.superlogical.com/rex", "detail": "Superlogical", "art": "rex" },
           { "name": "Helium", "url": "https://helium.computer/", "detail": "Browser", "art": "helium" },
+          { "name": "T3 Code", "url": "https://t3.codes/", "art": "t3code" },
           { "name": "Claude", "url": "https://claude.ai/", "art": "claude" },
+          { "name": "Obsidian", "url": "https://obsidian.md/", "art": "obsidian" },
+          { "name": "Spotify", "url": "https://spicetify.app/", "detail": "Spicetify", "art": "spotify" },
+          { "name": "Bitwarden", "url": "https://bitwarden.com/", "art": "bitwarden" },
+          { "name": "Mullvad", "url": "https://mullvad.net/", "detail": "VPN", "art": "mullvad" },
+          { "name": "Tailscale", "url": "https://tailscale.com/", "art": "tailscale" },
           { "name": "Premiere Pro", "detail": "Adobe", "art": "premiere" }
         ]
       },

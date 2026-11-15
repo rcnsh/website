@@ -25,6 +25,11 @@ const WANTED: Record<string, string> = {
   postgres: "postgresql",
   linux: "linux",
   claude: "claude",
+  obsidian: "obsidian",
+  spotify: "spotify",
+  bitwarden: "bitwarden",
+  mullvad: "mullvad",
+  tailscale: "tailscale",
 };
 
 type Icon = { title: string; slug: string; path: string };
