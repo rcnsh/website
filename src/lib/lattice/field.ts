@@ -284,7 +284,10 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   const wideCell = cellOverride() ?? CELL_WIDE;
   const pointerReach = () => (smallField() ? POINTER_REACH.small : narrow ? POINTER_REACH.narrow : POINTER_REACH.wide) * ratio;
   const cellSize = () => (smallField() ? CELL_SMALL : narrow ? CELL_NARROW : wideCell) * ratio;
-  const coverLayout = (): CoverLayout => (smallField() ? (narrow ? "compact" : "band") : narrow ? "narrow" : "wide");
+  /** A title band, as against a home hero that happens to be short (a landscape phone). */
+  const titleBand = () => Boolean(host?.classList.contains("page-band"));
+  const coverLayout = (): CoverLayout =>
+    smallField() ? (!narrow && titleBand() ? "band" : "compact") : narrow ? "narrow" : "wide";
 
   /** Where a picture sits in the field, in device pixels. */
   const place = (key: string): Rect => {

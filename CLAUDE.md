@@ -526,7 +526,8 @@ dither amplitude (`COVER_DITHER`) were tuned together against real covers:
 change one and look at a dark sleeve, Trench and the home name again.
 
 **A title band's cover is a strip, not a square** (`/music` from 768px up;
-`placeCover`'s `band` layout). The texture stays square: the square is grown
+`placeCover`'s `band` layout, chosen for a `page-band` host only, so a
+short home hero keeps the `compact` square). The texture stays square: the square is grown
 to `1 / BAND_COVER_SHOWN` of the band's height and centred, so the band's own
 top and bottom crop it, and its far edge sits on the page frame. The shader
 gives it its own dissolve (`BAND_GONE_X`, `BAND_SOLID_X`, on `uBand`), no
