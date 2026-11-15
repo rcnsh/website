@@ -53,12 +53,11 @@ const BLANK = "blank";
 /** How long a page's drawing may take before the mark stands in for it. */
 const DRAWING_OVERDUE_MS = 4000;
 /**
- * Once a session the cover field opens on the mark and holds it this long
+ * Once a page load the cover field opens on the mark and holds it this long
  * from the page's arrival (the reveal, then a moment still) before
  * dissolving into the cover, so a visitor sees both pictures.
  */
 const MARK_INTRO_MS = 2500;
-const MARK_INTRO_KEY = "rcn:lattice-intro";
 
 /** How long the lattice stays uncovered after the pointer last moved. */
 const POINTER_LINGER_MS = 900;
@@ -565,21 +564,20 @@ export function startLattice(canvas: HTMLCanvasElement): void {
 
   let pending: MutationObserver | null = null;
   let overdue = 0;
-  /** Until when the cover field keeps to the mark (the once-a-session intro). */
+  /** Until when the cover field keeps to the mark (the once-a-load intro). */
   let introUntil = 0;
   let introTimer = 0;
-  /** The home field opts in; a band (`/music`) would spend the session's one intro. */
+  /**
+   * The field lives as long as the document, so a reload plays the intro
+   * again while coming back to the home page by a link does not.
+   */
+  let introPlayed = false;
+  /** The home field opts in; a band (`/music`) would spend the load's one intro. */
   const introHere = () => host?.dataset.lattice === "cover" && host.hasAttribute("data-lattice-intro");
-  /** Start the intro if this page asks for it and the session has not seen it. */
+  /** Start the intro if this page asks for it and this document has not played it. */
   const startIntro = () => {
-    if (!introHere() || still()) return;
-    try {
-      if (sessionStorage.getItem(MARK_INTRO_KEY)) return;
-      sessionStorage.setItem(MARK_INTRO_KEY, "1");
-    } catch {
-      // Storage refused: show the cover straight away rather than every visit.
-      return;
-    }
+    if (!introHere() || still() || introPlayed) return;
+    introPlayed = true;
     introUntil = performance.now() + MARK_INTRO_MS;
     introTimer = window.setTimeout(() => {
       introUntil = 0;

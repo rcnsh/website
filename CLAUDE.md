@@ -538,13 +538,14 @@ fade at the foot, and nothing past its edge. A phone's band keeps the
 `NowPlaying.tsx`. It is loaded with `crossOrigin`, since its pixels go into a
 texture, so a cover host must answer with CORS as well as being in `img-src`.
 
-**Once a session the home field opens on the mark before the cover.**
+**Once a page load the home field opens on the mark before the cover.**
 Only a field marked `data-lattice-intro` (the home hero) has it, so landing
-on `/music` neither holds its band nor spends the session's intro.
+on `/music` neither holds its band nor spends the intro.
 `startIntro` (`field.ts`) holds the mark for `MARK_INTRO_MS` (2.5s) from the
-page's arrival, loading the cover underneath, then sweeps to it; the
-`rcn:lattice-intro` sessionStorage flag keeps it to the first visit, and
-reduced motion or Live updates off skip it.
+page's arrival, loading the cover underneath, then sweeps to it. It plays
+once per document (`introPlayed`, since the field outlives soft
+navigations): a reload plays it again, coming back by a link does not.
+Reduced motion or Live updates off skip it.
 
 **The caption beside the home field comes from `coverCaption`**
 (`lattice-source.ts`), which tells a live cover (`live` on the published
