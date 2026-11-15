@@ -537,6 +537,10 @@ fade at the foot, and nothing past its edge. A phone's band keeps the
 `NowPlaying.tsx`. It is loaded with `crossOrigin`, since its pixels go into a
 texture, so a cover host must answer with CORS as well as being in `img-src`.
 
+**The caption beside the home field comes from `coverCaption`**
+(`lattice-source.ts`), which tells a live cover (`live` on the published
+`Cover`) from the last one played.
+
 **Dev has two query parameters for the field**, both behind
 `import.meta.env.DEV` and compiled out of production. `?cover=<image url>`
 draws that cover and holds it against the now-playing widget, since local

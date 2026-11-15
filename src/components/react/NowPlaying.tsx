@@ -204,10 +204,12 @@ export default function NowPlaying({
   // The lattice field redraws whatever cover this card is showing.
   const cover = data && "image" in data ? data.image : null;
   const coverLabel = data && "title" in data ? `${data.title}, ${data.artists}` : "";
+  // As the card says: a dead endpoint's last track is not playing now.
+  const coverLive = data?.state === "playing" && failures < STALE_AFTER_FAILURES;
   useEffect(() => {
     if (!data) return;
-    publishCover(cover ? { image: cover, label: coverLabel } : null);
-  }, [data, cover, coverLabel]);
+    publishCover(cover ? { image: cover, label: coverLabel, live: coverLive } : null);
+  }, [data, cover, coverLabel, coverLive]);
 
   if (!data) {
     // Each bar sits in a line with the loaded line's own type classes, so the

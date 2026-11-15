@@ -13,7 +13,16 @@ export type Cover = {
   image: string;
   /** What the picture is, for the caption beside the field. */
   label: string;
+  /** Playing now, as against the last thing played. */
+  live: boolean;
 };
+
+/** What the caption beside the field says the triangles are drawing. */
+export function coverCaption(cover: Cover | null): string {
+  if (!cover) return "the rcn mark";
+  // The qualifier leads, so a long title truncates rather than it.
+  return cover.live ? `what's playing now: ${cover.label}` : `the last thing played: ${cover.label}`;
+}
 
 let cover: Cover | null = null;
 /** Dev only: a `?cover=` test cover, which the now-playing widget may not replace. */
@@ -27,13 +36,13 @@ export function currentCover(): Cover | null {
 export function publishCover(next: Cover | null): void {
   // Optional chaining only so node --test, which has no import.meta.env, can load it.
   if (import.meta.env?.DEV && pinned) return;
-  if (next?.image === cover?.image && next?.label === cover?.label) return;
+  if (next?.image === cover?.image && next?.label === cover?.label && next?.live === cover?.live) return;
   cover = next;
   document.dispatchEvent(new CustomEvent(COVER_EVENT));
 }
 
 /** Dev only, with no warehouse token: draw this cover whatever is playing. */
 export function pinCover(image: string): void {
-  publishCover({ image, label: "test cover" });
+  publishCover({ image, label: "test cover", live: true });
   pinned = true;
 }

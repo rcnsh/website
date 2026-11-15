@@ -1,5 +1,5 @@
 import { LOGO_POLYGONS, LOGO_VIEWBOX } from "../logo.ts";
-import { COVER_EVENT, currentCover } from "../lattice-source.ts";
+import { COVER_EVENT, coverCaption, currentCover } from "../lattice-source.ts";
 import { liveUpdates, motionReduced, onPrefChange } from "../prefs.ts";
 import { coverTone, drawCover } from "./cover.ts";
 import { type CoverLayout, coverTexels, placeCover, placeMark, type Rect } from "./geometry.ts";
@@ -422,7 +422,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
     }
 
     const caption = document.querySelector<HTMLElement>("[data-lattice-caption]");
-    if (caption) caption.textContent = cover ? cover.label : "the rcn mark";
+    if (caption) caption.textContent = coverCaption(cover);
 
     // A lost context takes a cover's texture, not the cover: `show` redraws it.
     if (textures.has(key) || covers.has(key)) return show(key);
