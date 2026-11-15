@@ -371,9 +371,12 @@ export function startLattice(canvas: HTMLCanvasElement): void {
     // Still arriving while the page's picture is on its way.
     if (key !== BLANK) arrived = false;
     if (to.key === key) return;
+    // The drawing this page was waiting on: its reveal is already running,
+    // and starting it again would blink out whatever the pointer has lit.
+    const awaited = to.key === BLANK;
     from = to;
     to = replace({ texture: markTexture, kind: key.startsWith("cover:") ? 0 : 1, rect: place(key), key });
-    if (fresh) {
+    if (fresh && !awaited) {
       // A new page: its picture arrives on its own. Sweeping from the last
       // page's would first redraw that one in this page's field, where it
       // reads as the old page left behind.
@@ -449,6 +452,13 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   const draw = (now: number) => {
     frame = 0;
     if (!host || document.hidden || lost) return;
+    // A server island replaced its fallback, host included (/files). A
+    // removed element measures zero, so waiting for the observer to notice
+    // draws an empty field for a frame or two.
+    if (!host.isConnected) {
+      bind();
+      if (!host) return;
+    }
 
     // The pointer uncovers the lattice anywhere on the page, for as long as
     // it keeps moving. At rest off the field there is nothing to draw, so
