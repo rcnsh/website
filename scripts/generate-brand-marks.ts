@@ -26,7 +26,6 @@ const WANTED: Record<string, string> = {
   linux: "linux",
   claude: "claude",
   obsidian: "obsidian",
-  spotify: "spotify",
   bitwarden: "bitwarden",
   mullvad: "mullvad",
   tailscale: "tailscale",
