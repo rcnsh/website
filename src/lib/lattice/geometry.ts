@@ -60,6 +60,7 @@ export function placeCover(field: { w: number; h: number }, narrow: boolean, com
 
 /** Texels along one triangle's side in a cover's texture. */
 export const COVER_TEXELS_PER_SIDE = 4;
+const COVER_TEXEL_STEP = 16;
 
 /**
  * How many texels square a cover's texture is, so its resolution follows the
@@ -68,7 +69,10 @@ export const COVER_TEXELS_PER_SIDE = 4;
  * neighbours; finer and they skip pixels between them.
  */
 export function coverTexels(rect: Rect, cell: number): number {
-  return Math.min(512, Math.max(16, Math.round((rect.w / cell) * COVER_TEXELS_PER_SIDE)));
+  // In steps, so dragging a window's edge redraws the texture every few
+  // dozen pixels, not on every frame.
+  const wanted = Math.ceil(((rect.w / cell) * COVER_TEXELS_PER_SIDE) / COVER_TEXEL_STEP) * COVER_TEXEL_STEP;
+  return Math.min(512, Math.max(COVER_TEXEL_STEP, wanted));
 }
 
 /**

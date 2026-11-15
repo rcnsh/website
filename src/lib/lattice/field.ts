@@ -21,7 +21,7 @@ import type { ToneCurve } from "./tone.ts";
 
 type Source = { texture: WebGLTexture; kind: 0 | 1; rect: Rect; key: string };
 
-/** The home field. 16 is the coarsest side at which covers read as pictures. */
+/** The home field on a wide screen: at 24 most covers read as blobs, at 14 the gutters dim them. */
 const CELL_WIDE = 16;
 const CELL_NARROW = 17;
 /** Title blocks: fine enough that the mark fits twice over beside a heading. */
@@ -43,7 +43,7 @@ const POINTER_REACH = { wide: 156, narrow: 110, small: 84 } as const;
  * compare cell sizes on real covers. Compiled out of production builds.
  */
 const cellOverride = (): number | null => {
-  if (!import.meta.env.DEV) return null;
+  if (!import.meta.env?.DEV) return null;
   const px = Number(new URLSearchParams(location.search).get("cell"));
   return px >= 6 && px <= 64 ? px : null;
 };
@@ -266,7 +266,6 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   /** A block inside the page frame (a post's header), not a full-bleed band. */
   const boxed = () => narrow || fieldSize.w < SMALL_FIELD * ratio;
   const wideCell = cellOverride() ?? CELL_WIDE;
-  /** The cell each field is designed around, before any `?cell=` override. */
   const pointerReach = () => (smallField() ? POINTER_REACH.small : narrow ? POINTER_REACH.narrow : POINTER_REACH.wide) * ratio;
   const cellSize = () => (smallField() ? CELL_SMALL : narrow ? CELL_NARROW : wideCell) * ratio;
 
@@ -317,9 +316,10 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   /** A cover's texture at the size its rect on the lattice calls for. */
   const coverTexture = (key: string, rect: Rect): WebGLTexture | undefined => {
     const art = covers.get(key);
-    if (!art) return textures.get(key);
-    const size = coverTexels(rect, cellSize());
     const drawn = textures.get(key);
+    // No field measured yet (a page just bound): `draw` sizes it next frame.
+    if (!art || !fieldSize.w) return drawn;
+    const size = coverTexels(rect, cellSize());
     if (drawn && coverSizes.get(key) === size) return drawn;
     // Safe to drop: `draw` binds a picture's texture from the map, not from its source.
     if (drawn) gl.deleteTexture(drawn);
@@ -335,12 +335,29 @@ export function startLattice(canvas: HTMLCanvasElement): void {
     return { ...source, rect, texture: coverTexture(source.key, rect) ?? source.texture };
   };
 
+  /**
+   * Forget every cover but the ones on screen or asked for. Each holds a
+   * decoded image and a texture, and the field lives for the whole visit, so
+   * a tab left open through a listening session would keep them all.
+   */
+  const prune = () => {
+    for (const key of covers.keys()) {
+      if (key === from.key || key === to.key || key === want) continue;
+      const texture = textures.get(key);
+      if (texture) gl.deleteTexture(texture);
+      textures.delete(key);
+      coverSizes.delete(key);
+      covers.delete(key);
+    }
+  };
+
   /** Swap to another picture with the sweep, or at once when nothing is drawn yet. */
-  const show = (key: string, texture: WebGLTexture) => {
+  const show = (key: string) => {
     if (to.key === key) return;
     from = to;
-    to = replace({ texture, kind: key.startsWith("cover:") ? 0 : 1, rect: place(key), key });
+    to = replace({ texture: markTexture, kind: key.startsWith("cover:") ? 0 : 1, rect: place(key), key });
     mixStarted = still() ? Number.NEGATIVE_INFINITY : performance.now();
+    prune();
     wake();
   };
 
@@ -372,28 +389,24 @@ export function startLattice(canvas: HTMLCanvasElement): void {
     const caption = document.querySelector<HTMLElement>("[data-lattice-caption]");
     if (caption) caption.textContent = cover ? cover.label : "the rcn mark";
 
-    const ready = textures.get(key);
-    if (ready) return show(key, ready);
+    // A lost context takes a cover's texture, not the cover: `show` redraws it.
+    if (textures.has(key) || covers.has(key)) return show(key);
 
     if (key.startsWith("text:")) {
-      const texture = textureOf(drawText(key.slice(5)));
-      textures.set(key, texture);
-      return show(key, texture);
+      textures.set(key, textureOf(drawText(key.slice(5))));
+      return show(key);
     }
 
-    // A lost context took the texture, not the cover.
-    if (covers.has(key)) return show(key, coverTexture(key, place(key))!);
-
     // The mark stands in until the picture arrives.
-    show("mark", markTexture);
+    show("mark");
     if (!cover && !drawing) return;
     loadImage(cover ? cover.image : svgPicture(drawing!))
       .then((image) => {
         if (cover) covers.set(key, { image, tone: coverTone(image) });
         else aspects.set(key, image.naturalWidth / Math.max(image.naturalHeight, 1));
-        const texture = cover ? coverTexture(key, place(key))! : textureOf(image);
-        if (!cover) textures.set(key, texture);
-        if (want === key) show(key, texture);
+        if (!cover) textures.set(key, textureOf(image));
+        if (want === key) show(key);
+        else prune();
       })
       .catch(() => {
         // No cover to draw: the mark stays.
@@ -427,6 +440,11 @@ export function startLattice(canvas: HTMLCanvasElement): void {
     const frozen = still();
     const mix = frozen ? 1 : Math.min((now - mixStarted) / 1000 / MIX_SECONDS, 1);
     const reveal = frozen ? 1 : Math.min((now - revealStarted) / 1000 / REVEAL_SECONDS, 1);
+    // The sweep is over: let go of the picture it came from.
+    if (mix >= 1 && from !== to) {
+      from = to;
+      prune();
+    }
 
     pointer.strength += (pointer.target - pointer.strength) * 0.08;
     pointer.x += (pointer.tx - pointer.x) * 0.16;

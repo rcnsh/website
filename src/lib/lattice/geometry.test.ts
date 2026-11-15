@@ -102,7 +102,10 @@ test("the taps' mean is close to a curved picture's mean over the triangle", () 
 });
 
 test("a cover's texture has a fixed number of texels to a triangle's side", () => {
-  assert.equal(coverTexels({ x: 0, y: 0, w: 806, h: 806 }, 24), Math.round((806 / 24) * COVER_TEXELS_PER_SIDE));
+  // At least a few texels to a side, rounded up to a step so a resize does not redraw it every frame.
+  assert.equal(coverTexels({ x: 0, y: 0, w: 806, h: 806 }, 24), 144);
+  assert.ok(144 >= (806 / 24) * COVER_TEXELS_PER_SIDE);
+  assert.equal(coverTexels({ x: 0, y: 0, w: 812, h: 812 }, 24), 144);
   // Twice the cell, half the texels: the triangle's share stays the same.
   assert.equal(coverTexels({ x: 0, y: 0, w: 960, h: 960 }, 48) * 2, coverTexels({ x: 0, y: 0, w: 960, h: 960 }, 24));
   assert.equal(coverTexels({ x: 0, y: 0, w: 1, h: 1 }, 24), 16);

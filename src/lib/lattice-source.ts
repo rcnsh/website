@@ -25,7 +25,8 @@ export function currentCover(): Cover | null {
 
 /** `null` when nothing is playing and nothing was: the field shows the mark. */
 export function publishCover(next: Cover | null): void {
-  if (import.meta.env.DEV && pinned) return;
+  // Optional chaining only so node --test, which has no import.meta.env, can load it.
+  if (import.meta.env?.DEV && pinned) return;
   if (next?.image === cover?.image && next?.label === cover?.label) return;
   cover = next;
   document.dispatchEvent(new CustomEvent(COVER_EVENT));

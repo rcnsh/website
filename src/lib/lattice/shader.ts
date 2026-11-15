@@ -178,9 +178,11 @@ void main() {
 
   float mixFront = diagonal - (uMix * 1.5 - 0.25);
   float useTo = step(mixFront, 0.0);
-  vec2 a = source(uFrom, uFromRect, uFromKind, centre, c0, c1, c2, uField.zw);
-  vec2 b = source(uTo, uToRect, uToKind, centre, c0, c1, c2, uField.zw);
-  vec2 s = mix(a, b, useTo) * inField;
+  // Only the side of the front this triangle is on: a cover costs nine reads.
+  vec2 s;
+  if (useTo > 0.5) s = source(uTo, uToRect, uToKind, centre, c0, c1, c2, uField.zw);
+  else s = source(uFrom, uFromRect, uFromKind, centre, c0, c1, c2, uField.zw);
+  s *= inField;
   float kind = mix(uFromKind, uToKind, useTo);
 
   float revealFront = mix(1.0, (uReveal * 1.5 - 0.25) - diagonal, inField);
@@ -229,7 +231,10 @@ void main() {
   float distanceToEdge = min(bary.x, min(bary.y, bary.z)) * uCell * ROW;
   float alpha = clamp(distanceToEdge - inset + 0.5, 0.0, 1.0);
 
-  colour *= 1.0 + breath * 1.8 * cover;
+  // A cover breathes by dimming, never past its level's own colour, and not
+  // at all on a still field, where it would freeze as mottling.
+  float dim = 0.5 - 0.5 * sin(uTime * 0.7 + id * 6.2831);
+  colour *= 1.0 - 0.1 * dim * cover * step(0.001, uTime);
   gl_FragColor = vec4(colour * alpha, alpha);
 }
 `;
