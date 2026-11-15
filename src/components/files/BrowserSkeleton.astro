@@ -1,0 +1,104 @@
+---
+/**
+ * FileBrowser's frame before the island lands: its toolbar, columns and
+ * footer, with the same classes, so browser.css sizes both alike. Only a
+ * phone's height depends on what is listed (its columns stack and grow
+ * with their rows); the rows here are the bucket root's four folders and
+ * the preview of the first.
+ */
+const ROOT_ROWS = 4;
+const PREVIEW_ROWS = 3;
+
+// FileBrowser's Row: kind icon, name, size and (wide screens only) date.
+const rows = (count: number) => Array.from({ length: count });
+---
+
+<section class="fb tile col-span-12" aria-label="File browser" aria-busy="true">
+  <div class="fb-tb" aria-hidden="true">
+    <div class="fb-crumbs">
+      <span class="px-1 py-0.5"><span class="placeholder-text w-12" /></span>
+      <span class="cnt"><span class="placeholder-text w-32" /></span>
+    </div>
+    <div class="fb-tools">
+      <div class="fb-search placeholder-block h-[34px] rounded-[6px]"></div>
+      <div class="fb-sort">
+        <span>Sort</span>
+        <span class="fb-seg">
+          {["name", "size", "date"].map((key) => <span>{key}</span>)}
+        </span>
+        <span class="inline-block size-6"></span>
+      </div>
+      <div class="fb-views">
+        <span class="block h-[30px] w-[34px]"></span>
+        <span class="block h-[30px] w-[34px] border-l border-line-soft"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="fb-cols pointer-events-none" aria-hidden="true">
+    <div class="fb-col fb-parent">
+      <div class="fb-col-h"><b><span class="placeholder-text w-16" /></b></div>
+      <div class="fb-rows">
+        {rows(1).map(() => (
+          <div class="fb-row">
+            <span class="fb-ki"><span class="placeholder-block size-4 rounded-xs" /></span>
+            <span class="nm"><span class="placeholder-text w-24" /></span>
+            <span class="m"><span class="placeholder-text w-10" /></span>
+            <span class="dt"><span class="placeholder-text w-12" /></span>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div class="fb-col fb-cur">
+      <div class="fb-col-h">
+        <b><span class="placeholder-text w-24" /></b>
+        <span><span class="placeholder-text w-8" /></span>
+      </div>
+      <div class="fb-rows">
+        {rows(ROOT_ROWS).map(() => (
+          <div class="fb-row">
+            <span class="fb-ki"><span class="placeholder-block size-4 rounded-xs" /></span>
+            <span class="nm"><span class="placeholder-text w-24" /></span>
+            <span class="m"><span class="placeholder-text w-10" /></span>
+            <span class="dt"><span class="placeholder-text w-12" /></span>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div class="fb-col fb-pv-col">
+      <div class="fb-col-h">
+        <b>preview</b>
+        <span><span class="placeholder-text w-10" /></span>
+      </div>
+      <div class="fb-pv">
+        <div class="fb-pv-head">
+          <span class="placeholder-block size-4 shrink-0 rounded-xs"></span>
+          <p><span class="placeholder-text w-20" /></p>
+          <span class="block size-7 shrink-0"></span>
+        </div>
+        <div class="fb-rows">
+          {rows(PREVIEW_ROWS).map(() => (
+          <div class="fb-row">
+            <span class="fb-ki"><span class="placeholder-block size-4 rounded-xs" /></span>
+            <span class="nm"><span class="placeholder-text w-24" /></span>
+            <span class="m"><span class="placeholder-text w-10" /></span>
+            <span class="dt"><span class="placeholder-text w-12" /></span>
+          </div>
+        ))}
+        </div>
+        <div class="fb-dl">
+          {["", "", ""].map(() => (
+            <>
+              <span><span class="placeholder-text w-12" /></span>
+              <span><span class="placeholder-text w-20" /></span>
+            </>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fb-foot" aria-hidden="true">
+    <span class="sp"><span><span class="placeholder-text w-32" /></span></span>
+  </div>
+</section>

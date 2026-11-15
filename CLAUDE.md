@@ -202,6 +202,21 @@ assert the client's timings against it and against the cache window.
 `dist/client/_headers` is missing or stale. Prerendered pages never reach the
 middleware, so that file is their only source of security headers.
 
+### Skeletons
+
+**A fallback is the loaded markup with its data missing, not a sketch of it.**
+Same containers, row counts and type classes; static labels as real text; a
+value as a `placeholder-text` bar inside a line carrying the loaded text's
+classes (a fixed-height box never matches a line's height). A line that
+wraps with its content is sample text made transparent on `placeholder-block`,
+so it wraps where the real one will. `placeholder-block` is for boxes only
+(art, maps, charts). Where a component can, it draws its own skeleton
+(`pending` on `Contributions`, `Repos`; no `value` on `StatTile`;
+`detail: { pending }` on `LinkTile`) and the page passes that as the
+fallback, so the two cannot drift. A `pending` render must not fetch: it is
+prerendered. Check a change by holding `/_server-islands/` and `/api/` in
+Playwright and comparing each tile's height before and after release.
+
 ### Data
 
 **Loaders must throw, not return `[]` or `null`.** `cached()` implements

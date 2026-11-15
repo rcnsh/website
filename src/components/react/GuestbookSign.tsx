@@ -83,6 +83,50 @@ export default function GuestbookSign({ maxLength }: Props) {
   );
 }
 
+/**
+ * The sign-in prompt. As the placeholder (signed out is the commoner answer)
+ * it is the same markup with the text hidden, so it wraps the same at every
+ * width and the tile keeps its height when the answer lands.
+ */
+function SignedOut({ placeholder = false }: { placeholder?: boolean }) {
+  const button =
+    "inline-flex items-center gap-2 self-start rounded-[6px] border px-3.5 py-2.5 text-[0.90625rem] leading-[1.3] font-medium sm:h-10 sm:px-4 sm:py-0";
+  const label = (
+    <>
+      <GithubIcon className="h-4 w-4 shrink-0" />
+      Sign in with GitHub to leave a message
+    </>
+  );
+  return (
+    <div
+      className={cn("flex flex-1 flex-col justify-center gap-3.5", placeholder && "select-none")}
+      aria-hidden={placeholder || undefined}
+    >
+      {placeholder ? (
+        <span className={cn(button, "placeholder-block border-transparent text-transparent")}>{label}</span>
+      ) : (
+        // Not prefetched: the route mints an OAuth state cookie on every GET.
+        <a
+          href="/api/auth/login"
+          data-astro-prefetch="false"
+          className={cn(button, "border-ink bg-ink text-(color:--color-base) press hover:bg-white")}
+        >
+          {label}
+        </a>
+      )}
+      <p
+        className={cn(
+          "max-w-[58ch] text-[0.8125rem] leading-[1.55]",
+          placeholder ? "placeholder-block rounded-xs text-transparent" : "text-ink-faint",
+        )}
+      >
+        Signing in stores your GitHub username, avatar, and approximate country with your
+        message, shown publicly below. You can delete your own entry any time.
+      </p>
+    </div>
+  );
+}
+
 function Body({
   view,
   maxLength,
@@ -94,15 +138,7 @@ function Body({
   restoreDraft: boolean;
   onRemaining: (remaining: number) => void;
 }) {
-  if (view === null) {
-    // The signed-out prompt's footprint, the commoner answer.
-    return (
-      <div className="flex flex-1 flex-col justify-center gap-3.5" aria-hidden="true">
-        <div className="placeholder-block h-10 w-[19rem] max-w-full rounded-[6px]" />
-        <div className="placeholder-block h-[2.5rem] w-full max-w-[58ch] rounded-xs" />
-      </div>
-    );
-  }
+  if (view === null) return <SignedOut placeholder />;
 
   if (view === "failed") {
     return (
@@ -113,25 +149,7 @@ function Body({
   }
 
   const { signer, nextPostAt } = view;
-  if (!signer) {
-    return (
-      <div className="flex flex-1 flex-col justify-center gap-3.5">
-        {/* Not prefetched: the route mints an OAuth state cookie on every GET. */}
-        <a
-          href="/api/auth/login"
-          data-astro-prefetch="false"
-          className="inline-flex items-center gap-2 self-start rounded-[6px] border border-ink bg-ink px-3.5 py-2.5 text-[0.90625rem] leading-[1.3] font-medium text-(color:--color-base) press hover:bg-white sm:h-10 sm:px-4 sm:py-0"
-        >
-          <GithubIcon className="h-4 w-4 shrink-0" />
-          Sign in with GitHub to leave a message
-        </a>
-        <p className="max-w-[58ch] text-[0.8125rem] leading-[1.55] text-ink-faint">
-          Signing in stores your GitHub username, avatar, and approximate country with your
-          message, shown publicly below. You can delete your own entry any time.
-        </p>
-      </div>
-    );
-  }
+  if (!signer) return <SignedOut />;
 
   return (
     <div className="flex flex-1 flex-col">

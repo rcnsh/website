@@ -8,12 +8,14 @@ import TopOverTime from "@/components/music/stats/TopOverTime.astro";
 import TimeOfDay from "@/components/music/stats/TimeOfDay.astro";
 import Eras from "@/components/music/stats/Eras.astro";
 import { pageOgHref, pages, site } from "@/lib/site";
-import { statsYears } from "@/lib/music-stats-view";
+import { statsYears, WEEKDAYS } from "@/lib/music-stats-view";
 
 const page = pages.musicStats;
 // Fixed at build. A new year appears in the switch on the next deploy; until
 // then its panels exist but nothing selects them.
 const years = statsYears(new Date());
+// A skeleton line that wraps the way its text will; see the fallbacks below.
+const ghost = "placeholder-block rounded-xs text-transparent [box-decoration-break:clone]";
 ---
 
 <Layout title={page.title} description={page.description} image={pageOgHref("music")}>
@@ -51,23 +53,66 @@ const years = statsYears(new Date());
       </fieldset>
     </section>
 
+    {/*
+      Each fallback mirrors its island's markup: the same containers, row
+      counts and type classes, with `placeholder-text` in single lines and
+      ghost text (transparent, of a typical length) where a line wraps, so the
+      tile keeps its height when the data lands. Row counts and wrapping are
+      the common case; the data can still move them a line or two.
+    */}
     <section
       class="tile col-span-12 animate-rise [animation-delay:30ms] max-sm:p-[18px]"
       aria-labelledby="streaks-title"
     >
       <Streaks server:defer>
-        <div slot="fallback" aria-hidden="true" class="min-h-[581px] min-[1021px]:min-h-[305px]">
-          <div class="mb-4 flex min-h-4 items-center"><span class="label">Streaks</span></div>
+        <div slot="fallback" aria-hidden="true" class="select-none">
+          <div class="mb-4 flex min-h-4 items-center gap-2.5">
+            <span class="label">Streaks</span>
+            <span class="ml-auto font-mono text-[11px]"><span class="placeholder-text w-24"></span></span>
+          </div>
           <div class="grid gap-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
-            <div>
-              <div class="placeholder-block h-[52px] w-20 rounded-xs"></div>
-              <div class="placeholder-block mt-3 h-2.5 w-40 rounded-xs"></div>
-              <div class="mt-6 grid grid-cols-2 gap-4">
-                {[0, 1, 2, 3].map(() => <div class="placeholder-block h-9 w-24 rounded-xs" />)}
-              </div>
+            <div class="flex flex-col">
+              <p class="font-mono text-[3.25rem] font-semibold leading-none tracking-[-0.05em]">
+                <span class="placeholder-text w-10"></span>
+              </p>
+              <p class="mt-2 font-mono text-[11px]">
+                <span class={ghost}>weeks in a row with something playing every day</span>
+              </p>
+              <dl class="mt-5 grid grid-cols-2 gap-x-6 gap-y-4">
+                {
+                  [
+                    ["Longest", "text-lg font-semibold tracking-[-0.02em]", "w-20"],
+                    ["Days with a play", "text-lg font-semibold tracking-[-0.02em]", "w-12"],
+                  ].map(([label, type, width]) => (
+                    <div class="flex flex-col-reverse gap-1">
+                      <dt class="font-mono text-[10.5px] text-ink-dim">{label}</dt>
+                      <dd class:list={["font-mono", type]}><span class:list={["placeholder-text", width]} /></dd>
+                    </div>
+                  ))
+                }
+                {
+                  [0, 1].map(() => (
+                    <div class="flex flex-col-reverse gap-1">
+                      <dt class="font-mono text-[10.5px]"><span class={ghost}>10+ plays a day</span></dt>
+                      <dd class="font-mono text-[13px]"><span class={ghost}>2 weeks now · best 68 days</span></dd>
+                    </div>
+                  ))
+                }
+              </dl>
             </div>
-            <div class="flex flex-col gap-3.5 pt-6">
-              {[0, 1, 2, 3, 4].map(() => <div class="placeholder-block h-6 w-full rounded-xs" />)}
+            <div>
+              <p class="mb-2 font-mono text-[11px] text-ink-dim">Longest runs</p>
+              <ol class="flex flex-col gap-2.5">
+                {
+                  [0, 1, 2, 3, 4].map(() => (
+                    <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
+                      <span class="text-[13px]"><span class="placeholder-text w-24" /></span>
+                      <span class="font-mono text-[12px]"><span class="placeholder-text w-6" /></span>
+                      <span class="col-span-2 block h-1.5 rounded-full bg-line-soft" />
+                    </li>
+                  ))
+                }
+              </ol>
             </div>
           </div>
         </div>
@@ -79,21 +124,49 @@ const years = statsYears(new Date());
       aria-labelledby="repeat-title"
     >
       <OnRepeat server:defer>
-        <div slot="fallback" aria-hidden="true" class="min-h-[857px] min-[1021px]:min-h-[568px]">
-          <div class="mb-4 flex min-h-4 items-center"><span class="label">On repeat</span></div>
+        <div slot="fallback" aria-hidden="true" class="select-none">
+          <div class="mb-4 flex min-h-4 items-center gap-2.5">
+            <span class="label">On repeat</span>
+            <span class="ml-auto font-mono text-[11px] text-ink-dim">Last 14 days</span>
+          </div>
           <ol class="divide-y divide-line-soft border-t border-line-soft">
             {
               Array.from({ length: 6 }).map(() => (
-                <li class="flex items-center gap-3.5 py-2.5">
-                  <div class="placeholder-block h-9 w-9 shrink-0 rounded-xs" />
-                  <span class="min-w-0 flex-1">
-                    <span class="placeholder-block block h-3 w-40 rounded-xs" />
-                    <span class="placeholder-block mt-1.5 block h-2.5 w-24 rounded-xs" />
+                <li class="grid grid-cols-[minmax(0,1fr)_4rem] items-center gap-x-3.5 gap-y-1.5 py-2.5 sm:flex">
+                  <div class="flex min-w-0 flex-1 items-center gap-3.5">
+                    <div class="placeholder-block h-9 w-9 shrink-0 rounded-xs" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-[0.9375rem]"><span class="placeholder-text w-36" /></span>
+                      <span class="mt-px block text-[12.5px]"><span class="placeholder-text w-24" /></span>
+                    </span>
+                  </div>
+                  <span class="col-start-1 row-start-2 ml-[50px] flex h-5 w-[112px] shrink-0 items-end sm:ml-0 sm:h-7">
+                    <span class="placeholder-block block h-1.5 w-full rounded-t-[2px]" />
+                  </span>
+                  <span class="col-start-2 row-span-2 row-start-1 w-16 shrink-0 text-right font-mono text-[11px] leading-tight">
+                    <span class="block text-[13px]"><span class="placeholder-text w-7" /></span>
+                    <span class="placeholder-text w-10" />
                   </span>
                 </li>
               ))
             }
           </ol>
+          <div class="mt-5">
+            <p class="mb-2.5 font-mono text-[11px] text-ink-dim">Whole albums on repeat</p>
+            <ul class="flex flex-wrap gap-2">
+              {
+                ["w-28", "w-32", "w-28"].map((width) => (
+                  <li class="card flex items-center gap-2.5 py-1.5 pr-3 pl-1.5">
+                    <span class="placeholder-block h-7 w-7 rounded-xs" />
+                    <span class="min-w-0">
+                      <span class="block text-[12.5px]"><span class:list={["placeholder-text", width]} /></span>
+                      <span class="block font-mono text-[10.5px]"><span class="placeholder-text w-24" /></span>
+                    </span>
+                  </li>
+                ))
+              }
+            </ul>
+          </div>
         </div>
       </OnRepeat>
     </section>
@@ -103,23 +176,79 @@ const years = statsYears(new Date());
       aria-labelledby="albums-title"
     >
       <TopAlbums server:defer>
-        <div slot="fallback" aria-hidden="true" class="min-h-[1004px] min-[1021px]:min-h-[837px]">
-          <div class="mb-4 flex min-h-4 items-center"><span class="label">Most-played albums</span></div>
-          <div class="flex flex-col gap-3.5">
-            {Array.from({ length: 10 }).map(() => <div class="placeholder-block h-[62px] w-full rounded-xs" />)}
+        <div slot="fallback" aria-hidden="true" class="select-none">
+          <div class="mb-4 flex min-h-4 items-center gap-2.5">
+            <span class="label">Most-played albums</span>
+            <span class="ml-auto font-mono text-[11px] text-ink-dim">all time</span>
           </div>
+          <ol class="flex flex-col gap-3.5">
+            {
+              Array.from({ length: 10 }).map((_, i) => (
+                <li class="grid grid-cols-[1.25rem_2.5rem_minmax(0,1fr)_auto] items-center gap-x-3">
+                  <span class="font-mono text-[11px] text-ink-dim tabular-nums">{i + 1}</span>
+                  <div class="placeholder-block h-10 w-10 rounded-xs" />
+                  <span class="min-w-0">
+                    <span class="block text-[14px]"><span class="placeholder-text w-32" /></span>
+                    <span class="block text-[12px]"><span class="placeholder-text w-24" /></span>
+                  </span>
+                  <span class="font-mono text-[13px]"><span class="placeholder-text w-7" /></span>
+                  <span class="col-span-2" />
+                  <span class="col-span-2 mt-1.5 flex items-center gap-2.5">
+                    <span class="block h-1 flex-1 rounded-full bg-line-soft" />
+                    <span class="font-mono text-[10.5px]"><span class="placeholder-text w-12" /></span>
+                  </span>
+                </li>
+              ))
+            }
+          </ol>
         </div>
       </TopAlbums>
     </section>
 
     <section class="tile col-span-12 animate-rise [animation-delay:120ms] max-sm:p-[18px]" aria-labelledby="top-title">
       <TopOverTime server:defer>
-        <div slot="fallback" aria-hidden="true" class="min-h-[1012px] min-[1021px]:min-h-[512px]">
-          <div class="mb-4 flex min-h-4 items-center"><span class="label">Who I was listening to</span></div>
-          <div class="placeholder-block h-[260px] w-full rounded-xs max-sm:h-[220px]"></div>
-          <div class="mt-6 grid grid-cols-2 gap-2.5 sm:max-[1020px]:grid-cols-3 min-[1021px]:grid-cols-7">
-            {Array.from({ length: 7 }).map(() => <div class="placeholder-block h-[112px] rounded-xs" />)}
+        <div slot="fallback" aria-hidden="true" class="select-none">
+          <div class="mb-4 flex min-h-4 items-center gap-2.5">
+            <span class="label shrink-0 whitespace-nowrap">Who I was listening to</span>
+            <span class="ml-auto min-w-0 truncate font-mono text-[11px] text-ink-dim">Share of plays per quarter</span>
           </div>
+          <ul class="mb-4 flex flex-wrap gap-x-4 gap-y-1.5 font-mono text-[11px]">
+            {
+              [4, 15, 17, 11, 10, 10, 14].map((length) => (
+                <li class="flex items-center gap-1.5">
+                  <span class="placeholder-block inline-block h-2 w-2 rounded-[2px]" />
+                  <span class={ghost}>{"x".repeat(length)}</span>
+                </li>
+              ))
+            }
+            <li class="flex items-center gap-1.5 text-ink-dim">
+              <span class="inline-block h-2 w-2 rounded-[2px] bg-line" />
+              Everyone else
+            </li>
+          </ul>
+          <div class="placeholder-block h-[180px] rounded-xs max-sm:h-[140px]" />
+          <div class="mt-1.5 h-6" />
+          <div class="mt-1.5 font-mono text-[10px]"><span class="placeholder-text w-full" /></div>
+          <ol class="mt-6 grid grid-cols-2 gap-2.5 sm:max-[1020px]:grid-cols-3 min-[1021px]:grid-cols-7">
+            {
+              years.map(() => (
+                <li class="card flex flex-col gap-2 p-3">
+                  <span class="font-mono text-[11px]"><span class="placeholder-text w-8" /></span>
+                  <span class="min-w-0">
+                    <span class="block text-[13.5px] font-medium"><span class="placeholder-text w-24" /></span>
+                    <span class="block font-mono text-[10.5px]"><span class="placeholder-text w-20" /></span>
+                  </span>
+                  <span class="mt-auto flex items-center gap-2 border-t border-line-soft pt-2">
+                    <span class="placeholder-block h-6 w-6 shrink-0 rounded-xs" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-[11.5px]"><span class="placeholder-text w-20" /></span>
+                      <span class="block font-mono text-[10px]"><span class="placeholder-text w-14" /></span>
+                    </span>
+                  </span>
+                </li>
+              ))
+            }
+          </ol>
         </div>
       </TopOverTime>
     </section>
@@ -129,10 +258,47 @@ const years = statsYears(new Date());
       aria-labelledby="time-title"
     >
       <TimeOfDay server:defer>
-        <div slot="fallback" aria-hidden="true" class="min-h-[643px] min-[1021px]:min-h-[616px]">
-          <div class="mb-4 flex min-h-4 items-center"><span class="label">Time of day</span></div>
-          <div class="placeholder-block h-[190px] w-full rounded-xs"></div>
-          <div class="placeholder-block mt-6 h-[180px] w-full rounded-xs"></div>
+        <div slot="fallback" aria-hidden="true" class="select-none">
+          <div class="mb-4 flex min-h-4 items-center gap-2.5">
+            <span class="label shrink-0 whitespace-nowrap">Time of day</span>
+            <span class="ml-auto min-w-0 truncate font-mono text-[11px] text-ink-dim">Share of plays by local hour</span>
+          </div>
+          <ul class="mb-3 flex flex-wrap gap-x-5 gap-y-1 font-mono text-[11px]">
+            {
+              ["Newcastle Sep 2024–May 2026", "Singapore Jul 2026–now"].map((text) => (
+                <li class="flex items-center gap-2">
+                  <span class="placeholder-block h-1 w-4 rounded-full" />
+                  <span class={ghost}>{text}</span>
+                </li>
+              ))
+            }
+          </ul>
+          <div class="placeholder-block h-[150px] rounded-xs" />
+          <div class="mt-2 h-3" />
+          <p class="mt-4 text-[13px] leading-relaxed">
+            <span class={ghost}>
+              Newcastle: busiest at 15:00, 24% of plays between midnight and 6am. Singapore: busiest at
+              21:00, 20% of plays between midnight and 6am.
+            </span>
+          </p>
+          <div class="mt-6">
+            <p class="mb-3 font-mono text-[11px]"><span class="placeholder-text w-52" /></p>
+            <div class="grid gap-[2px]" style="grid-template-columns: 2.25rem repeat(24, minmax(0, 1fr))">
+              {
+                WEEKDAYS.map((day) => (
+                  <>
+                    <span class="self-center font-mono text-[10px] text-ink-faint">{day}</span>
+                    {Array.from({ length: 24 }).map(() => <i class="placeholder-block block aspect-square rounded-[2px]" />)}
+                  </>
+                ))
+              }
+            </div>
+            <div class="mt-2 flex items-center justify-end gap-2 font-mono text-[10px] text-ink-faint">
+              less
+              <span class="inline-block h-1.5 w-20 rounded-full bg-raised" />
+              more
+            </div>
+          </div>
         </div>
       </TimeOfDay>
     </section>
@@ -142,12 +308,39 @@ const years = statsYears(new Date());
       aria-labelledby="eras-title"
     >
       <Eras server:defer>
-        <div slot="fallback" aria-hidden="true" class="min-h-[651px] min-[1021px]:min-h-[608px]">
-          <div class="mb-4 flex min-h-4 items-center"><span class="label">Newcastle → Singapore</span></div>
-          <div class="placeholder-block h-16 w-full rounded-xs"></div>
-          <div class="mt-5 flex flex-col gap-2.5">
-            {Array.from({ length: 10 }).map(() => <div class="placeholder-block h-4 w-full rounded-xs" />)}
+        <div slot="fallback" aria-hidden="true" class="select-none">
+          <div class="mb-4 flex min-h-4 items-center gap-2.5">
+            <span class="label shrink-0 whitespace-nowrap">Newcastle → Singapore</span>
+            <span class="ml-auto font-mono text-[11px]"><span class="placeholder-text w-24" /></span>
           </div>
+          <ul class="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px]">
+            {
+              [0, 1].map(() => (
+                <li class="flex items-center gap-1.5">
+                  <span class="placeholder-block inline-block h-2 w-2 rounded-full" />
+                  <span class={ghost}>Apr–Jun 2026</span>
+                </li>
+              ))
+            }
+          </ul>
+          {
+            ["Up since the move", "Down since the move"].map((title) => (
+              <div class="mt-4">
+                <p class="mb-2 font-mono text-[11px] text-ink-faint">{title}</p>
+                <ol class="flex flex-col gap-2">
+                  {Array.from({ length: 5 }).map(() => (
+                    <li class="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)_3.25rem] items-center gap-3">
+                      <span class="text-[13px]"><span class="placeholder-text w-24" /></span>
+                      <span class="relative block h-3">
+                        <span class="absolute inset-x-0 top-1/2 h-px bg-line-soft" />
+                      </span>
+                      <span class="text-right font-mono text-[11px]"><span class="placeholder-text w-9" /></span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ))
+          }
         </div>
       </Eras>
     </section>
