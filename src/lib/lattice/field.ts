@@ -52,6 +52,13 @@ const cellOverride = (): number | null => {
 const BLANK = "blank";
 /** How long a page's drawing may take before the mark stands in for it. */
 const DRAWING_OVERDUE_MS = 4000;
+/**
+ * Once a session the cover field opens on the mark and holds it this long
+ * from the page's arrival (the reveal, then about two seconds still) before
+ * dissolving into the cover, so a visitor sees both pictures.
+ */
+const MARK_INTRO_MS = 3600;
+const MARK_INTRO_KEY = "rcn:lattice-intro";
 
 /** How long the lattice stays uncovered after the pointer last moved. */
 const POINTER_LINGER_MS = 900;
@@ -393,7 +400,8 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   /** Resolve what the page asks for into a texture, loading a cover if need be. */
   const resolve = () => {
     const asked = host?.dataset.lattice || "mark";
-    const cover = asked === "cover" ? currentCover() : null;
+    const holding = asked === "cover" && performance.now() < introUntil;
+    const cover = asked === "cover" && !holding ? currentCover() : null;
     const drawing = asked.startsWith("svg:") ? document.querySelector<SVGSVGElement>(asked.slice(4)) : null;
     const key = cover
       ? `cover:${cover.image}`
@@ -419,6 +427,16 @@ export function startLattice(canvas: HTMLCanvasElement): void {
         if (document.querySelector(asked.slice(4))) resolve();
       });
       pending.observe(document.body, { childList: true, subtree: true });
+    }
+
+    if (holding) {
+      // Load the cover under the mark, so it is ready when the hold ends.
+      const next = currentCover();
+      const nextKey = next ? `cover:${next.image}` : "";
+      if (next && !covers.has(nextKey))
+        loadImage(next.image)
+          .then((image) => covers.set(nextKey, { image, tone: coverTone(image) }))
+          .catch(() => {});
     }
 
     const caption = document.querySelector<HTMLElement>("[data-lattice-caption]");
@@ -544,6 +562,27 @@ export function startLattice(canvas: HTMLCanvasElement): void {
 
   let pending: MutationObserver | null = null;
   let overdue = 0;
+  /** Until when the cover field keeps to the mark (the once-a-session intro). */
+  let introUntil = 0;
+  let introTimer = 0;
+  /** The home field opts in; a band (`/music`) would spend the session's one intro. */
+  const introHere = () => host?.dataset.lattice === "cover" && host.hasAttribute("data-lattice-intro");
+  /** Start the intro if this page asks for it and the session has not seen it. */
+  const startIntro = () => {
+    if (!introHere() || still()) return;
+    try {
+      if (sessionStorage.getItem(MARK_INTRO_KEY)) return;
+      sessionStorage.setItem(MARK_INTRO_KEY, "1");
+    } catch {
+      // Storage refused: show the cover straight away rather than every visit.
+      return;
+    }
+    introUntil = performance.now() + MARK_INTRO_MS;
+    introTimer = window.setTimeout(() => {
+      introUntil = 0;
+      resolve();
+    }, MARK_INTRO_MS);
+  };
   let watching: IntersectionObserver | null = null;
   let arriving: MutationObserver | null = null;
 
@@ -572,6 +611,11 @@ export function startLattice(canvas: HTMLCanvasElement): void {
     });
     watching.observe(host);
     arrived = true;
+    // Leaving the home field mid-hold drops what is left of it.
+    if (!introHere()) {
+      clearTimeout(introTimer);
+      introUntil = 0;
+    } else startIntro();
     resolve();
   };
 
