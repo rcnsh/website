@@ -87,6 +87,20 @@ ${tapReads}
   return dot(sum / ${TAPS.length.toFixed(1)}, vec3(0.299, 0.587, 0.114));
 }
 
+// An ordered threshold in 0..1 for each triangle, from a 4x4 Bayer matrix on
+// the lattice's cells with the up and down triangles of a cell half a cycle
+// apart: 32 thresholds, spread as evenly as the grid allows. Fixed per
+// triangle, so the picture never shimmers.
+float bayer2(vec2 a) {
+  a = floor(a);
+  return fract(a.x / 2.0 + a.y * a.y * 0.75);
+}
+
+float threshold(vec2 cell, float upper) {
+  float bayer4 = bayer2(0.5 * cell) * 0.25 + bayer2(cell);
+  return fract(bayer4 * 0.5 + upper * 0.5);
+}
+
 // x: luminance 0..1, y: how likely the triangle is to be drawn at all.
 vec2 source(sampler2D tex, vec4 rect, float kind, vec2 centre, vec2 c0, vec2 c1, vec2 c2, vec2 field) {
   vec2 uv = texelAt(rect, centre);
@@ -187,9 +201,16 @@ void main() {
   float lum = mix(near * id * 0.38, s.x, inField);
   // A glyph is either lit or not, so only what is lit takes the light.
   float lit = mix(1.0, step(0.05, lum), kind);
-  lum = clamp(lum + (breath + sweep) * lit * inField + near * 0.22 * inField, 0.0, 1.0);
+  // A cover's breath goes into its colour instead (below): added here it is
+  // a moving random dither that scrambles the ordered one.
+  float cover = (1.0 - kind) * inField;
+  lum = clamp(lum + (breath * (1.0 - cover) + sweep) * lit * inField + near * 0.22 * inField, 0.0, 1.0);
 
-  float level = floor(lum * 4.999);
+  // A cover is dithered, so five levels show the tones between them and a
+  // gradient reads as one instead of flat bands; a glyph's levels are exact.
+  float dither = (threshold(cell, upper) - 0.5) * cover;
+  float level = clamp(floor(lum * 5.0 + dither), 0.0, 4.0);
+  level = mix(level, floor(lum * 4.999), kind);
   vec3 colour = uLevel0;
   colour = mix(colour, uLevel1, step(1.0, level));
   colour = mix(colour, uLevel2, step(2.0, level));
@@ -202,6 +223,7 @@ void main() {
   float distanceToEdge = min(bary.x, min(bary.y, bary.z)) * uCell * ROW;
   float alpha = clamp(distanceToEdge - inset + 0.5, 0.0, 1.0);
 
+  colour *= 1.0 + breath * 1.8 * cover;
   gl_FragColor = vec4(colour * alpha, alpha);
 }
 `;

@@ -505,6 +505,16 @@ averaging would grey them.
 `NowPlaying.tsx`. It is loaded with `crossOrigin`, since its pixels go into a
 texture, so a cover host must answer with CORS as well as being in `img-src`.
 
+**A cover is ordered-dithered; a glyph never is.** Each triangle's level is
+`floor(lum * 5 + t - 0.5)` with `t` from a 4x4 Bayer matrix on the lattice
+cells, up and down triangles half a cycle apart (`threshold` in `shader.ts`),
+so the five levels show the tones between them. It is fixed per triangle, so
+nothing shimmers. The idle breath is kept out of a cover's level and
+modulates its colour instead: added to `lum` it is a moving random dither
+that scrambles the ordered one and flips scattered triangles every second.
+The light band and the pointer still add to `lum`. Glyph pictures (`mark`,
+`text:`, `svg:`) keep `floor(lum * 4.999)`, lit or not.
+
 **The five levels are read from the palette's custom properties** at start,
 the same ones `Contributions.astro` mixes, so change the colours in
 `global.css` and nowhere else.

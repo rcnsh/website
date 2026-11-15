@@ -129,3 +129,8 @@ leading 0.86, sized so the surname ends before the cover turns solid.
   the darkest triangles go first, mixed with chance so the edge stays ragged:
   a random thinning across most of the width erased the picture where it is
   widest.
+- Covers are ordered-dithered across the five levels (a Bayer matrix on the
+  lattice, measured against white noise and interleaved gradient noise: it
+  holds gradients and flat colour best and never clumps), so a soft glow
+  grades off instead of stepping. Their breath is in brightness, not level,
+  so the dither stays put.
