@@ -537,29 +537,34 @@ margins and gaps the tiles leave. Then the whole viewport is shaded, so it
 lasts only `POINTER_LINGER_MS` past the last movement; never let it run at
 rest.
 
-**It is the only `requestAnimationFrame` loop on the site** and stops when the
+**It is the only standing `requestAnimationFrame` loop on the site** (the page
+wipe's runs for half a second per navigation) and stops when the
 field is off screen, the tab is hidden, or motion is reduced or Live updates
 is off (then it draws one still frame). Keep new motion out of it unless it is
 the field's own.
 
 **The page wipe is a cover over the live page, not a view transition.**
-The router's view transition has `animation: none` on every part, so it ends
-on its first frame, and `wipePagesIn` (`page-lifecycle.ts`, registered in
-`Layout`) sets `data-wipe` on `<html>` after every swap,
-which draws a fixed cover in the page ground under the header and clips it
-away (`global.css`). A view transition draws the whole document as a
-snapshot until it ends, so nothing can be hovered and every click lands on
-`<html>`; no CSS lets input through, since the root itself is captured. So
-the old page is not shown under the wipe: it leaves at once. The cover is
-`pointer-events: none` and never `transition:animate` (see CSP and the
-router).
+`wipePagesIn` (`page-lifecycle.ts`, registered in `Layout`) wraps the
+router's loader on `astro:before-preparation`: the cover closes over the page
+being left, the swap waits for it (`COVER_CLOSE_MS`), and it opens on
+`astro:after-swap`. The router's own view transition has `animation: none`
+on every part (`global.css`), so it ends on its first frame. A view
+transition draws the whole document as a snapshot until it ends, so nothing
+can be hovered and every click lands on `<html>`; no CSS lets input through,
+since the root itself is captured. Not `skipTransition()` either: the router
+leaves the rejection of `ready` unhandled. Never `transition:animate` (see
+CSP and the router).
 
-**The wipe's keyframes animate `--page-wipe`, never `clip-path`.** Chromium
-runs a `clip-path` animation on the compositor, and on a real display that
-now and then showed a wrong frame at either end of the wipe: a flicker on
-every page change that screen recordings and headless runs do not show. The
-registered property animates on the main thread and the static `clip-path`
-reads it.
+**The cover is `src/lib/lattice-wipe.ts`**: a second WebGL canvas, appended
+to `<html>` beside the body so a swap leaves it alone, under the header
+(z 40) and `pointer-events: none`. One fragment shader finds each pixel's
+triangle on the mark's grid and draws it in the page ground once its random
+turn has come, so the page dissolves over the whole screen at once. Keep it
+a shader: filling the triangles as 2D canvas paths stalled a good laptop.
+Its frame loop runs only for the length of a close or an open. A navigation
+that never swaps takes the cover off after `WIPE_STUCK_MS`. Links that
+`needsFullLoad` get no cover, and neither does reduced motion or a browser
+without WebGL: then nothing waits.
 
 ### Gotchas that cost time
 

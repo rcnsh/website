@@ -108,12 +108,14 @@ leading 0.86, sized so the surname ends before the cover turns solid.
 
 ## Motion
 
-- One ease, `--ease-out-quint`. 0.9s for the name, 0.5s for the page wipe,
+- One ease, `--ease-out-quint`. 0.9s for the name,
   0.35 to 0.45s for hovers.
-- **Page transition:** the incoming page is uncovered left to right behind an
-  edge cut at 60°. The header is not part of it and the page under it is
-  live from the first frame: a view transition froze hover and clicks for
-  the half second it ran, which made every page feel late.
+- **Page transition:** the page being left breaks up into lattice triangles
+  of the page ground, at random over the whole screen, and the new page
+  comes back out of them: 0.26s to close, 0.46s to open. Plain, no colour:
+  with blue in it, or a moving front, it was too much for something seen on
+  every click. The header is not part of it and the page under it is live
+  throughout: a view transition froze hover and clicks for its length.
 - **Hover, one treatment per role:** link tiles get a slanted bar running in
   along the top edge; link rows get a slanted marker and step aside for it
   (`row-tick` for text rows, `row-mark` for track rows with a cover);
@@ -121,7 +123,8 @@ leading 0.86, sized so the surname ends before the cover turns solid.
 
 ## Decisions worth knowing
 
-- The frame loop is the site's only `requestAnimationFrame`, and it stops off
+- The frame loop is the site's only standing `requestAnimationFrame` (the page
+  transition's runs only while it plays), and it stops off
   screen, in a hidden tab, and whenever the field is still.
 - No GSAP, Lenis or OGL: the field is one fragment shader and about 300 lines
   of plain WebGL, so the page budget barely moved.

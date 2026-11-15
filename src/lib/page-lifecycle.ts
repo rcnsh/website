@@ -2,6 +2,7 @@ import type {
   TransitionBeforePreparationEvent,
   TransitionBeforeSwapEvent,
 } from "astro:transitions/client";
+import { COVER_CLOSE_MS, latticeCover } from "./lattice-wipe.ts";
 import { needsFullLoad } from "./server-pages.ts";
 
 // Prerendered pages navigate with Astro's <ClientRouter />, so a module
@@ -51,33 +52,55 @@ export function keepReaderAttributes(): void {
   });
 }
 
+/** A navigation that never swaps (a failed load) must not leave the cover on. */
+const WIPE_STUCK_MS = 4000;
+
+function motionReduced(): boolean {
+  const chosen = document.documentElement.dataset.motion;
+  return chosen ? chosen === "reduce" : matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 /**
- * Runs the page wipe (`data-wipe` in global.css) on every swap, in place of
- * the router's view transition.
+ * Runs the page wipe on every navigation, in place of the router's view
+ * transition: the lattice cover (lattice-wipe.ts) closes over the page being
+ * left, the swap happens behind it, and it opens on the new page.
  *
- * A view transition draws the whole document as a snapshot until it ends, so
- * nothing can be hovered and every click lands on `<html>`: for the length of
- * the wipe the new page looks ready and is not. No CSS lets input through,
- * since the root itself is what was captured. So the transition is given no
- * animation (global.css), which ends it on its first frame, and the wipe is
- * a cover over the live page instead. Not `skipTransition()`: the router
- * leaves the rejection of `ready` unhandled.
+ * Not a view transition: that draws the whole document as a snapshot until it
+ * ends, so nothing can be hovered and every click lands on `<html>`. The
+ * router's transition is given no animation (global.css), which ends it on
+ * its first frame, and the cover is `pointer-events: none` over a live page.
+ * The swap waits for the cover by wrapping the router's loader.
  */
 export function wipePagesIn(): void {
-  const WIPE = "data-wipe";
-  document.addEventListener("astro:after-swap", () => {
-    const root = document.documentElement;
-    // A swap during a wipe: the attribute must leave and return across a
-    // style pass, or the animation carries on from where it was.
-    root.removeAttribute(WIPE);
-    void root.offsetWidth;
-    root.setAttribute(WIPE, "");
+  const cover = latticeCover();
+  if (!cover) return;
+  let stuck: ReturnType<typeof setTimeout> | undefined;
+  let latest: TransitionBeforePreparationEvent | undefined;
+  document.addEventListener("astro:before-preparation", (event) => {
+    const preparation = event as TransitionBeforePreparationEvent;
+    if (event.defaultPrevented || motionReduced()) return;
+    // A full load: the cover would close on a page that then just sits there.
+    if (!preparation.formData && needsFullLoad(preparation.to.pathname)) return;
+    latest = preparation;
+    const load = preparation.loader;
+    preparation.loader = async () => {
+      cover.close();
+      clearTimeout(stuck);
+      stuck = setTimeout(cover.clear, WIPE_STUCK_MS);
+      // Abandoned for an in-page link, which fires neither event here: open
+      // again. Abandoned for another page, that one's close takes over.
+      preparation.signal.addEventListener("abort", () => {
+        if (preparation === latest) cover.open();
+      });
+      await Promise.all([load(), new Promise((done) => setTimeout(done, COVER_CLOSE_MS))]);
+    };
   });
-  const done = (event: AnimationEvent) => {
-    if (event.animationName === "page-wipe") document.documentElement.removeAttribute(WIPE);
-  };
-  document.addEventListener("animationend", done);
-  document.addEventListener("animationcancel", done);
+  document.addEventListener("astro:after-swap", () => {
+    clearTimeout(stuck);
+    latest = undefined;
+    if (motionReduced()) cover.clear();
+    else cover.open();
+  });
 }
 
 /**

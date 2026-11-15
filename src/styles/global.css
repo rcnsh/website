@@ -576,51 +576,10 @@
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
-/* The page wipe: the incoming page is uncovered left to right behind an edge
-   cut at the mark's slant, the same way the lattice field sweeps to its next
-   picture. It is a cover in the page ground drawn over the new page and
-   clipped away, under the header and never a view transition: a view
-   transition draws the whole document as a snapshot, so for its length
-   nothing can be hovered or clicked. `wipePagesIn` (page-lifecycle.ts) sets
-   `data-wipe` after each swap. */
-:root[data-wipe]::before {
-  content: "";
-  position: fixed;
-  inset: var(--header-h) 0 0 0;
-  z-index: 40;
-  pointer-events: none;
-  background: var(--color-base);
-  animation: page-wipe 0.5s cubic-bezier(0.65, 0, 0.35, 1) both;
-  clip-path: polygon(
-    calc(-5% + var(--page-wipe) * 1.8) 0,
-    175% 0,
-    175% 100%,
-    calc(-40% + var(--page-wipe) * 1.8) 100%
-  );
-}
-
-/* How far the wipe has run. The keyframes move this, never `clip-path`
-   itself: Chromium hands a `clip-path` animation to the compositor, which now
-   and then shows a wrong frame at either end of it (a flicker on the display
-   that screen recordings miss). A registered property animates on the main
-   thread. It rests at 100%, the page fully uncovered. */
-@property --page-wipe {
-  syntax: "<percentage>";
-  inherits: false;
-  initial-value: 100%;
-}
-
-@keyframes page-wipe {
-  from {
-    --page-wipe: 0%;
-  }
-  to {
-    --page-wipe: 100%;
-  }
-}
-
-/* The router's view transition has nothing to animate, so it ends on its
-   first frame and the page is live. */
+/* The page wipe is drawn on a canvas by `wipePagesIn` (page-lifecycle.ts,
+   lattice-wipe.ts), never as a view transition: that freezes the page for
+   its length. So the router's transition has nothing to animate, ends on its
+   first frame, and the page is live. */
 ::view-transition-group(*),
 ::view-transition-old(*),
 ::view-transition-new(*) {
@@ -634,10 +593,6 @@
   animation: none;
 }
 
-:root[data-motion="reduce"][data-wipe]::before {
-  display: none;
-}
-
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion]) *,
   :root:not([data-motion]) *::before,
@@ -646,9 +601,6 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
-  }
-  :root:not([data-motion])[data-wipe]::before {
-    display: none;
   }
 }
 
