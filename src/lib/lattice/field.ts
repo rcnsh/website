@@ -154,57 +154,6 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   const gl = canvas.getContext("webgl", { alpha: true, antialias: false, premultipliedAlpha: true });
   if (!gl) return;
 
-  const compile = (type: number, text: string) => {
-    const shader = gl.createShader(type)!;
-    gl.shaderSource(shader, text);
-    gl.compileShader(shader);
-    return shader;
-  };
-  const program = gl.createProgram()!;
-  gl.attachShader(program, compile(gl.VERTEX_SHADER, VERTEX));
-  gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT));
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return;
-  // biome-ignore lint/correctness/useHookAtTopLevel: WebGL's useProgram, not a React hook.
-  gl.useProgram(program);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-  const position = gl.getAttribLocation(program, "aPosition");
-  gl.enableVertexAttribArray(position);
-  gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-  gl.enable(gl.SCISSOR_TEST);
-  gl.clearColor(0, 0, 0, 0);
-
-  const uniform = (name: string) => gl.getUniformLocation(program, name);
-  const locations = {
-    resolution: uniform("uResolution"),
-    field: uniform("uField"),
-    cell: uniform("uCell"),
-    gap: uniform("uGap"),
-    time: uniform("uTime"),
-    reveal: uniform("uReveal"),
-    mix: uniform("uMix"),
-    fade: uniform("uFade"),
-    narrow: uniform("uNarrow"),
-    pointer: uniform("uPointer"),
-    from: uniform("uFrom"),
-    to: uniform("uTo"),
-    fromRect: uniform("uFromRect"),
-    toRect: uniform("uToRect"),
-    fromKind: uniform("uFromKind"),
-    toKind: uniform("uToKind"),
-  };
-
-  // The same five levels as the contribution graph (Contributions.astro).
-  const style = getComputedStyle(document.documentElement);
-  const raised = hex(style.getPropertyValue("--color-raised"));
-  const deep = hex(style.getPropertyValue("--color-brand-deep"));
-  const brand = hex(style.getPropertyValue("--color-brand"));
-  [raised, blend(raised, deep, 0.4), blend(raised, deep, 0.65), deep, brand].forEach((colour, level) => {
-    gl.uniform3fv(uniform(`uLevel${level}`), colour);
-  });
-
   const textureOf = (picture: TexImageSource) => {
     const texture = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -217,10 +166,80 @@ export function startLattice(canvas: HTMLCanvasElement): void {
     return texture;
   };
 
-  const markTexture = textureOf(drawMark());
-  const textures = new Map<string, WebGLTexture>([["mark", markTexture]]);
+  const textures = new Map<string, WebGLTexture>();
   /** Width over height of each `svg:` picture, for placing it. */
   const aspects = new Map<string, number>();
+
+  /**
+   * Everything the context owns: the program, its uniforms and the mark.
+   * Run at start, and again when a lost context comes back with none of it.
+   */
+  const build = () => {
+    const compile = (type: number, text: string) => {
+      const shader = gl.createShader(type)!;
+      gl.shaderSource(shader, text);
+      gl.compileShader(shader);
+      return shader;
+    };
+    const program = gl.createProgram()!;
+    gl.attachShader(program, compile(gl.VERTEX_SHADER, VERTEX));
+    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT));
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null;
+    // biome-ignore lint/correctness/useHookAtTopLevel: WebGL's useProgram, not a React hook.
+    gl.useProgram(program);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const position = gl.getAttribLocation(program, "aPosition");
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+    gl.enable(gl.SCISSOR_TEST);
+    gl.clearColor(0, 0, 0, 0);
+
+    const uniform = (name: string) => gl.getUniformLocation(program, name);
+
+    // The same five levels as the contribution graph (Contributions.astro).
+    const style = getComputedStyle(document.documentElement);
+    const raised = hex(style.getPropertyValue("--color-raised"));
+    const deep = hex(style.getPropertyValue("--color-brand-deep"));
+    const brand = hex(style.getPropertyValue("--color-brand"));
+    [raised, blend(raised, deep, 0.4), blend(raised, deep, 0.65), deep, brand].forEach((colour, level) => {
+      gl.uniform3fv(uniform(`uLevel${level}`), colour);
+    });
+
+    const mark = textureOf(drawMark());
+    textures.clear();
+    textures.set("mark", mark);
+
+    return {
+      mark,
+      locations: {
+        resolution: uniform("uResolution"),
+        field: uniform("uField"),
+        cell: uniform("uCell"),
+        gap: uniform("uGap"),
+        time: uniform("uTime"),
+        reveal: uniform("uReveal"),
+        mix: uniform("uMix"),
+        fade: uniform("uFade"),
+        narrow: uniform("uNarrow"),
+        pointer: uniform("uPointer"),
+        from: uniform("uFrom"),
+        to: uniform("uTo"),
+        fromRect: uniform("uFromRect"),
+        toRect: uniform("uToRect"),
+        fromKind: uniform("uFromKind"),
+        toKind: uniform("uToKind"),
+      },
+    };
+  };
+
+  const built = build();
+  if (!built) return;
+  let { locations, mark: markTexture } = built;
+  /** The browser took the context away; nothing can be drawn until it is back. */
+  let lost = false;
 
   let host: HTMLElement | null = null;
   let want = "mark";
@@ -305,8 +324,9 @@ export function startLattice(canvas: HTMLCanvasElement): void {
       : asked.startsWith("text:")
         ? asked
         : drawing
-          ? // Redrawn whenever what it shows changes (a new signature's country).
-            `${asked}:${drawing.querySelectorAll("[data-level]").length}:${drawing.querySelectorAll('[data-level="4"]').length}`
+          ? // Keyed on every shape's level, so it is redrawn whenever what it
+            // shows changes: a signature from a new country, or one deleted.
+            `${asked}:${[...drawing.querySelectorAll<SVGElement>("[data-level]")].map((shape) => shape.dataset.level).join("")}`
           : "mark";
     want = key;
 
@@ -348,7 +368,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
 
   const draw = (now: number) => {
     frame = 0;
-    if (!host || document.hidden) return;
+    if (!host || document.hidden || lost) return;
 
     // The pointer uncovers the lattice anywhere on the page, for as long as
     // it keeps moving. At rest off the field there is nothing to draw, so
@@ -478,6 +498,26 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   );
   document.documentElement.addEventListener("pointerleave", () => {
     pointer.moved = Number.NEGATIVE_INFINITY;
+  });
+
+  // A lost context comes back empty, and only if the loss was acknowledged.
+  // The canvas is persisted, so without this every later page inherits a
+  // dead one.
+  canvas.addEventListener("webglcontextlost", (event) => {
+    event.preventDefault();
+    lost = true;
+    cancelAnimationFrame(frame);
+    frame = 0;
+  });
+  canvas.addEventListener("webglcontextrestored", () => {
+    const rebuilt = build();
+    if (!rebuilt) return;
+    ({ locations, mark: markTexture } = rebuilt);
+    lost = false;
+    from = to = { texture: markTexture, kind: 1, rect: place("mark"), key: "mark" };
+    resize();
+    resolve();
+    wake();
   });
 
   revealStarted = performance.now();
