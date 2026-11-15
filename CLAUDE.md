@@ -525,6 +525,14 @@ The tone target, the dissolve band (`COVER_GONE_X`, `COVER_SOLID_X`) and the
 dither amplitude (`COVER_DITHER`) were tuned together against real covers:
 change one and look at a dark sleeve, Trench and the home name again.
 
+**A title band's cover is a strip, not a square** (`/music` from 768px up;
+`placeCover`'s `band` layout). The texture stays square: the square is grown
+to `1 / BAND_COVER_SHOWN` of the band's height and centred, so the band's own
+top and bottom crop it, and its far edge sits on the page frame. The shader
+gives it its own dissolve (`BAND_GONE_X`, `BAND_SOLID_X`, on `uBand`), no
+fade at the foot, and nothing past its edge. A phone's band keeps the
+`compact` square.
+
 **The cover reaches the field through `lattice-source.ts`**, published by
 `NowPlaying.tsx`. It is loaded with `crossOrigin`, since its pixels go into a
 texture, so a cover host must answer with CORS as well as being in `img-src`.

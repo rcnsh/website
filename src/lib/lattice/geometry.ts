@@ -44,17 +44,38 @@ export function placeMark(
 }
 
 /**
- * The square a cover is drawn into. Wide fields hang it off the far edge and
- * let it dissolve towards the text; narrow ones (a phone) run it edge to edge
- * across the top and dissolve it downwards. A title block (`compact`) keeps
- * it to the far two fifths, clear of the heading and its links.
+ * How a cover sits in its field. `wide`: the home field, hung off the far
+ * edge. `narrow`: a phone's home field, edge to edge across the top.
+ * `compact`: a title band on a phone, the far two fifths. `band`: a title
+ * band from a tablet up, see `BAND_COVER_SHOWN`.
  */
-export function placeCover(field: { w: number; h: number }, narrow: boolean, compact = false): Rect {
-  if (narrow) {
+export type CoverLayout = "wide" | "narrow" | "compact" | "band";
+
+/**
+ * How much of a cover's height a title band shows. The band is short and
+ * wide, so a whole square in it was a thumbnail in the corner; the square is
+ * grown until the band's own edges crop it to this middle strip, which keeps
+ * the texture square. Less and a subject off the middle is lost (Late
+ * Registration's bear already is); more and the picture narrows to a tile.
+ */
+export const BAND_COVER_SHOWN = 0.65;
+/** The widest a band's cover may get, as a share of the frame, clear of the title. */
+const BAND_COVER_ROOM = 0.7;
+
+/**
+ * The square a cover is drawn into. `inset` is the page frame's margin, which
+ * a band's cover keeps its far edge to, in line with the tiles below it.
+ */
+export function placeCover(field: { w: number; h: number }, layout: CoverLayout, inset = 0): Rect {
+  if (layout === "narrow") {
     const side = field.w;
     return { x: 0, y: 0, w: side, h: side };
   }
-  const side = Math.min(field.h, field.w * (compact ? 0.4 : 0.56));
+  if (layout === "band") {
+    const side = Math.min(field.h / BAND_COVER_SHOWN, (field.w - inset * 2) * BAND_COVER_ROOM);
+    return { x: field.w - inset - side, y: (field.h - side) / 2, w: side, h: side };
+  }
+  const side = Math.min(field.h, field.w * (layout === "compact" ? 0.4 : 0.56));
   return { x: field.w - side, y: (field.h - side) / 2, w: side, h: side };
 }
 

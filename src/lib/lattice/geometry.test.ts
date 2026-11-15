@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  BAND_COVER_SHOWN,
   COVER_TEXELS_PER_SIDE,
   coverTexels,
   MARK_ROWS,
@@ -46,14 +47,35 @@ test("a field too small for the mark still gets it at one cell per triangle", ()
 
 test("a wide field hangs the cover off its far edge", () => {
   const field = { w: 1440, h: 840 };
-  const cover = placeCover(field, false);
+  const cover = placeCover(field, "wide");
   assert.equal(cover.w, cover.h);
   assert.equal(cover.x + cover.w, field.w);
   assert.equal(cover.w <= field.h, true);
 });
 
 test("a narrow field runs the cover edge to edge across the top", () => {
-  assert.deepEqual(placeCover({ w: 390, h: 1000 }, true), { x: 0, y: 0, w: 390, h: 390 });
+  assert.deepEqual(placeCover({ w: 390, h: 1000 }, "narrow"), { x: 0, y: 0, w: 390, h: 390 });
+});
+
+test("a title band crops its cover to the middle strip, ending on the frame", () => {
+  const field = { w: 1440, h: 290 };
+  const inset = 150;
+  const cover = placeCover(field, "band", inset);
+  assert.equal(cover.w, cover.h);
+  assert.equal(cover.x + cover.w, field.w - inset);
+  assert.equal(Math.abs(field.h / cover.h - BAND_COVER_SHOWN) < 1e-9, true);
+  // Centred, so the band shows the same amount above and below the middle.
+  assert.equal(Math.abs(cover.y + cover.h / 2 - field.h / 2) < 1e-9, true);
+});
+
+test("a band too narrow for the strip keeps its cover clear of the title", () => {
+  const field = { w: 800, h: 360 };
+  const inset = 22;
+  const cover = placeCover(field, "band", inset);
+  assert.equal(Math.abs(cover.w - (field.w - inset * 2) * 0.7) < 1e-9, true);
+  assert.equal(cover.x + cover.w, field.w - inset);
+  // Narrower than the strip would be, so more of the cover's height shows.
+  assert.equal(field.h / cover.h > BAND_COVER_SHOWN, true);
 });
 
 test("a triangle's taps are its sub-triangles' centroids, n squared of them, inside it", () => {

@@ -92,7 +92,10 @@ leading 0.86, sized so the surname ends before the cover turns solid.
   contribution year come first.
 - Every inner page opens on a title band (`page-band`): full-bleed, a third
   of a screen tall, the title at display size on the left and the field's
-  picture on the right. The tiles below were reflowed to full rows where the
+  picture on the right. On `/music` that picture is the middle two thirds of
+  the cover, as wide as the band allows and ending on the page frame: a
+  whole square in a band that short read as a thumbnail pushed into the
+  corner. The tiles below were reflowed to full rows where the
   old title tile used to share one. Post headers stay inside the frame and
   carry a small mark in their corner, since they are for reading.
 - A tile (`tile`) is an open panel, not a card: no fill and no box, a hairline

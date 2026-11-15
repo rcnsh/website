@@ -2,7 +2,7 @@ import { LOGO_POLYGONS, LOGO_VIEWBOX } from "../logo.ts";
 import { COVER_EVENT, currentCover } from "../lattice-source.ts";
 import { liveUpdates, motionReduced, onPrefChange } from "../prefs.ts";
 import { coverTone, drawCover } from "./cover.ts";
-import { coverTexels, placeCover, placeMark, type Rect } from "./geometry.ts";
+import { type CoverLayout, coverTexels, placeCover, placeMark, type Rect } from "./geometry.ts";
 import { FRAGMENT, VERTEX } from "./shader.ts";
 import type { ToneCurve } from "./tone.ts";
 
@@ -235,6 +235,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
         mix: uniform("uMix"),
         fade: uniform("uFade"),
         narrow: uniform("uNarrow"),
+        band: uniform("uBand"),
         pointer: uniform("uPointer"),
         reach: uniform("uReach"),
         from: uniform("uFrom"),
@@ -276,21 +277,22 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   const wideCell = cellOverride() ?? CELL_WIDE;
   const pointerReach = () => (smallField() ? POINTER_REACH.small : narrow ? POINTER_REACH.narrow : POINTER_REACH.wide) * ratio;
   const cellSize = () => (smallField() ? CELL_SMALL : narrow ? CELL_NARROW : wideCell) * ratio;
+  const coverLayout = (): CoverLayout => (smallField() ? (narrow ? "compact" : "band") : narrow ? "narrow" : "wide");
 
   /** Where a picture sits in the field, in device pixels. */
   const place = (key: string): Rect => {
     // Nowhere: off the field, so not even a glyph's scatter is drawn.
     if (key === BLANK) return { x: -1e6, y: -1e6, w: 1, h: 1 };
     const cell = cellSize();
-    if (key.startsWith("cover:")) return placeCover(fieldSize, narrow && !smallField(), smallField());
+    // A full-bleed field keeps its picture to the page frame.
+    const frame = 1184 * ratio;
+    const inset = Math.max((fieldSize.w - frame) / 2, 0) + 22 * ratio;
+    if (key.startsWith("cover:")) return placeCover(fieldSize, coverLayout(), inset);
     if (key.startsWith("text:")) {
       // Across the top of its block, above the heading.
       const w = Math.min(fieldSize.w - 56 * ratio, 560 * ratio);
       return { x: 28 * ratio, y: 50 * ratio, w, h: (w * 420) / 1024 };
     }
-    // A full-bleed field keeps its picture to the page frame.
-    const frame = 1184 * ratio;
-    const inset = Math.max((fieldSize.w - frame) / 2, 0) + 22 * ratio;
     if (key.startsWith("svg:")) {
       const aspect = aspects.get(key) ?? 2;
       const w = narrow ? fieldSize.w * 0.56 : Math.min((fieldSize.w - inset * 2) * 0.5, fieldSize.h * 0.84 * aspect);
@@ -511,7 +513,8 @@ export function startLattice(canvas: HTMLCanvasElement): void {
       gl.uniform1f(locations.reveal, easeOut(reveal));
       gl.uniform1f(locations.mix, easeInOut(mix));
       gl.uniform1f(locations.fade, Math.min(Math.max(-box.top / Math.max(box.height, 1), 0), 1) * 0.85);
-      gl.uniform1f(locations.narrow, narrow && !smallField() ? 1 : 0);
+      gl.uniform1f(locations.narrow, coverLayout() === "narrow" ? 1 : 0);
+      gl.uniform1f(locations.band, coverLayout() === "band" ? 1 : 0);
       // Reach follows the designed cell, not the drawn one, so a finer
       // `?cell=` keeps the pointer's light the same size on screen.
       gl.uniform1f(locations.reach, pointerReach());
