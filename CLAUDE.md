@@ -541,7 +541,7 @@ texture, so a cover host must answer with CORS as well as being in `img-src`.
 **Once a session the home field opens on the mark before the cover.**
 Only a field marked `data-lattice-intro` (the home hero) has it, so landing
 on `/music` neither holds its band nor spends the session's intro.
-`startIntro` (`field.ts`) holds the mark for `MARK_INTRO_MS` from the
+`startIntro` (`field.ts`) holds the mark for `MARK_INTRO_MS` (2.5s) from the
 page's arrival, loading the cover underneath, then sweeps to it; the
 `rcn:lattice-intro` sessionStorage flag keeps it to the first visit, and
 reduced motion or Live updates off skip it.

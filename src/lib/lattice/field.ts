@@ -54,10 +54,10 @@ const BLANK = "blank";
 const DRAWING_OVERDUE_MS = 4000;
 /**
  * Once a session the cover field opens on the mark and holds it this long
- * from the page's arrival (the reveal, then about two seconds still) before
+ * from the page's arrival (the reveal, then a moment still) before
  * dissolving into the cover, so a visitor sees both pictures.
  */
-const MARK_INTRO_MS = 3600;
+const MARK_INTRO_MS = 2500;
 const MARK_INTRO_KEY = "rcn:lattice-intro";
 
 /** How long the lattice stays uncovered after the pointer last moved. */
