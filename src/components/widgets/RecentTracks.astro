@@ -36,7 +36,7 @@ function playLabel(track: (typeof tracks)[number]): string | null {
         return (
           // The title's link stretches over the row, so the whole row opens the
           // song, while each artist links on its own above it.
-          <li class="group relative flex items-center gap-3.5 py-[9px]">
+          <li class="row-mark group relative flex items-center gap-3.5 py-[9px]">
             {track.image ? (
               <img
                 src={track.image}

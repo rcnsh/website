@@ -132,8 +132,9 @@ void main() {
   float sweep = 0.22 * (1.0 - smoothstep(0.0, 0.07, abs(n.x * 0.75 + n.y * 0.25 - band)));
 
   // Outside the field there is no picture, so the pointer's own light picks
-  // the level: brightest at the cursor, and uneven, like the dissolve.
-  float lum = mix(near * id * 0.85, s.x, inField);
+  // the level: uneven, like the dissolve, and kept to the two dimmest levels,
+  // because the page's text sits straight on top of it.
+  float lum = mix(near * id * 0.38, s.x, inField);
   // A glyph is either lit or not, so only what is lit takes the light.
   float lit = mix(1.0, step(0.05, lum), kind);
   lum = clamp(lum + (breath + sweep) * lit * inField + near * 0.22 * inField, 0.0, 1.0);

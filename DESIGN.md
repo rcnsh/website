@@ -91,6 +91,12 @@ leading 0.86, sized so the surname ends before the cover turns solid.
   picture on the right. The tiles below were reflowed to full rows where the
   old title tile used to share one. Post headers stay inside the frame and
   carry a small mark in their corner, since they are for reading.
+- A tile (`tile`) is an open panel, not a card: no fill and no box, a hairline
+  along its top with a short slanted brand tab at its left end. The page
+  ground, and the lattice under the pointer, run straight through it. Only
+  what is clickable as a whole keeps a bordered surface (`tile-link`: link
+  tiles and repo cards), so a box now means "this goes
+  somewhere".
 - The lattice is drawn finer in a band (13px sides) than on the home field
   (24px), so a picture a third of the height still has its detail.
 
@@ -101,7 +107,8 @@ leading 0.86, sized so the surname ends before the cover turns solid.
 - **Page transition:** the incoming page is uncovered left to right behind an
   edge cut at 60°, plain CSS on the router's view transition.
 - **Hover, one treatment per role:** link tiles get a slanted bar running in
-  along the top edge; link rows get a slanted marker and step aside for it;
+  along the top edge; link rows get a slanted marker and step aside for it
+  (`row-tick` for text rows, `row-mark` for track rows with a cover);
   nav keeps its travelling underline.
 
 ## Decisions worth knowing

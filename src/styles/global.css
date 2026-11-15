@@ -163,21 +163,23 @@
   grid-template-columns: repeat(12, minmax(0, 1fr));
 }
 
-/* The one container on a page. Padding lives on the tile, not its parent,
-   so a tile can opt out (a file browser runs edge to edge) with `p-0`. */
+/* The one container on a page: an open panel hung from a hairline, with the
+   mark's slanted tab at the rule's start. No fill and no box, so the lattice
+   field behind the page shows through when the pointer uncovers it; what is
+   boxed is what can be pressed (`tile-link`) or what sits inside a panel
+   (`card`). Padding lives on the tile, not its parent, so a tile can opt out
+   (a file browser runs edge to edge) with `p-0`. */
 @utility tile {
   position: relative;
   min-width: 0;
-  background: var(--color-surface);
-  border: 1px solid var(--color-line-soft);
-  border-radius: var(--radius-tile);
+  border-top: 1px solid var(--color-line);
+  background: linear-gradient(120deg, var(--color-brand) calc(100% - 2px), transparent calc(100% - 2px)) no-repeat
+    0 -1px / 26px 3px;
   padding: 1.25rem 1.375rem;
-  transition:
-    border-color 0.25s var(--ease-out-quint),
-    background-color 0.25s var(--ease-out-quint);
+  transition: border-color 0.25s var(--ease-out-quint);
 
   &:hover {
-    border-color: var(--color-line);
+    border-color: var(--color-line-strong);
   }
 }
 
@@ -197,6 +199,17 @@
 @utility tile-link {
   overflow: hidden;
 
+  /* Compounded with .tile so the box outranks the open panel whatever order
+     Tailwind emits the two utilities in. */
+  &.tile {
+    border: 1px solid var(--color-line-soft);
+    border-radius: var(--radius-tile);
+    background: var(--color-surface);
+    transition:
+      border-color 0.25s var(--ease-out-quint),
+      background-color 0.25s var(--ease-out-quint);
+  }
+
   &::after {
     content: "";
     position: absolute;
@@ -211,13 +224,55 @@
   }
 
   &:hover,
-  &:focus-visible {
-    background: var(--color-raised);
+  &:focus-visible,
+  &.tile:hover,
+  &.tile:focus-visible {
+    border-color: var(--color-line);
+    background-color: var(--color-raised);
   }
 
   &:hover::after,
   &:focus-visible::after {
     transform: skewX(-30deg) scaleX(1);
+  }
+}
+
+/* A row whose title is a stretched link (a track, an album): the same slanted
+   marker as `row-tick`, for a row that is a list item, not an anchor. */
+@utility row-mark {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 9px;
+    height: 16px;
+    margin-top: -8px;
+    background: var(--color-brand);
+    clip-path: polygon(46% 0, 100% 0, 54% 100%, 0 100%);
+    opacity: 0;
+    translate: -8px 0;
+    transition:
+      opacity 0.2s,
+      translate 0.35s var(--ease-out-quint);
+  }
+
+  &:hover::before,
+  &:focus-within::before {
+    opacity: 1;
+    translate: 0 0;
+  }
+
+  /* The row makes room with padding, never by moving its children: a
+     translated child becomes the containing block for the title's stretched
+     link, which then stops covering the row. */
+  transition: padding-left 0.35s var(--ease-out-quint);
+
+  &:hover,
+  &:focus-within {
+    padding-left: 16px;
   }
 }
 

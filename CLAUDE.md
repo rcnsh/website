@@ -470,6 +470,12 @@ and that element must have no background of its own: the canvas is under the
 page, so a fill hides it. `page-band` and `page-hero` are transparent for this
 reason.
 
+**`tile` has no fill, so page text sits straight on the canvas.** The
+pointer's light outside a field is held to the two dimmest levels for that
+reason (`near * id * 0.38` in `shader.ts`); raise it and body text loses
+contrast wherever the pointer is. Something that needs a surface of its own
+takes `tile-link` or sets a background itself.
+
 **`page-band` (`global.css`) breaks out of the page frame by `--page-w`**, the
 viewport without its scrollbar, which TopBar publishes beside `--header-h`;
 `100vw` would include the scrollbar gutter. It must be a direct child of the

@@ -151,7 +151,7 @@ export default function MusicExplorer({
               disambiguates repeated titles. Switching range replaces the whole
               list, so rows never reorder in place. */}
             {(items as Track[]).map((track, i) => (
-              <li key={`${track.title}-${i}`} className="group relative flex items-center gap-3.5 py-2.5">
+              <li key={`${track.title}-${i}`} className="row-mark group relative flex items-center gap-3.5 py-2.5">
                   <span className="w-5 shrink-0 font-mono text-[11px] tabular-nums text-ink-faint">
                     {String(i + 1).padStart(2, "0")}
                   </span>

@@ -169,7 +169,7 @@ const summary = dominant
                 {year.tracks.map((song) => {
                   const { Tag, attrs, stretch } = songLink(song.track_id);
                   return (
-                    <li class:list={["relative flex items-center gap-3", { group: Tag === "a" }]}>
+                    <li class:list={["relative flex items-center gap-3", { "row-mark group": Tag === "a" }]}>
                         {song.image ? (
                           <img src={cover(song.image, 64)} alt="" width={36} height={36} loading="lazy" class="h-9 w-9 shrink-0 rounded-xs object-cover" />
                         ) : (
