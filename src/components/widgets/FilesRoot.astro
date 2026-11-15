@@ -31,7 +31,8 @@ const totals = tree ? bucketTotals(tree) : null;
 const kinds = tree ? kindTotals(tree) : null;
 ---
 
-<div class="bento">
+{/* The fallback already rose in these places; see `data-risen` in global.css. */}
+<div class="bento" data-risen>
   <FilesHero title={title} totals={totals} />
   {kinds && kinds.length > 0 && <FilesUsage kinds={kinds} hidden={hidden} ownerSlots={ownerSlots} />}
   <FileBrowser client:idle tree={tree} initial={root} bucketUrl={publicBucketBase()} />

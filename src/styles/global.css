@@ -627,6 +627,13 @@
   animation: none !important;
 }
 
+/* A server island that replaces a fallback of the same shape marks itself
+   `data-risen`: the fallback has made the entrance, and running it again on
+   the swap blinks the title and tiles a moment into the load. */
+[data-risen] .animate-rise {
+  animation: none;
+}
+
 :root[data-motion="reduce"][data-wipe]::before {
   display: none;
 }
