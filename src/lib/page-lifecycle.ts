@@ -52,6 +52,46 @@ export function keepReaderAttributes(): void {
 }
 
 /**
+ * A click during the page wipe ends the wipe and lands on what is under it.
+ *
+ * While a view transition runs the whole page is drawn as a snapshot, so
+ * nothing in it can be hit: every click goes to `<html>` and is lost, and for
+ * the length of the wipe the new page looks ready and is not. No CSS lets
+ * input through, since the root itself is what was captured
+ * (`pointer-events: none` on `::view-transition` only reaches elements left
+ * out of the transition). So the click skips the rest of the wipe and is
+ * handed to the element at that point once the page is live again.
+ */
+export function letClicksEndTheWipe(): void {
+  let running: ViewTransition | null = null;
+  document.addEventListener("astro:before-swap", (event) => {
+    const transition = (event as TransitionBeforeSwapEvent).viewTransition;
+    running = transition;
+    void transition.finished.finally(() => {
+      if (running === transition) running = null;
+    });
+  });
+  document.addEventListener(
+    "click",
+    (event) => {
+      // A real click that hit the snapshot, not one this handed on.
+      if (!running || !event.isTrusted || event.target !== document.documentElement) return;
+      const { clientX, clientY } = event;
+      const transition = running;
+      running = null;
+      transition.skipTransition();
+      void transition.finished.finally(() =>
+        requestAnimationFrame(() => {
+          const under = document.elementFromPoint(clientX, clientY);
+          if (under instanceof HTMLElement) under.click();
+        }),
+      );
+    },
+    true,
+  );
+}
+
+/**
  * Links into SSR pages and API routes go straight to a full load. Left to
  * itself the router would fetch the page, see it has no <ClientRouter />,
  * throw it away and load it again: two renders, two session lookups.

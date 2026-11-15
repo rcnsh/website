@@ -547,6 +547,13 @@ never `transition:animate` (see CSP and the router). Playwright screenshots do
 not capture the view-transition layer, so transition frames look like hard
 cuts; check with `document.getAnimations()`.
 
+**A click during the wipe is handed on by `letClicksEndTheWipe`**
+(`page-lifecycle.ts`, registered in `Layout`). While a view transition runs
+the page is a snapshot and every click lands on `<html>`; the handler skips
+the rest of the wipe and clicks what is under the pointer. `pointer-events:
+none` on `::view-transition` does not do this: the root is what was captured,
+so there is nothing live beneath it to hit.
+
 **The wipe's keyframes animate `--page-wipe`, never `clip-path`.** Chromium
 runs a `clip-path` animation on the compositor, and on a real display that
 now and then showed a wrong frame at either end of the wipe: a flicker on
