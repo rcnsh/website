@@ -120,15 +120,25 @@ function drawCover(image: HTMLImageElement): HTMLCanvasElement {
 /**
  * An inline SVG as a picture: shapes only, each filled the grey of its
  * `data-level`, so the page's own colours and strokes never come into it.
+ * Bright shapes (3 and 4) are drawn last and fattened by a stroke: a small
+ * one (the UK on the world map) would otherwise fall between the centres of
+ * the triangles and never light up.
  */
 function svgPicture(svg: SVGSVGElement): string {
+  const [, , boxWidth = 100] = (svg.getAttribute("viewBox") ?? "").split(" ").map(Number);
   const shapes = [...svg.querySelectorAll<SVGElement>("path, circle, rect, polygon")]
-    .map((shape) => {
-      const level = Number(shape.dataset.level ?? 4);
+    .map((shape) => ({ shape, level: Number(shape.dataset.level ?? 4) }))
+    .sort((a, b) => a.level - b.level)
+    .map(({ shape, level }) => {
       const grey = Math.round(((level + 0.5) / 5) * 255);
       const copy = shape.cloneNode(false) as SVGElement;
       for (const name of ["class", "style", "data-level"]) copy.removeAttribute(name);
       copy.setAttribute("fill", `rgb(${grey},${grey},${grey})`);
+      if (level >= 3) {
+        copy.setAttribute("stroke", `rgb(${grey},${grey},${grey})`);
+        copy.setAttribute("stroke-width", String(boxWidth * 0.022));
+        copy.setAttribute("stroke-linejoin", "round");
+      }
       return copy.outerHTML;
     })
     .join("");
