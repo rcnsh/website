@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   dailyDriver,
+  groupSpan,
   driverFact,
   linkHost,
   pluggedIn,
@@ -49,4 +50,21 @@ test("counts every item across groups", () => {
 test("position and host formatting", () => {
   assert.equal(position(2, 5), "03/05");
   assert.equal(linkHost("https://www.typescriptlang.org/docs"), "typescriptlang.org");
+});
+
+test("groups pair up narrow then wide, evenly when the same size", () => {
+  const sized = (...counts: number[]): UsesGroup[] =>
+    counts.map((n, i) => ({
+      title: `G${i}`,
+      items: Array.from({ length: n }, (_, j) => ({ name: `${i}.${j}`, art: "x" })),
+    }));
+
+  const uneven = sized(6, 9, 6, 4);
+  assert.deepEqual([0, 1, 2, 3].map((i) => groupSpan(uneven, i)), [7, 5, 7, 12]);
+
+  const even = sized(6, 9, 9, 4);
+  assert.deepEqual([0, 1, 2, 3].map((i) => groupSpan(even, i)), [7, 6, 6, 12]);
+
+  const closed = sized(6, 9, 6, 4, 4);
+  assert.deepEqual([3, 4].map((i) => groupSpan(closed, i)), [6, 6]);
 });

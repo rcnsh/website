@@ -33,6 +33,21 @@ export function pluggedIn(groups: UsesGroup[]): UsesItem[] {
   );
 }
 
+/**
+ * Columns (of 12) for each group's plate. The inspector takes 5 beside the
+ * first group; the rest pair up narrow then wide, except that a pair of the
+ * same size splits the row evenly so their grids match tile for tile. A last
+ * group left on its own takes the row.
+ */
+export function groupSpan(groups: UsesGroup[], index: number): 5 | 6 | 7 | 12 {
+  if (index === 0) return 7;
+  const odd = index % 2 === 1;
+  if (odd && index === groups.length - 1) return 12;
+  const partner = groups[odd ? index + 1 : index - 1];
+  if (partner && partner.items.length === groups[index]?.items.length) return 6;
+  return odd ? 5 : 7;
+}
+
 export function thingCount(groups: UsesGroup[]): number {
   return groups.reduce((sum, group) => sum + group.items.length, 0);
 }

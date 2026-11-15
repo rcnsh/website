@@ -87,10 +87,13 @@
         "items": [
           { "name": "TypeScript", "url": "https://www.typescriptlang.org/", "art": "typescript" },
           { "name": "Python", "url": "https://python.org/", "art": "python" },
+          { "name": "Rust", "url": "https://www.rust-lang.org/", "art": "rust" },
           { "name": "Astro", "url": "https://astro.build/", "art": "astro" },
           { "name": "Next.js", "url": "https://nextjs.org/", "art": "nextjs" },
           { "name": "React", "url": "https://react.dev/", "art": "react" },
-          { "name": "Tailwind", "url": "https://tailwindcss.com/", "art": "tailwind" }
+          { "name": "Tailwind", "url": "https://tailwindcss.com/", "art": "tailwind" },
+          { "name": "three.js", "url": "https://threejs.org/", "art": "threejs" },
+          { "name": "MCP", "url": "https://modelcontextprotocol.io/", "art": "mcp" }
         ]
       },
       {
@@ -98,7 +101,7 @@
         "items": [
           { "name": "Cloudflare", "url": "https://developers.cloudflare.com/workers/", "art": "cloudflare" },
           { "name": "Vercel", "url": "https://vercel.com/", "art": "vercel" },
-          { "name": "Postgres", "url": "https://www.postgresql.org/", "art": "postgres" },
+          { "name": "macOS", "url": "https://www.apple.com/macos/", "art": "macos" },
           { "name": "Linux", "url": "https://www.linux.org/", "art": "linux" }
         ]
       }
