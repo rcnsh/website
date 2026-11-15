@@ -98,7 +98,7 @@ export function latticeCover(): LatticeCover | null {
     pointerEvents: "none",
     display: "none",
   });
-  document.documentElement.append(canvas);
+  document.documentElement.appendChild(canvas);
 
   let frame = 0;
   /** The share of triangles drawn now, 0 to 1. */
