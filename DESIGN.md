@@ -97,8 +97,10 @@ leading 0.86, sized so the surname ends before the cover turns solid.
   what is clickable as a whole keeps a bordered surface (`tile-link`: link
   tiles and repo cards), so a box now means "this goes
   somewhere".
-- The lattice is drawn finer in a band (13px sides) than on the home field
-  (24px), so a picture a third of the height still has its detail.
+- The home field is drawn on 16px sides: at 24 a cover was about 35
+  triangles across and most sleeves read as blobs; at 14 the gutters dim the
+  picture and the grid stops looking like tiles. A band is finer still
+  (13px), so a picture a third of the height keeps its detail.
 
 ## Motion
 
@@ -125,7 +127,11 @@ leading 0.86, sized so the surname ends before the cover turns solid.
     into the bottom two levels. The target is lower than a cover looked at on
     its own would want, because the dissolve keeps bright triangles longest
     and the dither lifts mid-tones: at 0.35 a dark sleeve came out lighter
-    than it feels, and Trench lost its black.
+    than it feels, and Trench lost its black. Two guards on the stretch: a
+    cover with almost no range of its own (an all-black sleeve) is drawn at
+    its real brightness, since stretching nothing lit the whole field; and
+    the bottom 8% of the range stays black, or the gamma lifts the grain in a
+    black background a whole level.
   - **Area average**: each triangle shows the mean of the picture under it,
     not the pixel at its centre, so detail finer than a triangle evens out
     instead of speckling.

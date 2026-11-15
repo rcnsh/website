@@ -515,8 +515,8 @@ texture, so a cover host must answer with CORS as well as being in `img-src`.
 `import.meta.env.DEV` and compiled out of production. `?cover=<image url>`
 draws that cover and holds it against the now-playing widget, since local
 dev has no warehouse token. `?cell=<px>` draws the home field on triangles of
-that side, to compare cell sizes; the pointer's reach stays on the designed
-cell (`designedCell` in `field.ts`), so its light keeps its size on screen.
+that side, to compare cell sizes; the pointer's reach is set in px
+(`POINTER_REACH` in `field.ts`), so its light keeps its size on screen.
 
 **A cover is ordered-dithered; a glyph never is.** Each triangle's level is
 `floor(lum * 5 + (t - 0.5) * COVER_DITHER)` with `t` from a 4x4 Bayer matrix on the lattice

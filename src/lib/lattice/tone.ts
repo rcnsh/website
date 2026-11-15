@@ -26,6 +26,21 @@ export const TONE = {
   mean: 0.28,
   minGamma: 0.4,
   maxGamma: 1.25,
+  /**
+   * The share of the full range (0..1) a cover's own range must span before
+   * it is stretched at all, and the share at which it is stretched fully.
+   * Below `flat` the cover is drawn at its real brightness: an all-black
+   * sleeve has nothing to stretch, and stretching it anyway lights the whole
+   * field.
+   */
+  flat: 0.06,
+  full: 0.3,
+  /**
+   * The bottom of the stretched range that stays black. A gamma under 1 is
+   * steepest at zero, so without this the grain in a black background is
+   * lifted a whole level.
+   */
+  toe: 0.08,
 } as const;
 
 export type ToneOptions = typeof TONE;
@@ -44,11 +59,20 @@ export function percentile(sorted: ArrayLike<number>, p: number): number {
 
 const clamp01 = (x: number) => Math.min(Math.max(x, 0), 1);
 
+const smoothstep = (from: number, to: number, x: number) => {
+  const t = clamp01((x - from) / (to - from));
+  return t * t * (3 - 2 * t);
+};
+
+/** A stretched value (0..1) through the gamma, with the toe held black. */
+const shaped = (stretched: number, gamma: number, toe: number) =>
+  stretched ** gamma * (toe > 0 ? smoothstep(0, toe, stretched) : 1);
+
 /** The gamma that brings the mean of `values` (each 0..1) to `target`, within bounds. */
-export function gammaForMean(values: ArrayLike<number>, target: number, min: number, max: number): number {
+export function gammaForMean(values: ArrayLike<number>, target: number, min: number, max: number, toe = 0): number {
   const meanAt = (gamma: number) => {
     let sum = 0;
-    for (let i = 0; i < values.length; i++) sum += values[i]! ** gamma;
+    for (let i = 0; i < values.length; i++) sum += shaped(values[i]!, gamma, toe);
     return sum / Math.max(values.length, 1);
   };
   // The mean falls as the gamma rises, so bisect.
@@ -65,7 +89,14 @@ export function gammaForMean(values: ArrayLike<number>, target: number, min: num
 }
 
 /** A cover's tone curve: which luminances become black and white, and the gamma between. */
-export type ToneCurve = { black: number; white: number; gamma: number };
+export type ToneCurve = {
+  black: number;
+  white: number;
+  gamma: number;
+  /** 0..1: how far the stretch is trusted over the cover's real brightness. */
+  strength: number;
+  toe: number;
+};
 
 /**
  * The curve for a cover, from its luminances (0..255). `field.ts` measures it
@@ -73,20 +104,28 @@ export type ToneCurve = { black: number; white: number; gamma: number };
  * the lattice wants, so the picture's tone never moves with the window.
  */
 export function toneCurve(lums: ArrayLike<number>, options: ToneOptions = TONE): ToneCurve {
-  if (lums.length === 0) return { black: 0, white: 255, gamma: 1 };
+  const plain: ToneCurve = { black: 0, white: 255, gamma: 1, strength: 0, toe: 0 };
+  if (lums.length === 0) return plain;
   const sorted = Float32Array.from(lums).sort();
   const black = percentile(sorted, options.low);
   const white = percentile(sorted, options.high);
-  // One flat colour has no range to stretch: mid-grey rather than black.
-  if (white - black < 1) return { black: black - 127.5, white: black + 127.5, gamma: 1 };
+  // Little or no range of its own: the cover keeps its real brightness, so
+  // a black sleeve stays black and a white one stays white.
+  const strength = smoothstep(options.flat, options.full, (white - black) / 255);
+  if (strength === 0) return plain;
   const stretched = new Float32Array(lums.length);
   for (let i = 0; i < lums.length; i++) stretched[i] = clamp01((lums[i]! - black) / (white - black));
-  return { black, white, gamma: gammaForMean(stretched, options.mean, options.minGamma, options.maxGamma) };
+  const gamma = gammaForMean(stretched, options.mean, options.minGamma, options.maxGamma, options.toe);
+  return { black, white, gamma, strength, toe: options.toe };
 }
 
 /** One luminance (0..255) through a curve, to a tone 0..1. */
-export const applyTone = (lum: number, { black, white, gamma }: ToneCurve) =>
-  clamp01((lum - black) / (white - black)) ** gamma;
+export function applyTone(lum: number, { black, white, gamma, strength, toe }: ToneCurve): number {
+  const real = clamp01(lum / 255);
+  if (strength === 0) return real;
+  const stretched = clamp01((lum - black) / (white - black));
+  return real + (shaped(stretched, gamma, toe) - real) * strength;
+}
 
 /** Luminances (0..255) in, tones (0..1) out, in the same order. */
 export function toneMap(lums: ArrayLike<number>, options: ToneOptions = TONE): Float32Array {

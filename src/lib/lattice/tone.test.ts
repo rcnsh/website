@@ -66,9 +66,22 @@ test("tones stay in 0..1 and keep the order of their luminances", () => {
   }
 });
 
-test("a flat cover comes out mid-grey, not black", () => {
-  assert.deepEqual(Array.from(toneMap([128, 128, 128])), [0.5, 0.5, 0.5]);
+test("a flat cover keeps its real brightness", () => {
+  // Donda: all black. Stretching it lit the whole field.
+  const black = toneMap(Array.from({ length: 500 }, (_, i) => (i % 7 === 0 ? 3 : 1)));
+  assert.ok(Math.max(...black) < 0.02, `black cover reached ${Math.max(...black)}`);
+  const white = toneMap([250, 252, 251, 250]);
+  assert.ok(Math.min(...white) > 0.95);
   assert.equal(toneMap([]).length, 0);
+});
+
+test("grain in a black background is not lifted a level", () => {
+  // Discovery: a bright logo on black with a little noise in the black.
+  const lums = Array.from({ length: 1000 }, (_, i) => (i % 5 === 0 ? 150 + (i % 90) : 2 + (i % 6)));
+  const out = toneMap(lums);
+  const background = Array.from(out).filter((_, i) => i % 5 !== 0);
+  assert.ok(Math.max(...background) < 0.1, `background reached ${Math.max(...background)}`);
+  assert.ok(Math.max(...out) > 0.9);
 });
 
 test("a curve measured on a small copy maps a large copy to the same tones", () => {

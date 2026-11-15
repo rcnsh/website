@@ -21,7 +21,8 @@ import type { ToneCurve } from "./tone.ts";
 
 type Source = { texture: WebGLTexture; kind: 0 | 1; rect: Rect; key: string };
 
-const CELL_WIDE = 24;
+/** The home field. 16 is the coarsest side at which covers read as pictures. */
+const CELL_WIDE = 16;
 const CELL_NARROW = 17;
 /** Title blocks: fine enough that the mark fits twice over beside a heading. */
 const CELL_SMALL = 13;
@@ -30,8 +31,12 @@ const SMALL_FIELD = 900;
 const NARROW_BELOW = 768;
 const MAX_PIXEL_RATIO = 1.5;
 
-/** How far round the pointer the lattice uncovers, in cells of the field's own size. */
-const POINTER_REACH_CELLS = 6.5;
+/**
+ * How far round the pointer the lattice uncovers, in px for each kind of
+ * field. Not in cells: the home field's cell has changed and may again, and
+ * the pointer should not feel different for it.
+ */
+const POINTER_REACH = { wide: 156, narrow: 110, small: 84 } as const;
 
 /**
  * Dev only: `?cell=<px>` draws the home field on triangles of that side, to
@@ -262,7 +267,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   const boxed = () => narrow || fieldSize.w < SMALL_FIELD * ratio;
   const wideCell = cellOverride() ?? CELL_WIDE;
   /** The cell each field is designed around, before any `?cell=` override. */
-  const designedCell = () => (smallField() ? CELL_SMALL : narrow ? CELL_NARROW : CELL_WIDE) * ratio;
+  const pointerReach = () => (smallField() ? POINTER_REACH.small : narrow ? POINTER_REACH.narrow : POINTER_REACH.wide) * ratio;
   const cellSize = () => (smallField() ? CELL_SMALL : narrow ? CELL_NARROW : wideCell) * ratio;
 
   /** Where a picture sits in the field, in device pixels. */
@@ -448,7 +453,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
       gl.uniform1f(locations.narrow, narrow && !smallField() ? 1 : 0);
       // Reach follows the designed cell, not the drawn one, so a finer
       // `?cell=` keeps the pointer's light the same size on screen.
-      gl.uniform1f(locations.reach, designedCell() * POINTER_REACH_CELLS);
+      gl.uniform1f(locations.reach, pointerReach());
       gl.uniform3f(locations.pointer, pointer.x * ratio, pointer.y * ratio, frozen ? 0 : pointer.strength);
       gl.uniform4f(locations.fromRect, from.rect.x, from.rect.y, from.rect.w, from.rect.h);
       gl.uniform4f(locations.toRect, to.rect.x, to.rect.y, to.rect.w, to.rect.h);
