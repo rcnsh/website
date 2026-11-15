@@ -3,6 +3,7 @@ import { COVER_EVENT, currentCover } from "../lattice-source.ts";
 import { liveUpdates, motionReduced, onPrefChange } from "../prefs.ts";
 import { coverTexels, placeCover, placeMark, type Rect } from "./geometry.ts";
 import { FRAGMENT, VERTEX } from "./shader.ts";
+import { applyTone, luminance, type ToneCurve, toneCurve } from "./tone.ts";
 
 /**
  * The lattice field: one canvas fixed behind every page, drawing a picture on
@@ -87,8 +88,6 @@ function drawText(text: string): HTMLCanvasElement {
   return canvas;
 }
 
-type Range = { low: number; high: number };
-
 function shrink(image: HTMLImageElement, size: number) {
   const canvas = document.createElement("canvas");
   canvas.width = size;
@@ -99,39 +98,35 @@ function shrink(image: HTMLImageElement, size: number) {
   return { canvas, context };
 }
 
+/** The fixed side of the copy a cover's tone curve is measured on. */
+const TONE_SAMPLE = 72;
+
 /**
- * The cover's luminance range, read from a 72px copy so the stretch does not
- * depend on how large the texture happens to be.
+ * A cover's tone curve (`tone.ts`), measured on a fixed-size copy so it does
+ * not depend on how large the texture happens to be: the picture keeps its
+ * tone when the window resizes and the texture is redrawn.
  */
-function coverRange(image: HTMLImageElement): Range {
-  const { context } = shrink(image, 72);
-  const data = context.getImageData(0, 0, 72, 72).data;
-  let low = 255;
-  let high = 0;
-  for (let i = 0; i < data.length; i += 4) {
-    const lum = 0.299 * data[i]! + 0.587 * data[i + 1]! + 0.114 * data[i + 2]!;
-    if (lum < low) low = lum;
-    if (lum > high) high = lum;
-  }
-  return { low, high };
+function coverTone(image: HTMLImageElement): ToneCurve {
+  const { context } = shrink(image, TONE_SAMPLE);
+  const data = context.getImageData(0, 0, TONE_SAMPLE, TONE_SAMPLE).data;
+  const lums = new Float32Array(data.length / 4);
+  for (let i = 0; i < lums.length; i++) lums[i] = luminance(data[i * 4]!, data[i * 4 + 1]!, data[i * 4 + 2]!);
+  return toneCurve(lums);
 }
 
 /**
  * The cover at `size` texels square (`coverTexels`: a few to each triangle's
- * side), so the shader's taps across a triangle add up to its mean.
+ * side), so the shader's taps across a triangle add up to its mean, and
+ * tone-mapped over all five levels, or a dark sleeve draws as one flat tone
+ * with a few bright blobs.
  */
-function drawCover(image: HTMLImageElement, size: number, { low, high }: Range): HTMLCanvasElement {
+function drawCover(image: HTMLImageElement, size: number, curve: ToneCurve): HTMLCanvasElement {
   const { canvas, context } = shrink(image, size);
-
-  // Stretch the cover's own range across all five levels, or a dark sleeve
-  // draws as one flat tone.
   const pixels = context.getImageData(0, 0, size, size);
   const data = pixels.data;
-  const range = Math.max(high - low, 1);
   for (let i = 0; i < data.length; i += 4) {
-    const lum = 0.299 * data[i]! + 0.587 * data[i + 1]! + 0.114 * data[i + 2]!;
-    const stretched = Math.min(255, Math.max(0, Math.round(((lum - low) / range) * 255)));
-    data[i] = data[i + 1] = data[i + 2] = stretched;
+    const tone = applyTone(luminance(data[i]!, data[i + 1]!, data[i + 2]!), curve);
+    data[i] = data[i + 1] = data[i + 2] = Math.round(tone * 255);
   }
   context.putImageData(pixels, 0, 0);
   return canvas;
@@ -198,7 +193,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
 
   const textures = new Map<string, WebGLTexture>();
   /** Each loaded cover, kept to redraw at a new size when the lattice changes. */
-  const covers = new Map<string, { image: HTMLImageElement; range: Range }>();
+  const covers = new Map<string, { image: HTMLImageElement; tone: ToneCurve }>();
   /** The size each cover's texture in `textures` was drawn at. */
   const coverSizes = new Map<string, number>();
   /** Width over height of each `svg:` picture, for placing it. */
@@ -349,7 +344,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
     if (drawn && coverSizes.get(key) === size) return drawn;
     // Safe to drop: `draw` binds a picture's texture from the map, not from its source.
     if (drawn) gl.deleteTexture(drawn);
-    const texture = textureOf(drawCover(art.image, size, art.range));
+    const texture = textureOf(drawCover(art.image, size, art.tone));
     textures.set(key, texture);
     coverSizes.set(key, size);
     return texture;
@@ -415,7 +410,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
     if (!cover && !drawing) return;
     loadImage(cover ? cover.image : svgPicture(drawing!))
       .then((image) => {
-        if (cover) covers.set(key, { image, range: coverRange(image) });
+        if (cover) covers.set(key, { image, tone: coverTone(image) });
         else aspects.set(key, image.naturalWidth / Math.max(image.naturalHeight, 1));
         const texture = cover ? coverTexture(key, place(key))! : textureOf(image);
         if (!cover) textures.set(key, texture);

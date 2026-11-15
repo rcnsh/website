@@ -117,7 +117,10 @@ leading 0.86, sized so the surname ends before the cover turns solid.
   screen, in a hidden tab, and whenever the field is still.
 - No GSAP, Lenis or OGL: the field is one fragment shader and about 300 lines
   of plain WebGL, so the page budget barely moved.
-- Covers are stretched to their own luminance range before being drawn, or a
-  dark sleeve comes out as one flat tone.
+- Covers are tone-mapped before being drawn (`lattice/tone.ts`): stretched
+  between their 2nd and 98th luminance percentiles, then given the gamma that
+  brings their mean to 0.35. A min-to-max stretch let one bright pixel push a
+  dark sleeve into the bottom two levels; the gamma lifts a dark cover's
+  mid-tones but barely touches one whose highlights already carry its mean.
 - Each cover triangle shows the mean of the picture under it, not the pixel at
   its centre, so detail finer than a triangle evens out instead of speckling.
