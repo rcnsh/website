@@ -542,25 +542,24 @@ field is off screen, the tab is hidden, or motion is reduced or Live updates
 is off (then it draws one still frame). Keep new motion out of it unless it is
 the field's own.
 
-**The page wipe is plain CSS on `::view-transition-new(root)`** (`global.css`),
-never `transition:animate` (see CSP and the router). Playwright screenshots do
-not capture the view-transition layer, so transition frames look like hard
-cuts; check with `document.getAnimations()`.
-
-**A click during the wipe is handed on by `letClicksEndTheWipe`**
-(`page-lifecycle.ts`, registered in `Layout`). While a view transition runs
-the page is a snapshot and every click lands on `<html>`; the handler skips
-the rest of the wipe and clicks what is under the pointer. `pointer-events:
-none` on `::view-transition` does not do this: the root is what was captured,
-so there is nothing live beneath it to hit.
+**The page wipe is a cover over the live page, not a view transition.**
+The router's view transition has `animation: none` on every part, so it ends
+on its first frame, and `wipePagesIn` (`page-lifecycle.ts`, registered in
+`Layout`) sets `data-wipe` on `<html>` after every swap,
+which draws a fixed cover in the page ground under the header and clips it
+away (`global.css`). A view transition draws the whole document as a
+snapshot until it ends, so nothing can be hovered and every click lands on
+`<html>`; no CSS lets input through, since the root itself is captured. So
+the old page is not shown under the wipe: it leaves at once. The cover is
+`pointer-events: none` and never `transition:animate` (see CSP and the
+router).
 
 **The wipe's keyframes animate `--page-wipe`, never `clip-path`.** Chromium
 runs a `clip-path` animation on the compositor, and on a real display that
 now and then showed a wrong frame at either end of the wipe: a flicker on
 every page change that screen recordings and headless runs do not show. The
 registered property animates on the main thread and the static `clip-path`
-reads it. It rests at 100% so that with the animation off (reduced motion)
-the page is not clipped.
+reads it.
 
 ### Gotchas that cost time
 

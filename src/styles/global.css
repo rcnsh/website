@@ -576,23 +576,26 @@
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
-/* The router swaps pages inside a view transition. The incoming page is
-   uncovered left to right behind an edge cut at the mark's slant, the same
-   way the lattice field sweeps to its next picture. Plain CSS on the root
-   snapshot, never `transition:animate`: that emits an inline <style> Astro
-   does not hash. */
-::view-transition-old(root) {
-  animation: none;
-  mix-blend-mode: normal;
-}
-::view-transition-new(root) {
+/* The page wipe: the incoming page is uncovered left to right behind an edge
+   cut at the mark's slant, the same way the lattice field sweeps to its next
+   picture. It is a cover in the page ground drawn over the new page and
+   clipped away, under the header and never a view transition: a view
+   transition draws the whole document as a snapshot, so for its length
+   nothing can be hovered or clicked. `wipePagesIn` (page-lifecycle.ts) sets
+   `data-wipe` after each swap. */
+:root[data-wipe]::before {
+  content: "";
+  position: fixed;
+  inset: var(--header-h) 0 0 0;
+  z-index: 40;
+  pointer-events: none;
+  background: var(--color-base);
   animation: page-wipe 0.5s cubic-bezier(0.65, 0, 0.35, 1) both;
-  mix-blend-mode: normal;
   clip-path: polygon(
-    -40% 0,
     calc(-5% + var(--page-wipe) * 1.8) 0,
-    calc(-40% + var(--page-wipe) * 1.8) 100%,
-    -75% 100%
+    175% 0,
+    175% 100%,
+    calc(-40% + var(--page-wipe) * 1.8) 100%
   );
 }
 
@@ -600,8 +603,7 @@
    itself: Chromium hands a `clip-path` animation to the compositor, which now
    and then shows a wrong frame at either end of it (a flicker on the display
    that screen recordings miss). A registered property animates on the main
-   thread. It rests at 100%, the page fully uncovered, so with the animation
-   off (reduced motion) nothing is clipped. */
+   thread. It rests at 100%, the page fully uncovered. */
 @property --page-wipe {
   syntax: "<percentage>";
   inherits: false;
@@ -617,10 +619,16 @@
   }
 }
 
-:root[data-motion="reduce"]::view-transition-group(*),
-:root[data-motion="reduce"]::view-transition-old(*),
-:root[data-motion="reduce"]::view-transition-new(*) {
+/* The router's view transition has nothing to animate, so it ends on its
+   first frame and the page is live. */
+::view-transition-group(*),
+::view-transition-old(*),
+::view-transition-new(*) {
   animation: none !important;
+}
+
+:root[data-motion="reduce"][data-wipe]::before {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -632,10 +640,8 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  :root:not([data-motion])::view-transition-group(*),
-  :root:not([data-motion])::view-transition-old(*),
-  :root:not([data-motion])::view-transition-new(*) {
-    animation: none !important;
+  :root:not([data-motion])[data-wipe]::before {
+    display: none;
   }
 }
 

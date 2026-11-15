@@ -111,7 +111,9 @@ leading 0.86, sized so the surname ends before the cover turns solid.
 - One ease, `--ease-out-quint`. 0.9s for the name, 0.5s for the page wipe,
   0.35 to 0.45s for hovers.
 - **Page transition:** the incoming page is uncovered left to right behind an
-  edge cut at 60°, plain CSS on the router's view transition.
+  edge cut at 60°. The header is not part of it and the page under it is
+  live from the first frame: a view transition froze hover and clicks for
+  the half second it ran, which made every page feel late.
 - **Hover, one treatment per role:** link tiles get a slanted bar running in
   along the top edge; link rows get a slanted marker and step aside for it
   (`row-tick` for text rows, `row-mark` for track rows with a cover);

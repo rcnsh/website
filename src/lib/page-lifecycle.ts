@@ -52,43 +52,32 @@ export function keepReaderAttributes(): void {
 }
 
 /**
- * A click during the page wipe ends the wipe and lands on what is under it.
+ * Runs the page wipe (`data-wipe` in global.css) on every swap, in place of
+ * the router's view transition.
  *
- * While a view transition runs the whole page is drawn as a snapshot, so
- * nothing in it can be hit: every click goes to `<html>` and is lost, and for
- * the length of the wipe the new page looks ready and is not. No CSS lets
- * input through, since the root itself is what was captured
- * (`pointer-events: none` on `::view-transition` only reaches elements left
- * out of the transition). So the click skips the rest of the wipe and is
- * handed to the element at that point once the page is live again.
+ * A view transition draws the whole document as a snapshot until it ends, so
+ * nothing can be hovered and every click lands on `<html>`: for the length of
+ * the wipe the new page looks ready and is not. No CSS lets input through,
+ * since the root itself is what was captured. So the transition is given no
+ * animation (global.css), which ends it on its first frame, and the wipe is
+ * a cover over the live page instead. Not `skipTransition()`: the router
+ * leaves the rejection of `ready` unhandled.
  */
-export function letClicksEndTheWipe(): void {
-  let running: ViewTransition | null = null;
-  document.addEventListener("astro:before-swap", (event) => {
-    const transition = (event as TransitionBeforeSwapEvent).viewTransition;
-    running = transition;
-    void transition.finished.finally(() => {
-      if (running === transition) running = null;
-    });
+export function wipePagesIn(): void {
+  const WIPE = "data-wipe";
+  document.addEventListener("astro:after-swap", () => {
+    const root = document.documentElement;
+    // A swap during a wipe: the attribute must leave and return across a
+    // style pass, or the animation carries on from where it was.
+    root.removeAttribute(WIPE);
+    void root.offsetWidth;
+    root.setAttribute(WIPE, "");
   });
-  document.addEventListener(
-    "click",
-    (event) => {
-      // A real click that hit the snapshot, not one this handed on.
-      if (!running || !event.isTrusted || event.target !== document.documentElement) return;
-      const { clientX, clientY } = event;
-      const transition = running;
-      running = null;
-      transition.skipTransition();
-      void transition.finished.finally(() =>
-        requestAnimationFrame(() => {
-          const under = document.elementFromPoint(clientX, clientY);
-          if (under instanceof HTMLElement) under.click();
-        }),
-      );
-    },
-    true,
-  );
+  const done = (event: AnimationEvent) => {
+    if (event.animationName === "page-wipe") document.documentElement.removeAttribute(WIPE);
+  };
+  document.addEventListener("animationend", done);
+  document.addEventListener("animationcancel", done);
 }
 
 /**
