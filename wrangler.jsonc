@@ -11,6 +11,13 @@
   // Served on rcn.sh only. Unset, every deploy turns the workers.dev URL back on.
   "workers_dev": false,
 
+  // On for this branch so its Workers Builds upload can be looked at: every
+  // uploaded version gets a public <version>-website.<account>.workers.dev
+  // address. GitHub sign-in does not work there (the callback is rcn.sh's).
+  // Take it out before this branch reaches main unless standing previews
+  // are wanted.
+  "preview_urls": true,
+
   // A ceiling on what one request can spend, against a route that can be made
   // to loop. The default is 30s and there is no account spend cap behind it.
   // Startup CPU is accounted separately, so cold starts are unaffected.
