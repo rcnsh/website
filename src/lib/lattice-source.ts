@@ -16,6 +16,8 @@ export type Cover = {
 };
 
 let cover: Cover | null = null;
+/** Dev only: a `?cover=` test cover, which the now-playing widget may not replace. */
+let pinned = false;
 
 export function currentCover(): Cover | null {
   return cover;
@@ -23,7 +25,14 @@ export function currentCover(): Cover | null {
 
 /** `null` when nothing is playing and nothing was: the field shows the mark. */
 export function publishCover(next: Cover | null): void {
+  if (import.meta.env.DEV && pinned) return;
   if (next?.image === cover?.image && next?.label === cover?.label) return;
   cover = next;
   document.dispatchEvent(new CustomEvent(COVER_EVENT));
+}
+
+/** Dev only, with no warehouse token: draw this cover whatever is playing. */
+export function pinCover(image: string): void {
+  publishCover({ image, label: "test cover" });
+  pinned = true;
 }

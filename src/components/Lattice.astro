@@ -25,4 +25,11 @@
   // Once per document: the canvas outlives every soft navigation.
   const canvas = document.querySelector<HTMLCanvasElement>("[data-lattice-canvas]");
   if (canvas) startLattice(canvas);
+
+  // Local dev has no warehouse token, so no cover arrives: `?cover=<image url>`
+  // stands one in. Compiled out of production builds.
+  if (import.meta.env.DEV) {
+    const test = new URLSearchParams(location.search).get("cover");
+    if (test) import("@/lib/lattice-source").then(({ pinCover }) => pinCover(test));
+  }
 </script>
