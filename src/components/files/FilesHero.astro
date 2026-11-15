@@ -10,11 +10,9 @@ import { formatBytes, relativeTime } from "@/lib/utils";
 interface Props {
   title: string;
   totals?: BucketTotals | null;
-  /** Full width when there is no usage tile beside it. */
-  wide?: boolean;
 }
 
-const { title, totals, wide = false } = Astro.props;
+const { title, totals } = Astro.props;
 
 const facts = totals
   ? [
@@ -30,11 +28,7 @@ const facts = totals
   : null;
 ---
 
-<section
-  class:list={[
-    "tile page-hero animate-rise col-span-12 min-[641px]:min-h-[230px]",
-    !wide && "min-[641px]:col-span-5",
-  ]}
+<section data-lattice="mark" class="page-band animate-rise"
   aria-labelledby="files-title"
 >
   <nav class="flex items-center gap-1.5 font-mono text-[11.5px] text-ink-faint" aria-label="Breadcrumb">

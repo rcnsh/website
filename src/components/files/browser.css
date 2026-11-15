@@ -350,6 +350,11 @@
   background: color-mix(in oklab, var(--color-brand) 14%, var(--color-raised));
   box-shadow: inset 2px 0 0 var(--color-brand);
 }
+/* The selected row's fill is lighter than a tile, where ink-faint falls
+   under 4.5:1. */
+.fb-row[aria-selected="true"] .m {
+  color: var(--color-ink-dim);
+}
 .fb-row[aria-selected="true"] .nm {
   color: var(--color-ink);
 }

@@ -45,7 +45,8 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
   image={pageOgHref("blog")}
 >
   <div class="bento pb-6">
-    <section class="tile page-hero col-span-12 px-8 pb-[26px] pt-7 max-sm:px-5 max-sm:pb-[22px] max-sm:pt-6" aria-labelledby="writing-title">
+    <section data-lattice="mark"
+      class="page-band" aria-labelledby="writing-title">
       <nav class="flex items-center gap-1.5 font-mono text-[0.71875rem] text-ink-faint" aria-label="Breadcrumb">
         <a href="/" class="transition-colors hover:text-ink">rcn.sh</a>
         <span class="text-line-strong" aria-hidden="true">/</span>

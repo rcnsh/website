@@ -459,6 +459,55 @@ CSS that arrives with an `import()` chunk is injected into `<head>` once; the
 router's head swap drops it on the next soft navigation, and the cached module
 never injects it again. The same holds for any lazily loaded module's CSS.
 
+### Lattice field
+
+**One canvas behind every page draws on the mark's triangle grid**
+(`src/components/Lattice.astro`, `src/lib/lattice/field.ts`; the why is in
+`DESIGN.md`). It is persisted across soft navigations, so its script runs once
+per document and rebinds on `astro:after-swap`. A page opts in with
+`data-lattice` on one element (`cover`, `mark`, `text:…` or `svg:<selector>`),
+and that element must have no background of its own: the canvas is under the
+page, so a fill hides it. `page-band` and `page-hero` are transparent for this
+reason.
+
+**`page-band` (`global.css`) breaks out of the page frame by `--page-w`**, the
+viewport without its scrollbar, which TopBar publishes beside `--header-h`;
+`100vw` would include the scrollbar gutter. It must be a direct child of the
+page's `bento` grid, and nothing may share its row.
+
+**An `svg:` picture is rebuilt from the shapes' `data-level` (0 to 4) alone**
+(`svgPicture` in `field.ts`): the page's own fills, classes and strokes are
+dropped. The guestbook map (`GuestbookMap.astro`) sets the levels, and it
+arrives in a server island, so the field waits for the selector to match.
+
+**The mark is drawn exactly only when it lands on lattice vertices.**
+`placeMark` (`lattice/geometry.ts`, tested) picks a whole number of cells per
+triangle and a top row whose parity matches it. Position it any other way and
+the mark comes out as scattered triangles.
+
+**The cover reaches the field through `lattice-source.ts`**, published by
+`NowPlaying.tsx`. It is loaded with `crossOrigin`, since its pixels go into a
+texture, so a cover host must answer with CORS as well as being in `img-src`.
+
+**The five levels are read from the palette's custom properties** at start,
+the same ones `Contributions.astro` mixes, so change the colours in
+`global.css` and nowhere else.
+
+**A moving pointer uncovers the lattice anywhere on the page**, in the
+margins and gaps the tiles leave. Then the whole viewport is shaded, so it
+lasts only `POINTER_LINGER_MS` past the last movement; never let it run at
+rest.
+
+**It is the only `requestAnimationFrame` loop on the site** and stops when the
+field is off screen, the tab is hidden, or motion is reduced or Live updates
+is off (then it draws one still frame). Keep new motion out of it unless it is
+the field's own.
+
+**The page wipe is plain CSS on `::view-transition-new(root)`** (`global.css`),
+never `transition:animate` (see CSP and the router). Playwright screenshots do
+not capture the view-transition layer, so transition frames look like hard
+cuts; check with `document.getAnimations()`.
+
 ### Gotchas that cost time
 
 **`build.format: "file"` makes `Astro.url.pathname` `/index.html`** at
