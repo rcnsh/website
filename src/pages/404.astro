@@ -20,19 +20,17 @@ const subtitles: Record<string, string> = {
 
 <Layout title="404" description={page.description}>
   <div class="bento pb-6 min-[1021px]:min-h-[55vh] min-[1021px]:content-center">
+    {/* The field spells the status out in triangles; the label covers a
+        browser with no WebGL. */}
     <section
-      class="tile page-hero col-span-12 min-h-[380px] px-9 py-8 max-sm:min-h-0 max-sm:px-[22px] max-sm:py-[26px] min-[1021px]:col-span-6 min-[1021px]:row-span-3"
+      data-lattice="text:404"
+      class="tile page-hero col-span-12 min-h-[420px] px-9 py-8 max-sm:min-h-[340px] max-sm:px-[22px] max-sm:py-[26px] min-[1021px]:col-span-6 min-[1021px]:row-span-3"
       aria-labelledby="nf-title"
     >
-      <p
-        class="nf-code font-mono text-[clamp(5rem,11vw,8.5rem)] font-bold leading-[0.85] tracking-[-0.07em]"
-        aria-hidden="true"
-      >
-        404
-      </p>
+      <p class="label">Error 404</p>
       <h1
         id="nf-title"
-        class="display-face mt-[26px] text-[clamp(1.75rem,3vw,2.25rem)] leading-[1.1] text-ink"
+        class="display-face mt-auto pt-[190px] text-[clamp(1.75rem,3vw,2.25rem)] leading-[1.1] text-ink max-sm:pt-[150px]"
       >
         {page.title}
       </h1>
@@ -46,7 +44,7 @@ const subtitles: Record<string, string> = {
           >go home</a
         >.
       </p>
-      <p class="mt-auto flex min-w-0 items-center gap-2 pt-7 font-mono text-xs text-ink-faint" hidden data-nf-path>
+      <p class="flex min-w-0 items-center gap-2 pt-5 font-mono text-xs text-ink-faint" hidden data-nf-path>
         <span>requested</span>
         <code class="nf-path truncate text-bad"></code>
       </p>
@@ -102,17 +100,6 @@ const subtitles: Record<string, string> = {
 </Layout>
 
 <style>
-  .nf-code {
-    background: linear-gradient(
-      180deg,
-      var(--color-ink) 30%,
-      color-mix(in oklab, var(--color-ink) 25%, transparent)
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
   .nf-path {
     text-decoration: line-through;
     text-decoration-color: color-mix(in oklab, var(--color-bad) 50%, transparent);

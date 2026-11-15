@@ -16,9 +16,14 @@ const page = pages.uses;
 const { groups } = uses;
 const driver = driverFact(dailyDriver(groups));
 
-// Groups pair up across a row, wide then narrow, like the mockup's 7 + 5.
+// The inspector shares the first row with the first group; the rest pair up
+// narrow then wide, and a last group left on its own takes the row.
 const span = (index: number) =>
-  index % 2 === 0 ? "col-span-7" : "col-span-5";
+  index === groups.length - 1 && index % 2 === 1
+    ? "col-span-12"
+    : index % 2 === 0
+      ? "col-span-7"
+      : "col-span-5";
 
 const delay = ["", "[animation-delay:30ms]", "[animation-delay:60ms]", "[animation-delay:90ms]", "[animation-delay:120ms]"];
 ---
@@ -29,8 +34,8 @@ const delay = ["", "[animation-delay:30ms]", "[animation-delay:60ms]", "[animati
   image={pageOgHref("uses")}
 >
   <div class="bento pb-6">
-    <section
-      class="tile page-hero animate-rise col-span-8 min-h-[250px] max-[1020px]:col-span-7 max-[640px]:col-span-12 max-[640px]:min-h-0 max-[640px]:px-5 max-[640px]:pt-6 max-[640px]:pb-5.5"
+    <section data-lattice="mark"
+      class="page-band animate-rise"
       aria-labelledby="uses-h"
     >
       <nav class="flex items-center gap-1.5 font-mono text-[0.71875rem] text-ink-faint" aria-label="Breadcrumb">
@@ -62,7 +67,7 @@ const delay = ["", "[animation-delay:30ms]", "[animation-delay:60ms]", "[animati
 
     <UsesInspector
       groups={groups}
-      class={`animate-rise ${delay[1]} col-span-4 max-[1020px]:col-span-5 max-[640px]:col-span-12`}
+      class={`animate-rise ${delay[1]} col-span-5 max-[640px]:col-span-12`}
     />
 
     {

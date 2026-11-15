@@ -5,7 +5,9 @@ import { TINY_AREA, WORLD_SHAPES, WORLD_VIEWBOX } from "@/lib/world";
  * Where the guestbook has been signed from. Outlines are precomputed by
  * scripts/generate-world.ts, so this only picks a fill per country. No client
  * JavaScript of its own: hover is CSS and the tooltips are <title>. `data-c`
- * is the hook the page's ranking tile uses to light a country from its row.
+ * is the hook the page's ranking tile uses to light a country from its row,
+ * and `data-level` is what the lattice field redraws the map from in the
+ * page's title band (`data-lattice="svg:[data-world-map]"`).
  */
 
 interface Props {
@@ -45,6 +47,7 @@ const summary = countries
   <svg
     viewBox={WORLD_VIEWBOX}
     class="w-full"
+    data-world-map
     role="img"
     aria-label={`World map. ${summary}.`}
     xmlns="http://www.w3.org/2000/svg"
@@ -58,12 +61,13 @@ const summary = countries
             d={shape.d}
             class="signed"
             data-c={shape.code}
+            data-level={count === busiest ? 4 : 3}
             style={`opacity:${opacityFor(count).toFixed(3)}`}
           >
             <title>{label(shape.name, count)}</title>
           </path>
         ) : (
-          <path d={shape.d} class="quiet" />
+          <path d={shape.d} class="quiet" data-level="1" />
         );
       })
     }

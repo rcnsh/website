@@ -62,8 +62,8 @@ const homeActive = isActive("/");
       <button
         type="button"
         data-palette-trigger
-        aria-label="Open command palette"
-        class="flex h-[30px] min-w-[30px] items-center justify-center gap-2 rounded-md border border-line-soft bg-surface px-2 font-mono text-xs text-ink-faint transition-colors hover:border-line hover:text-ink-dim sm:justify-start sm:pr-2.5"
+        aria-label="Search ⌘K: open command palette"
+        class="flex h-[30px] min-w-[30px] items-center justify-center gap-2 rounded-md border border-line-soft bg-surface px-2 font-mono text-xs text-ink-faint press transition-colors hover:border-line-strong hover:bg-raised hover:text-ink sm:justify-start sm:pr-2.5"
       >
         <Icon name="search" class="h-3.5 w-3.5" />
         <span class="hidden sm:inline">Search</span>
@@ -224,14 +224,15 @@ const homeActive = isActive("/");
   }
 
   // The header's real height, for global.css's in-page anchor offset. The bar
-  // wraps a second row below `sm`, so the CSS fallback alone drifts.
+  // wraps a second row below `sm`, so the CSS fallback alone drifts. And the
+  // page's width without its scrollbar, which `page-band` breaks out to:
+  // 100vw includes the scrollbar gutter.
   function publishHeaderHeight() {
+    const root = document.documentElement;
+    root.style.setProperty("--page-w", `${root.clientWidth}px`);
     const header = document.querySelector("header");
     if (!header) return;
-    document.documentElement.style.setProperty(
-      "--header-h",
-      `${Math.round(header.getBoundingClientRect().height)}px`,
-    );
+    root.style.setProperty("--header-h", `${Math.round(header.getBoundingClientRect().height)}px`);
   }
 
   onPage((signal) => {

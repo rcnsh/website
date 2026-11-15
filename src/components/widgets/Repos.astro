@@ -20,10 +20,10 @@ try {
   <div class="mb-4 flex items-center gap-2.5">
     <h2 class="label" id="repos-heading">Selected work</h2>
     <a
-      href="https://go.rcn.sh/github"
+      href="https://github.com/rcnsh"
       target="_blank"
       rel="noopener noreferrer"
-      class="ml-auto font-mono text-[11px] text-ink-faint transition-colors hover:text-ink"
+      class="ml-auto rule-link font-mono text-[11px] text-ink-faint transition-colors hover:text-ink"
     >
       All repos &rarr;
     </a>
@@ -50,7 +50,7 @@ try {
               href={repo.url}
               target="_blank"
               rel="noopener noreferrer"
-              class="group flex flex-1 flex-col rounded-card border border-line-soft bg-[color-mix(in_oklab,var(--color-base)_50%,var(--color-surface))] px-4 pb-3.5 pt-4 transition-colors hover:border-line-strong hover:bg-raised"
+              class="tile-link group relative flex flex-1 flex-col rounded-card border border-line-soft bg-[color-mix(in_oklab,var(--color-base)_50%,var(--color-surface))] px-4 pb-3.5 pt-4 transition-colors hover:border-line-strong hover:bg-raised"
             >
               <span class="font-mono text-sm font-medium text-ink transition-colors group-hover:text-brand-alt">
                 {repo.name}

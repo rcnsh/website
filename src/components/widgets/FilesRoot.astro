@@ -32,7 +32,7 @@ const kinds = tree ? kindTotals(tree) : null;
 ---
 
 <div class="bento">
-  <FilesHero title={title} totals={totals} wide={!kinds?.length} />
+  <FilesHero title={title} totals={totals} />
   {kinds && kinds.length > 0 && <FilesUsage kinds={kinds} hidden={hidden} ownerSlots={ownerSlots} />}
   <FileBrowser client:idle tree={tree} initial={root} bucketUrl={publicBucketBase()} />
 </div>

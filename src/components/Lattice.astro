@@ -1,0 +1,28 @@
+---
+/**
+ * The canvas the lattice field draws on: fixed behind the page, and persisted
+ * so one WebGL context serves every page and the picture can sweep from one
+ * page's to the next's. See src/lib/lattice/field.ts.
+ */
+---
+
+<canvas class="lattice" data-lattice-canvas aria-hidden="true" transition:persist="lattice"></canvas>
+
+<style>
+  .lattice {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+</style>
+
+<script>
+  import { startLattice } from "@/lib/lattice/field";
+
+  // Once per document: the canvas outlives every soft navigation.
+  const canvas = document.querySelector<HTMLCanvasElement>("[data-lattice-canvas]");
+  if (canvas) startLattice(canvas);
+</script>

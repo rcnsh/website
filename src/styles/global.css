@@ -31,11 +31,11 @@
   --color-line-soft: #2a2826;
 
   /* ink-faint is not decoration — it sets the tagline, every section label and
-     all metadata, so it has to clear 4.5:1 on --color-base. Lifted along its
-     own hue to keep the warm cast. */
+     all metadata, so it has to clear 4.5:1 on every ground it is set on:
+     5.39 on base, 5.16 on surface, 4.87 on raised, 4.56 on overlay. */
   --color-ink: #e8e3d9;
   --color-ink-dim: #a09a8f;
-  --color-ink-faint: #807a73;
+  --color-ink-faint: #8c867e;
 
   /* Straight from the logo: #305b99 → #5b66af, lifted for contrast on dark. */
   --color-brand: #7f8ad0;
@@ -163,21 +163,23 @@
   grid-template-columns: repeat(12, minmax(0, 1fr));
 }
 
-/* The one container on a page. Padding lives on the tile, not its parent,
-   so a tile can opt out (a file browser runs edge to edge) with `p-0`. */
+/* The one container on a page: an open panel hung from a hairline, with the
+   mark's slanted tab at the rule's start. No fill and no box, so the lattice
+   field behind the page shows through when the pointer uncovers it; what is
+   boxed is what can be pressed (`tile-link`) or what sits inside a panel
+   (`card`). Padding lives on the tile, not its parent, so a tile can opt out
+   (a file browser runs edge to edge) with `p-0`. */
 @utility tile {
   position: relative;
   min-width: 0;
-  background: var(--color-surface);
-  border: 1px solid var(--color-line-soft);
-  border-radius: var(--radius-tile);
+  border-top: 1px solid var(--color-line);
+  background: linear-gradient(120deg, var(--color-brand) calc(100% - 2px), transparent calc(100% - 2px)) no-repeat
+    0 -1px / 26px 3px;
   padding: 1.25rem 1.375rem;
-  transition:
-    border-color 0.25s var(--ease-out-quint),
-    background-color 0.25s var(--ease-out-quint);
+  transition: border-color 0.25s var(--ease-out-quint);
 
   &:hover {
-    border-color: var(--color-line);
+    border-color: var(--color-line-strong);
   }
 }
 
@@ -192,38 +194,180 @@
   }
 }
 
-/* A tile that is itself one link. */
+/* A tile that is itself one link. A bar cut at the mark's slant runs in
+   along its top edge. */
 @utility tile-link {
-  &:hover {
-    background: var(--color-raised);
+  overflow: hidden;
+
+  /* Compounded with .tile so the box outranks the open panel whatever order
+     Tailwind emits the two utilities in. */
+  &.tile {
+    border: 1px solid var(--color-line-soft);
+    border-radius: var(--radius-tile);
+    background: var(--color-surface);
+    transition:
+      border-color 0.25s var(--ease-out-quint),
+      background-color 0.25s var(--ease-out-quint);
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: -1px;
+    left: -8px;
+    width: calc(100% + 16px);
+    height: 3px;
+    background: linear-gradient(100deg, var(--color-brand-blue), var(--color-brand));
+    transform: skewX(-30deg) scaleX(0);
+    transform-origin: 0 0;
+    transition: transform 0.45s var(--ease-out-quint);
+  }
+
+  &:hover,
+  &:focus-visible,
+  &.tile:hover,
+  &.tile:focus-visible {
+    border-color: var(--color-line);
+    background-color: var(--color-raised);
+  }
+
+  &:hover::after,
+  &:focus-visible::after {
+    transform: skewX(-30deg) scaleX(1);
   }
 }
 
-/* A subpage's title tile: the identity tile's voice at a smaller size, with
-   the same corner glow. */
+/* A row whose title is a stretched link (a track, an album): the same slanted
+   marker as `row-tick`, for a row that is a list item, not an anchor. */
+@utility row-mark {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 9px;
+    height: 16px;
+    margin-top: -8px;
+    background: var(--color-brand);
+    clip-path: polygon(46% 0, 100% 0, 54% 100%, 0 100%);
+    opacity: 0;
+    translate: -8px 0;
+    transition:
+      opacity 0.2s,
+      translate 0.35s var(--ease-out-quint);
+  }
+
+  &:hover::before,
+  &:focus-within::before {
+    opacity: 1;
+    translate: 0 0;
+  }
+
+  /* The row makes room with padding, never by moving its children: a
+     translated child becomes the containing block for the title's stretched
+     link, which then stops covering the row. */
+  transition: padding-left 0.35s var(--ease-out-quint);
+
+  &:hover,
+  &:focus-within {
+    padding-left: 16px;
+  }
+}
+
+/* A small corner link ("All posts →"): a rule draws in under it from the
+   left, and the padding makes it a fair target. */
+@utility rule-link {
+  padding-block: 0.3rem;
+  background: linear-gradient(100deg, var(--color-brand-blue), var(--color-brand)) no-repeat 0 100% / 0 1px;
+  transition:
+    color 0.2s,
+    background-size 0.4s var(--ease-out-quint);
+
+  &:hover,
+  &:focus-visible {
+    background-size: 100% 1px;
+  }
+}
+
+/* A row that is one link: a slanted marker ticks in at its left edge and the
+   row steps aside for it. On the anchor; its content goes in one child. */
+@utility row-tick {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 9px;
+    height: 16px;
+    margin-top: -8px;
+    background: var(--color-brand);
+    clip-path: polygon(46% 0, 100% 0, 54% 100%, 0 100%);
+    opacity: 0;
+    translate: -8px 0;
+    transition:
+      opacity 0.2s,
+      translate 0.35s var(--ease-out-quint);
+  }
+
+  & > * {
+    transition: translate 0.35s var(--ease-out-quint);
+  }
+
+  &:hover::before,
+  &:focus-visible::before {
+    opacity: 1;
+    translate: 0 0;
+  }
+
+  &:hover > *,
+  &:focus-visible > * {
+    translate: 18px 0;
+  }
+}
+
+/* A subpage's title block. It has no fill: the lattice field behind the page
+   draws the mark in its top corner (data-lattice on the same element). */
 @utility page-hero {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: transparent;
 
   /* Compounded with .tile so it outranks tile's own padding whatever order
      Tailwind emits the two utilities in. */
   &.tile {
     padding: 1.75rem 2rem 1.625rem;
   }
+}
 
-  &::before {
-    content: "";
-    position: absolute;
-    inset: auto -12% -70% auto;
-    width: 55%;
-    aspect-ratio: 1;
-    background: radial-gradient(
-      closest-side,
-      color-mix(in oklab, var(--color-brand) 13%, transparent),
-      transparent
-    );
-    pointer-events: none;
+/* A page's title band: full-bleed above the tiles, with no fill, so the
+   lattice field behind the page draws beside the title (data-lattice on the
+   same element). A direct child of the page's `bento`. --page-w is the
+   viewport without its scrollbar, published by TopBar. */
+@utility page-band {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  grid-column: 1 / -1;
+  width: var(--page-w, 100vw);
+  min-height: clamp(250px, 36svh, 360px);
+  /* Out of the page frame, and up over main's top padding. */
+  margin: -1.75rem 0 0.75rem calc(50% - var(--page-w, 100vw) / 2);
+  /* Its text keeps to the frame's left edge all the same. */
+  padding: 2.25rem max(1rem, calc((var(--page-w, 100vw) - var(--container-page)) / 2 + 1.25rem)) 2rem;
+  border-bottom: 1px solid var(--color-line-soft);
+
+  & h1 {
+    margin-left: -0.04em;
+    font-size: clamp(2.9rem, 6vw, 5rem);
+    letter-spacing: -0.06em;
+    line-height: 0.9;
+    /* Where a letter crosses a lit triangle, the ground comes with it. */
+    text-shadow: 0 0 0.35em var(--color-base);
   }
 }
 
@@ -432,13 +576,27 @@
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
-/* The router swaps pages inside a view transition. It is there to keep the
-   player alive, not to change how moving between pages looks, so the
-   browser's default crossfade is off. Not `transition:animate="none"`: that
-   emits an inline <style> Astro does not hash. */
-::view-transition-old(root),
-::view-transition-new(root) {
+/* The router swaps pages inside a view transition. The incoming page is
+   uncovered left to right behind an edge cut at the mark's slant, the same
+   way the lattice field sweeps to its next picture. Plain CSS on the root
+   snapshot, never `transition:animate`: that emits an inline <style> Astro
+   does not hash. */
+::view-transition-old(root) {
   animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  animation: page-wipe 0.5s cubic-bezier(0.65, 0, 0.35, 1) both;
+  mix-blend-mode: normal;
+}
+
+@keyframes page-wipe {
+  from {
+    clip-path: polygon(-40% 0, -5% 0, -40% 100%, -75% 100%);
+  }
+  to {
+    clip-path: polygon(-40% 0, 175% 0, 140% 100%, -75% 100%);
+  }
 }
 
 :root[data-motion="reduce"]::view-transition-group(*),

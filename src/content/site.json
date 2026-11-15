@@ -25,12 +25,12 @@
   "pages": {
     "blog": {
       "title": "Writing",
-      "description": "Posts on software and side projects. RSS feed.",
+      "description": "Posts on software and side projects: build write-ups and reverse engineering. RSS feed.",
       "feedDescription": "Posts on software and side projects, by Jacob Wiltshire."
     },
     "uses": {
       "title": "Uses",
-      "description": "What I work with."
+      "description": "The hardware, apps, languages and hosting I work with every day."
     },
     "music": {
       "title": "Music",
@@ -42,12 +42,12 @@
     },
     "guestbook": {
       "title": "Guestbook",
-      "description": "Sign in with GitHub to leave a message.",
+      "description": "Sign in with GitHub to leave a message, and see where everyone else signed from.",
       "maxMessageLength": 200
     },
     "files": {
       "title": "Files",
-      "description": "My files on my personal Cloudflare R2 bucket"
+      "description": "Browse and preview the public files in my Cloudflare R2 bucket."
     },
     "notFound": {
       "title": "Nothing here",
@@ -112,7 +112,7 @@
 
   "links": [
     {
-      "href": "https://go.rcn.sh/github",
+      "href": "https://github.com/rcnsh",
       "label": "GitHub",
       "icon": "github",
       "keywords": "code repos source projects"

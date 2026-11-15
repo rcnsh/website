@@ -31,8 +31,13 @@ const facts = latest
     ]
   : [];
 
-// A chart of one or two bars reads as a mistake, so it waits for a few posts.
-const months = posts.length >= 3
+// With a handful of posts the list is the whole page, and a "latest" card
+// above it only shows its first row twice.
+const featured = latest && posts.length >= 4;
+
+// A chart of one or two bars reads as a mistake, and it shares its row with
+// the feature card, so the two arrive together.
+const months = featured
   ? cadence(posts.map((p) => ({ date: p.data.pubDate, draft: p.data.draft })), new Date())
   : [];
 
@@ -45,7 +50,8 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
   image={pageOgHref("blog")}
 >
   <div class="bento pb-6">
-    <section class="tile page-hero col-span-12 px-8 pb-[26px] pt-7 max-sm:px-5 max-sm:pb-[22px] max-sm:pt-6" aria-labelledby="writing-title">
+    <section data-lattice="mark"
+      class="page-band" aria-labelledby="writing-title">
       <nav class="flex items-center gap-1.5 font-mono text-[0.71875rem] text-ink-faint" aria-label="Breadcrumb">
         <a href="/" class="transition-colors hover:text-ink">rcn.sh</a>
         <span class="text-line-strong" aria-hidden="true">/</span>
@@ -81,7 +87,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
     </section>
 
     {
-      latest && (
+      featured && (
         <a
           href={postHref(latest)}
           class:list={[

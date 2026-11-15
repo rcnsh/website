@@ -66,9 +66,9 @@ if (owner) {
 const heading = initial ? (initial.sha ? "Edit post" : "New post") : "Posts";
 ---
 
-<Layout title={heading} description="Post editor.">
+<Layout title={heading} description="The post editor for rcn.sh. Saving commits the post to the repository.">
   <div class="bento pb-6">
-    <section class="tile page-hero col-span-12 px-8 pb-[26px] pt-7 max-sm:px-5" aria-labelledby="edit-title">
+    <section data-lattice="mark" class="tile page-hero col-span-12 px-8 pb-[26px] pt-7 max-sm:px-5" aria-labelledby="edit-title">
       <nav class="flex items-center gap-1.5 font-mono text-[0.71875rem] text-ink-faint" aria-label="Breadcrumb">
         <a href="/blog" class="transition-colors hover:text-ink">writing</a>
         <span class="text-line-strong" aria-hidden="true">/</span>

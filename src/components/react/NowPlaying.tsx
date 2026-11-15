@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SpotifyIcon } from "./BrandIcons";
 import { END_RETRIES, END_RETRY_MS, PLAYED_EVENT, PLAYED_REFRESH_MS, type NowPlayingPayload as Payload } from "@/lib/now-playing";
+import { publishCover } from "@/lib/lattice-source";
 import { liveUpdates, onPrefChange } from "@/lib/prefs";
 import { cn, formatDuration, relativeTime } from "@/lib/utils";
 import "@/components/music/now-playing.css";
@@ -200,6 +201,14 @@ export default function NowPlaying({
     };
   }, [data, live, failures]);
 
+  // The lattice field redraws whatever cover this card is showing.
+  const cover = data && "image" in data ? data.image : null;
+  const coverLabel = data && "title" in data ? `${data.title}, ${data.artists}` : "";
+  useEffect(() => {
+    if (!data) return;
+    publishCover(cover ? { image: cover, label: coverLabel } : null);
+  }, [data, cover, coverLabel]);
+
   if (!data) {
     // Mirrors the loaded layout row for row, so real data doesn't move anything.
     return (
@@ -384,7 +393,7 @@ function Frame({
         {layout === "home" ? (
           <a
             href="/music"
-            className="ml-auto whitespace-nowrap font-mono text-[11px] text-ink-faint transition-colors hover:text-ink"
+            className="ml-auto whitespace-nowrap rule-link font-mono text-[11px] text-ink-faint transition-colors hover:text-ink"
           >
             Music →
           </a>
@@ -394,7 +403,7 @@ function Frame({
               href={trackUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="ml-auto whitespace-nowrap font-mono text-[11px] text-ink-faint transition-colors hover:text-ink"
+              className="ml-auto whitespace-nowrap rule-link font-mono text-[11px] text-ink-faint transition-colors hover:text-ink"
             >
               Open in Spotify ↗
             </a>

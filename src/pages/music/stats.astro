@@ -18,8 +18,8 @@ const years = statsYears(new Date());
 
 <Layout title={page.title} description={page.description} image={pageOgHref("music")}>
   <div class="bento max-sm:gap-2.5">
-    <section
-      class="tile page-hero col-span-12 animate-rise max-sm:px-5 max-sm:pt-6 max-sm:pb-[22px] min-[1021px]:col-span-5 min-[1021px]:min-h-[300px]"
+    <section data-lattice="mark"
+      class="page-band animate-rise"
       aria-labelledby="stats-title"
     >
       <nav aria-label="Breadcrumb" class="flex items-center gap-1.5 font-mono text-[11.5px] text-ink-faint">
@@ -52,7 +52,7 @@ const years = statsYears(new Date());
     </section>
 
     <section
-      class="tile col-span-12 animate-rise [animation-delay:30ms] max-sm:p-[18px] min-[1021px]:col-span-7"
+      class="tile col-span-12 animate-rise [animation-delay:30ms] max-sm:p-[18px]"
       aria-labelledby="streaks-title"
     >
       <Streaks server:defer>

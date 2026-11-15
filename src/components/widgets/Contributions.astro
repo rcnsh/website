@@ -75,7 +75,7 @@ const weekCount = data?.weeks.length ?? 53;
         {/* prettier-ignore */}
         <div
           data-contrib-scroller
-          class="mt-auto overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [--fade-l:0px] [--fade-r:0px] [mask-image:linear-gradient(to_right,transparent_0,#000_var(--fade-l),#000_calc(100%-var(--fade-r)),transparent_100%)]"
+          class="my-auto overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [--fade-l:0px] [--fade-r:0px] [mask-image:linear-gradient(to_right,transparent_0,#000_var(--fade-l),#000_calc(100%-var(--fade-r)),transparent_100%)]"
         >
           {/* Columns stretch to the tile and stop shrinking at 8px, where the scroller takes over. */}
           <div
@@ -98,7 +98,7 @@ const weekCount = data?.weeks.length ?? 53;
               ))}
             </div>
 
-            {data.weeks.map((week) => {
+            {data.weeks.map((week, weekIndex) => {
               // Placed by weekday, not position, so a short week at either
               // end still lines up with the Mon/Wed/Fri labels.
               const byWeekday = new Map(
@@ -111,8 +111,9 @@ const weekCount = data?.weeks.length ?? 53;
                     if (!cell) return <span class="aspect-square" />;
                     return (
                       <span
-                        class="aspect-square rounded-[2px]"
+                        class="aspect-square"
                         data-level={cell.level}
+                        data-point={(weekIndex + day) % 2 === 0 ? "up" : "down"}
                         data-contrib-day={`${cell.count} contribution${cell.count === 1 ? "" : "s"} on ${DAY.format(new Date(cell.date))}`}
                         title={`${cell.count} contribution${cell.count === 1 ? "" : "s"} on ${cell.date}`}
                       />
@@ -128,7 +129,7 @@ const weekCount = data?.weeks.length ?? 53;
           <span data-contrib-tip class="min-h-[1em] text-ink-dim" aria-hidden="true"></span>
           <span class="ml-auto">Less</span>
           {[0, 1, 2, 3, 4].map((level) => (
-            <span class="h-2.5 w-2.5 rounded-[2px]" data-level={level} />
+            <span class="h-2.5 w-2.5" data-level={level} data-point={level % 2 === 0 ? "up" : "down"} />
           ))}
           <span>More</span>
         </div>
@@ -161,9 +162,18 @@ const weekCount = data?.weeks.length ?? 53;
     background: var(--color-brand);
   }
 
+  /* Each day is a triangle, alternating like the lattice the field behind
+     the page is drawn on: the same five levels, the same grid. */
+  [data-point="up"] {
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  }
+  [data-point="down"] {
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+  }
+
+  /* A clip-path would cut an outline off, so the day lights up instead. */
   [data-contrib-day]:hover {
-    outline: 1px solid var(--color-ink);
-    outline-offset: -1px;
+    background: var(--color-ink);
   }
 </style>
 
