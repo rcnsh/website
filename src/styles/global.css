@@ -588,14 +588,32 @@
 ::view-transition-new(root) {
   animation: page-wipe 0.5s cubic-bezier(0.65, 0, 0.35, 1) both;
   mix-blend-mode: normal;
+  clip-path: polygon(
+    -40% 0,
+    calc(-5% + var(--page-wipe) * 1.8) 0,
+    calc(-40% + var(--page-wipe) * 1.8) 100%,
+    -75% 100%
+  );
+}
+
+/* How far the wipe has run. The keyframes move this, never `clip-path`
+   itself: Chromium hands a `clip-path` animation to the compositor, which now
+   and then shows a wrong frame at either end of it (a flicker on the display
+   that screen recordings miss). A registered property animates on the main
+   thread. It rests at 100%, the page fully uncovered, so with the animation
+   off (reduced motion) nothing is clipped. */
+@property --page-wipe {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
 }
 
 @keyframes page-wipe {
   from {
-    clip-path: polygon(-40% 0, -5% 0, -40% 100%, -75% 100%);
+    --page-wipe: 0%;
   }
   to {
-    clip-path: polygon(-40% 0, 175% 0, 140% 100%, -75% 100%);
+    --page-wipe: 100%;
   }
 }
 

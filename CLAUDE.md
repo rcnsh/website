@@ -547,6 +547,14 @@ never `transition:animate` (see CSP and the router). Playwright screenshots do
 not capture the view-transition layer, so transition frames look like hard
 cuts; check with `document.getAnimations()`.
 
+**The wipe's keyframes animate `--page-wipe`, never `clip-path`.** Chromium
+runs a `clip-path` animation on the compositor, and on a real display that
+now and then showed a wrong frame at either end of the wipe: a flicker on
+every page change that screen recordings and headless runs do not show. The
+registered property animates on the main thread and the static `clip-path`
+reads it. It rests at 100% so that with the animation off (reduced motion)
+the page is not clipped.
+
 ### Gotchas that cost time
 
 **`build.format: "file"` makes `Astro.url.pathname` `/index.html`** at
