@@ -1,11 +1,16 @@
 ---
 import Icon from "@/components/Icon.astro";
 
-/** A tile that is one link: icon top-left, arrow top-right, title and a mono line. */
+/**
+ * A tile that is one link: icon top-left, arrow top-right, title and a mono
+ * line. As an island's fallback, `detail: { pending }` pulses in the line's
+ * place: `pending` is sample text shaped like the loaded line, drawn
+ * invisibly, so it wraps where the real one will at every width.
+ */
 interface Props {
   href: string;
   title: string;
-  detail: string;
+  detail: string | { pending: string };
   icon: string;
   external?: boolean;
   class?: string;
@@ -37,6 +42,16 @@ const { href, title, detail, icon, external = false, class: className } = Astro.
   </div>
   <div>
     <div class="text-[15px] font-[550]">{title}</div>
-    <div class="mt-[3px] font-mono text-[11px] text-ink-faint">{detail}</div>
+    <div class="mt-[3px] font-mono text-[11px] text-ink-faint">
+      {
+        typeof detail === "string" ? (
+          detail
+        ) : (
+          <span class="placeholder-ghost" aria-hidden="true">
+            {detail.pending}
+          </span>
+        )
+      }
+    </div>
   </div>
 </a>

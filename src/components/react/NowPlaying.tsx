@@ -210,20 +210,37 @@ export default function NowPlaying({
   }, [data, cover, coverLabel]);
 
   if (!data) {
-    // Mirrors the loaded layout row for row, so real data doesn't move anything.
+    // Each bar sits in a line with the loaded line's own type classes, so the
+    // line heights match and real data doesn't move anything (one-line title,
+    // the commoner case).
+    const size = SIZES[layout];
     return (
       <Frame layout={layout} label={layout === "page" ? "Right now" : "Now playing"}>
-        <Body layout={layout}>
-          <div className={cn("placeholder-block rounded-card", SIZES[layout].art)} />
+        <Body layout={layout} aria-hidden="true">
+          <div className={cn("placeholder-block rounded-card", size.art)} />
           <div className="min-w-0">
-            {layout === "page" && <div className="placeholder-block mb-3 h-2.5 w-20 rounded-xs" />}
-            <div className={cn("placeholder-block w-3/4 rounded-xs", SIZES[layout].titleBlock)} />
-            <div className="placeholder-block mt-2 h-3.5 w-1/2 rounded-xs" />
-            <div className="placeholder-block mt-2 h-3 w-2/5 rounded-xs" />
-            <div className={cn("flex h-4 items-center", SIZES[layout].slot)}>
+            {layout === "page" && (
+              <p className="label mb-2.5">
+                <Bar className="w-20" />
+              </p>
+            )}
+            <p className={size.title}>
+              <Bar className="w-3/4" />
+            </p>
+            <p className={size.artist}>
+              <Bar className="w-1/2" />
+            </p>
+            <p className={cn("font-mono", size.album)}>
+              <Bar className="w-2/5" />
+            </p>
+            <div className={cn("flex h-4 items-center", size.slot)}>
               <div className="placeholder-block h-0.5 w-full rounded-xs" />
             </div>
-            {layout === "page" && <div className="placeholder-block mt-3.5 h-3 w-48 rounded-xs" />}
+            {layout === "page" && (
+              <p className="mt-3.5 font-mono text-[11px]">
+                <Bar className="w-48" />
+              </p>
+            )}
           </div>
         </Body>
       </Frame>
@@ -341,7 +358,6 @@ const SIZES = {
     art: "size-[104px] sm:size-44",
     body: "grid-cols-[104px_minmax(0,1fr)] gap-4 items-center sm:grid-cols-[176px_minmax(0,1fr)] sm:gap-5 sm:items-end",
     title: "text-[17px] font-[550] leading-tight tracking-[-0.015em] sm:text-[21px]",
-    titleBlock: "h-5 sm:h-6",
     artist: "mt-1 text-[14.5px]",
     album: "mt-0.5 text-[11.5px]",
     slot: "mt-3.5 sm:mt-[18px]",
@@ -350,7 +366,6 @@ const SIZES = {
     art: "size-28 sm:size-[236px]",
     body: "grid-cols-[112px_minmax(0,1fr)] gap-4 items-center sm:grid-cols-[236px_minmax(0,1fr)] sm:gap-[26px] sm:items-end",
     title: "text-[19px] font-semibold leading-[1.15] tracking-[-0.025em] sm:text-[28px]",
-    titleBlock: "h-6 sm:h-8",
     artist: "mt-1.5 text-sm sm:text-[16px]",
     album: "mt-1 text-xs",
     slot: "mt-3.5 sm:mt-[22px]",
@@ -377,7 +392,15 @@ function Frame({
 }) {
   return (
     <div className="flex h-full flex-1 flex-col">
-      <div className="mb-4 flex min-h-4 items-center gap-2.5">
+      {/* The page's "Open in Spotify" comes and goes with the track, so its
+          row always holds the link's height (a line of 11px plus rule-link's
+          padding); home's "Music →" is always there. */}
+      <div
+        className={cn(
+          "mb-4 flex items-center gap-2.5",
+          layout === "page" ? "min-h-[calc(0.6875rem*1.5+0.6rem)]" : "min-h-4",
+        )}
+      >
         <h2
           className={cn("label inline-flex items-center gap-2", playing && "text-brand-alt")}
         >
@@ -415,8 +438,20 @@ function Frame({
   );
 }
 
-function Body({ layout, children }: { layout: Layout; children: React.ReactNode }) {
-  return <div className={cn("grid flex-1", SIZES[layout].body)}>{children}</div>;
+function Body({
+  layout,
+  children,
+  ...rest
+}: { layout: Layout; children: React.ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={cn("grid flex-1", SIZES[layout].body)} {...rest}>
+      {children}
+    </div>
+  );
+}
+
+function Bar({ className }: { className: string }) {
+  return <span className={cn("placeholder-text", className)} />;
 }
 
 function LiveLine({ live, trouble }: { live: boolean; trouble: boolean }) {
@@ -451,8 +486,9 @@ function Artwork({
   className: string;
 }) {
   const id = image ?? title;
-  // Either [current], or [outgoing, incoming] while a fade is in flight.
-  const [frames, setFrames] = useState([{ id, image, ready: true }]);
+  // Either [current], or [outgoing, incoming] while a fade is in flight. The
+  // first cover keeps the skeleton's pulse until it has loaded.
+  const [frames, setFrames] = useState([{ id, image, ready: !image }]);
 
   useEffect(() => {
     setFrames((prev) => {
@@ -487,6 +523,7 @@ function Artwork({
           className={cn(
             "absolute inset-0",
             index > 0 && (frame.ready ? "animate-art-in" : "opacity-0"),
+            index === 0 && !frame.ready && "placeholder-block",
           )}
         >
           {frame.image ? (
@@ -498,7 +535,7 @@ function Artwork({
               decoding="async"
               onLoad={() => ready(frame.id)}
               onError={() => ready(frame.id)}
-              className="h-full w-full bg-raised object-cover"
+              className={cn("h-full w-full object-cover", frame.ready ? "bg-raised" : "opacity-0")}
             />
           ) : (
             <div className="grid h-full w-full place-items-center bg-raised">

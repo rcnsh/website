@@ -14,18 +14,19 @@ interface Props {
 
 const { title, totals } = Astro.props;
 
-const facts = totals
-  ? [
-      { value: totals.objects.toLocaleString("en-GB"), label: "Objects" },
-      { value: formatBytes(totals.bytes), label: "On R2" },
-      {
-        value: totals.lastUploaded
-          ? relativeTime(new Date(totals.lastUploaded * 1000))
-          : "—",
-        label: "Last upload",
-      },
-    ]
-  : null;
+const pending = totals === undefined;
+// While loading, the same row with each value pulsing in its own line.
+const facts =
+  totals || pending
+    ? [
+        { value: totals?.objects.toLocaleString("en-GB"), label: "Objects" },
+        { value: totals && formatBytes(totals.bytes), label: "On R2" },
+        {
+          value: totals && (totals.lastUploaded ? relativeTime(new Date(totals.lastUploaded * 1000)) : "—"),
+          label: "Last upload",
+        },
+      ]
+    : null;
 ---
 
 <section data-lattice="mark" class="page-band animate-rise"
@@ -41,28 +42,17 @@ const facts = totals
   </h1>
 
   {
-    totals === undefined ? (
-      <div class="mt-auto flex gap-8 pt-5 sm:pt-6.5" aria-hidden="true">
-        {[0, 1, 2].map(() => (
-          <div class="flex flex-col gap-1.5">
-            <span class="placeholder-block h-[22px] w-16 rounded-xs" />
-            <span class="placeholder-block h-3 w-12 rounded-xs" />
+    facts && (
+      <dl class="mt-auto flex flex-wrap gap-x-8 gap-y-3.5 pt-5 sm:pt-6.5" aria-hidden={pending || undefined}>
+        {facts.map((fact) => (
+          <div class="flex flex-col-reverse gap-1.5">
+            <dt class="font-mono text-[10.5px] text-ink-faint">{fact.label}</dt>
+            <dd class="font-mono text-lg font-semibold tracking-[-0.02em] text-ink tabular-nums">
+              {fact.value ?? <span class="placeholder-text w-14" />}
+            </dd>
           </div>
         ))}
-      </div>
-    ) : (
-      facts && (
-        <dl class="mt-auto flex flex-wrap gap-x-8 gap-y-3.5 pt-5 sm:pt-6.5">
-          {facts.map((fact) => (
-            <div class="flex flex-col-reverse gap-1.5">
-              <dt class="font-mono text-[10.5px] text-ink-faint">{fact.label}</dt>
-              <dd class="font-mono text-lg font-semibold tracking-[-0.02em] text-ink tabular-nums">
-                {fact.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )
+      </dl>
     )
   }
 </section>

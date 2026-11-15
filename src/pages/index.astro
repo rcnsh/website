@@ -9,6 +9,7 @@ import ClockTile from "@/components/widgets/ClockTile.astro";
 import Contributions from "@/components/widgets/Contributions.astro";
 import Repos from "@/components/widgets/Repos.astro";
 import Stack from "@/components/widgets/Stack.astro";
+import StatTile from "@/components/home/StatTile.astro";
 import Stats from "@/components/widgets/Stats.astro";
 import { formatDate, getPosts, isoDate, postHref, readingTime } from "@/lib/blog";
 import { externalLinks, home, site } from "@/lib/site";
@@ -65,17 +66,9 @@ const pgp = externalLinks.find((link) => link.icon === "key");
 
     <Stats server:defer>
       <Fragment slot="fallback">
-        {
-          ["s1", "s2", "s3"].map((area) => (
-            <div class="tile flex flex-col justify-between gap-[18px]" style={`grid-area: ${area}`}>
-              <div class="placeholder-block h-2.5 w-16 rounded-xs" />
-              <div>
-                <div class="placeholder-block h-[30px] w-14 rounded-xs" />
-                <div class="placeholder-block mt-2 h-2.5 w-12 rounded-xs" />
-              </div>
-            </div>
-          ))
-        }
+        <StatTile class="[grid-area:s1]" label="Repos" detail="public" />
+        <StatTile class="[grid-area:s2]" label="Followers" detail="on GitHub" />
+        <StatTile class="[grid-area:s3]" label="On GitHub since" />
       </Fragment>
     </Stats>
 
@@ -118,44 +111,15 @@ const pgp = externalLinks.find((link) => link.icon === "key");
     </section>
 
     <Contributions server:defer>
-      <section slot="fallback" class="tile flex flex-col [grid-area:hm]" aria-hidden="true" data-contrib-pending>
-        <div class="mb-4 flex items-center">
-          <div class="placeholder-block h-2.5 w-24 rounded-xs" />
-          <div class="placeholder-block ml-auto h-2.5 w-28 rounded-xs" />
-        </div>
-        <div class="mb-[18px] flex gap-8">
-          {Array.from({ length: 3 }).map(() => (
-            <div>
-              <div class="placeholder-block h-[18px] w-14 rounded-xs" />
-              <div class="placeholder-block mt-2 h-2.5 w-16 rounded-xs" />
-            </div>
-          ))}
-        </div>
-        <div class="placeholder-block my-auto h-[118px] rounded-xs" />
-      </section>
+      <Contributions slot="fallback" pending />
     </Contributions>
 
     <FilesTile server:defer>
-      <LinkTile slot="fallback" class="[grid-area:fl]" href="/files" title="Files" detail="Public files on R2" icon="file" />
+      <LinkTile slot="fallback" class="[grid-area:fl]" href="/files" title="Files" detail={{ pending: "00 objects · 000 MB on R2" }} icon="file" />
     </FilesTile>
 
     <Repos server:defer>
-      <section slot="fallback" class="tile flex flex-col [grid-area:rp]" aria-hidden="true">
-        <div class="mb-4 flex items-center">
-          <div class="placeholder-block h-2.5 w-24 rounded-xs" />
-          <div class="placeholder-block ml-auto h-2.5 w-16 rounded-xs" />
-        </div>
-        <div class="grid flex-1 gap-2.5 sm:grid-cols-2">
-          {Array.from({ length: 4 }).map(() => (
-            <div class="flex min-h-[132px] flex-col rounded-card border border-line-soft px-4 pb-3.5 pt-4">
-              <div class="placeholder-block h-3 w-32 rounded-xs" />
-              <div class="placeholder-block mt-3 h-2.5 w-full rounded-xs" />
-              <div class="placeholder-block mt-2 h-2.5 w-2/3 rounded-xs" />
-              <div class="placeholder-block mt-auto h-2.5 w-28 rounded-xs" />
-            </div>
-          ))}
-        </div>
-      </section>
+      <Repos slot="fallback" pending />
     </Repos>
 
     <Stack />
@@ -182,7 +146,7 @@ const pgp = externalLinks.find((link) => link.icon === "key");
     }
 
     <GuestbookTile server:defer>
-      <LinkTile slot="fallback" class="[grid-area:gb]" href="/guestbook" title="Guestbook" detail="Sign with GitHub" icon="book" />
+      <LinkTile slot="fallback" class="[grid-area:gb]" href="/guestbook" title="Guestbook" detail={{ pending: "00 signatures" }} icon="book" />
     </GuestbookTile>
   </div>
 </Layout>

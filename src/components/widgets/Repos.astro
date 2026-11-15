@@ -4,25 +4,44 @@ import { languageColour } from "@/lib/languages";
 import { pinnedRepos } from "@/lib/site";
 import { relativeTime } from "@/lib/utils";
 
+interface Props {
+  /** Render the island's own fallback: four cards, nothing in them yet. */
+  pending?: boolean;
+}
+
+const { pending = false } = Astro.props;
+const SHOWN = 4;
+
 // The loader throws rather than caching an empty list, so an empty result and
 // a failed one stay distinguishable here.
 let repos: Awaited<ReturnType<typeof getFeaturedRepos>> = [];
 let failed = false;
-try {
-  repos = await getFeaturedRepos(pinnedRepos, 4);
-} catch (error) {
-  failed = true;
-  console.error("[github] repos island failed", error);
+if (!pending) {
+  try {
+    repos = await getFeaturedRepos(pinnedRepos, SHOWN);
+  } catch (error) {
+    failed = true;
+    console.error("[github] repos island failed", error);
+  }
 }
+
+const cardBox =
+  "relative flex flex-1 flex-col rounded-card border border-line-soft bg-[color-mix(in_oklab,var(--color-base)_50%,var(--color-surface))] px-4 pb-3.5 pt-4";
+const card = `${cardBox} tile-link group transition-colors hover:border-line-strong hover:bg-raised`;
 ---
 
-<section class="tile flex flex-col [grid-area:rp]" aria-labelledby="repos-heading">
+<section
+  class="tile flex flex-col [grid-area:rp]"
+  aria-labelledby={pending ? undefined : "repos-heading"}
+  aria-hidden={pending || undefined}
+>
   <div class="mb-4 flex items-center gap-2.5">
-    <h2 class="label" id="repos-heading">Selected work</h2>
+    <h2 class="label" id={pending ? undefined : "repos-heading"}>Selected work</h2>
     <a
       href="https://github.com/rcnsh"
       target="_blank"
       rel="noopener noreferrer"
+      tabindex={pending ? -1 : undefined}
       class="ml-auto rule-link font-mono text-[11px] text-ink-faint transition-colors hover:text-ink"
     >
       All repos &rarr;
@@ -30,7 +49,28 @@ try {
   </div>
 
   {
-    failed ? (
+    pending ? (
+      // The loaded card's lines, with a three-line description: most run to three.
+      <ul class="grid flex-1 gap-2.5 sm:grid-cols-2">
+        {Array.from({ length: SHOWN }, () => (
+          <li class="flex">
+            <div class={cardBox}>
+              <span class="font-mono text-sm font-medium">
+                <span class="placeholder-text w-28" />
+              </span>
+              <p class="mb-3.5 mt-2 text-[13.5px] leading-[1.55]">
+                <span class="placeholder-text w-full" />
+                <span class="placeholder-text w-full" />
+                <span class="placeholder-text w-1/2" />
+              </p>
+              <span class="mt-auto font-mono text-[11px]">
+                <span class="placeholder-text w-32" />
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    ) : failed ? (
       <p class="py-6 text-sm text-ink-faint">
         Couldn't reach GitHub.
         {import.meta.env.DEV && (
@@ -50,7 +90,7 @@ try {
               href={repo.url}
               target="_blank"
               rel="noopener noreferrer"
-              class="tile-link group relative flex flex-1 flex-col rounded-card border border-line-soft bg-[color-mix(in_oklab,var(--color-base)_50%,var(--color-surface))] px-4 pb-3.5 pt-4 transition-colors hover:border-line-strong hover:bg-raised"
+              class={card}
             >
               <span class="font-mono text-sm font-medium text-ink transition-colors group-hover:text-brand-alt">
                 {repo.name}

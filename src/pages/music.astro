@@ -63,22 +63,26 @@ const profileUrl = `https://open.spotify.com/user/${site.spotifyUser}`;
       class="tile col-span-12 flex animate-rise flex-col [animation-delay:60ms] max-sm:p-[18px]"
     >
       <ListeningStats server:defer>
-        <!-- Head row and one row of three facts, as ListeningStats renders. -->
-        <div slot="fallback" aria-hidden="true">
-          <div class="mb-4 flex min-h-4 items-center">
-            <div class="placeholder-block h-2.5 w-24 rounded-xs"></div>
+        <!-- Head row and one row of three facts, in ListeningStats' own
+             lines, so the tile is its loaded height. -->
+        <Fragment slot="fallback">
+          <div class="mb-4 flex min-h-4 items-center gap-2.5" aria-hidden="true">
+            <span class="label"><span class="placeholder-text w-24" /></span>
+            <span class="ml-auto font-mono text-[11px]"><span class="placeholder-text w-20" /></span>
           </div>
-          <div class="flex gap-x-8">
+          <dl class="mt-auto flex gap-x-8 gap-y-4" aria-hidden="true">
             {
-              [0, 1, 2].map(() => (
-                <div class="flex flex-col gap-1.5">
-                  <div class="placeholder-block h-7 w-12 rounded-xs" />
-                  <div class="placeholder-block h-2.5 w-16 rounded-xs" />
+              ["Tracks", "Artists", "Most played"].map((label, i) => (
+                <div class:list={["flex flex-col-reverse gap-1.5", i === 2 ? "min-w-0 flex-1" : "shrink-0"]}>
+                  <dt class="font-mono text-[10.5px] text-ink-faint">{label}</dt>
+                  <dd class="font-mono text-lg font-semibold">
+                    <span class:list={["placeholder-text", i === 2 ? "w-40 max-w-full" : "w-10"]} />
+                  </dd>
                 </div>
               ))
             }
-          </div>
-        </div>
+          </dl>
+        </Fragment>
       </ListeningStats>
     </section>
 

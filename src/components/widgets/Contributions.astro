@@ -2,16 +2,25 @@
 import { getContributions } from "@/lib/github";
 import { summarise } from "@/lib/contrib-summary";
 
+interface Props {
+  /** Render the island's own fallback: the same grid, with nothing in it yet. */
+  pending?: boolean;
+}
+
+const { pending = false } = Astro.props;
+
 // A server island, so a slow GitHub response never blocks the page. The loader
 // throws, so `data === null` means one thing — no GITHUB_TOKEN — and `failed`
 // means the request itself did not work.
 let data: Awaited<ReturnType<typeof getContributions>> = null;
 let failed = false;
-try {
-  data = await getContributions();
-} catch (error) {
-  failed = true;
-  console.error("[github] contributions island failed", error);
+if (!pending) {
+  try {
+    data = await getContributions();
+  } catch (error) {
+    failed = true;
+    console.error("[github] contributions island failed", error);
+  }
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -42,11 +51,31 @@ const monthLabels = monthStarts.filter((start, position) => {
 const summary = data ? summarise(data.weeks) : null;
 const DAY = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 const weekCount = data?.weeks.length ?? 53;
+// The skeleton draws a year of empty days, since the cells are square and
+// their size follows the tile's width.
+const weeks = data?.weeks ?? (pending ? Array.from({ length: weekCount }, () => []) : []);
+const facts = [
+  { label: "Longest streak", value: summary && `${summary.longestStreak} day${summary.longestStreak === 1 ? "" : "s"}` },
+  { label: "This week", value: summary && String(summary.thisWeek) },
+  { label: "Busiest day", value: summary && (summary.busiest ? DAY.format(new Date(summary.busiest.date)) : "—") },
+];
 ---
 
-<section class="tile flex flex-col [grid-area:hm]" aria-labelledby="contrib-heading">
+<section
+  class="tile flex flex-col [grid-area:hm]"
+  aria-labelledby={pending ? undefined : "contrib-heading"}
+  aria-hidden={pending || undefined}
+  data-contrib-pending={pending || undefined}
+>
   <div class="mb-4 flex items-center gap-2.5">
-    <h2 class="label" id="contrib-heading">Contributions</h2>
+    <h2 class="label" id={pending ? undefined : "contrib-heading"}>Contributions</h2>
+    {
+      pending && (
+        <span class="ml-auto font-mono text-[11px] text-ink-dim">
+          <span class="placeholder-text w-28" />
+        </span>
+      )
+    }
     {
       data && (
         <span class="ml-auto font-mono text-[11px] text-ink-dim">
@@ -57,32 +86,32 @@ const weekCount = data?.weeks.length ?? 53;
   </div>
 
   {
-    data && summary ? (
+    (data && summary) || pending ? (
       <>
         <dl class="mb-[18px] flex gap-8">
-          {[
-            { label: "Longest streak", value: `${summary.longestStreak} day${summary.longestStreak === 1 ? "" : "s"}` },
-            { label: "This week", value: String(summary.thisWeek) },
-            { label: "Busiest day", value: summary.busiest ? DAY.format(new Date(summary.busiest.date)) : "—" },
-          ].map((fact) => (
+          {facts.map((fact) => (
             <div class="flex flex-col-reverse gap-[5px]">
               <dt class="font-mono text-[10.5px] text-ink-faint">{fact.label}</dt>
-              <dd class="font-mono text-lg font-semibold tracking-[-0.02em] tabular-nums text-ink">{fact.value}</dd>
+              <dd class="font-mono text-lg font-semibold tracking-[-0.02em] tabular-nums text-ink">{fact.value ?? <span class="placeholder-text w-14" />}</dd>
             </div>
           ))}
         </dl>
 
         {/* prettier-ignore */}
         <div
-          data-contrib-scroller
-          class="my-auto overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [--fade-l:0px] [--fade-r:0px] [mask-image:linear-gradient(to_right,transparent_0,#000_var(--fade-l),#000_calc(100%-var(--fade-r)),transparent_100%)]"
+          data-contrib-scroller={pending ? undefined : ""}
+          class:list={[
+            "my-auto overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [--fade-l:0px] [--fade-r:0px] [mask-image:linear-gradient(to_right,transparent_0,#000_var(--fade-l),#000_calc(100%-var(--fade-r)),transparent_100%)]",
+            pending && "animate-[pulse-dim_1.8s_ease-in-out_infinite]",
+          ]}
         >
           {/* Columns stretch to the tile and stop shrinking at 8px, where the scroller takes over. */}
           <div
             class="grid min-w-full gap-[3px]"
             style={`grid-template-columns: 22px repeat(${weekCount}, minmax(8px, 1fr))`}
           >
-            <span />
+            {/* Holds the month row's height when no month is labelled yet. */}
+            <span class="h-3" />
             {monthLabels.map(({ index, label }) => (
               <span
                 class="col-span-3 font-mono text-[10px] leading-3 text-ink-faint"
@@ -98,7 +127,7 @@ const weekCount = data?.weeks.length ?? 53;
               ))}
             </div>
 
-            {data.weeks.map((week, weekIndex) => {
+            {weeks.map((week, weekIndex) => {
               // Placed by weekday, not position, so a short week at either
               // end still lines up with the Mon/Wed/Fri labels.
               const byWeekday = new Map(
@@ -108,7 +137,13 @@ const weekCount = data?.weeks.length ?? 53;
                 <div class="row-start-2 grid grid-rows-7 gap-[3px]">
                   {Array.from({ length: 7 }, (_, day) => {
                     const cell = byWeekday.get(day);
-                    if (!cell) return <span class="aspect-square" />;
+                    if (!cell) {
+                      return pending ? (
+                        <span class="aspect-square" data-level="0" data-point={(weekIndex + day) % 2 === 0 ? "up" : "down"} />
+                      ) : (
+                        <span class="aspect-square" />
+                      );
+                    }
                     return (
                       <span
                         class="aspect-square"

@@ -76,10 +76,12 @@ const MAX_LENGTH = page.maxMessageLength;
         820x400 aspect and the caption line, so nothing jumps.
       */}
       <GuestbookMapIsland server:defer>
-        <div slot="fallback" class="flex flex-1 flex-col">
+        <figure slot="fallback" aria-hidden="true" class="m-0 flex flex-1 flex-col justify-between gap-1">
           <div class="placeholder-block aspect-[820/400] w-full rounded-card" />
-          <div class="mt-3.5 h-[16.5px]" />
-        </div>
+          <figcaption class="mt-3.5 font-mono text-[11px]">
+            <span class="placeholder-text w-44" />
+          </figcaption>
+        </figure>
       </GuestbookMapIsland>
     </section>
 
@@ -88,16 +90,20 @@ const MAX_LENGTH = page.maxMessageLength;
       aria-labelledby="gb-countries-title"
     >
       <GuestbookCountries server:defer>
+        {/* GuestbookCountries' rows. Two, one row of the grid on a phone:
+            the guestbook is signed from a country or two so far, and a phone
+            is where the tile stands alone. Beside the map it stretches. */}
         <div slot="fallback" aria-hidden="true">
           <div class="mb-4 flex items-center gap-2.5">
             <span id="gb-countries-title" class="label">By country</span>
           </div>
           <div class="grid grid-cols-2 gap-x-4 gap-y-2.5 sm:gap-x-6 min-[1021px]:flex min-[1021px]:flex-col min-[1021px]:gap-[9px]">
             {
-              Array.from({ length: 10 }).map(() => (
-                <div class="flex flex-col gap-1">
-                  <div class="placeholder-block h-[14px] w-24 rounded-xs" />
-                  <div class="placeholder-block h-[3px] w-full rounded-[2px]" />
+              Array.from({ length: 2 }).map(() => (
+                <div class="grid grid-cols-[1fr_auto] gap-x-2.5 gap-y-1 font-mono text-[11.5px]">
+                  <span><span class="placeholder-text w-24" /></span>
+                  <span><span class="placeholder-text w-4" /></span>
+                  <span class="col-span-2 h-[3px] rounded-[2px] bg-line-soft" />
                 </div>
               ))
             }
@@ -111,14 +117,27 @@ const MAX_LENGTH = page.maxMessageLength;
       aria-labelledby="gb-list-title"
     >
       <GuestbookEntries server:defer>
+        {/* GuestbookList's cards, each with a one-line message, the commoner
+            length. The first page holds up to 25 and the count can't be known
+            here: twelve is near today's and fills whole rows at two and three
+            columns. This is the last tile, so a miss moves only the footer. */}
         <div slot="fallback" aria-hidden="true">
           <div class="mb-4 flex items-center gap-2.5">
             <span id="gb-list-title" class="label">Signatures</span>
+            <span class="ml-auto font-mono text-[11px] text-ink-faint">newest first</span>
           </div>
           <div class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3">
             {
-              Array.from({ length: 6 }).map(() => (
-                <div class="placeholder-block h-[112px] rounded-card" />
+              Array.from({ length: 12 }).map(() => (
+                <div class="flex flex-col rounded-card border border-line-soft bg-[color-mix(in_oklab,var(--color-base)_50%,var(--color-surface))] px-4 pt-4 pb-3.5">
+                  <p class="text-[0.9375rem] leading-relaxed">
+                    <span class="placeholder-text w-3/4" />
+                  </p>
+                  <div class="mt-auto flex items-center gap-2 pt-3.5 font-mono text-[11px]">
+                    <span class="placeholder-block h-5 w-5 shrink-0 rounded-full" />
+                    <span class="placeholder-text w-28" />
+                  </div>
+                </div>
               ))
             }
           </div>
