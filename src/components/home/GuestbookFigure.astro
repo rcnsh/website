@@ -1,27 +1,29 @@
 ---
-import LinkTile from "./LinkTile.astro";
+import Figure from "./Figure.astro";
 import { getPage, getStats } from "@/lib/guestbook";
 
 // Server island. Reads the cached first page and totals — the same public
 // data /guestbook shows anyone signed out — and never the session.
+let value = "—";
 let detail = "Sign with GitHub";
 let faces: { src: string; name: string }[] = [];
 try {
   const [stats, page] = await Promise.all([getStats(), getPage()]);
-  detail = `${stats.total.toLocaleString("en-GB")} signature${stats.total === 1 ? "" : "s"}`;
+  value = stats.total.toLocaleString("en-GB");
+  detail = `signature${stats.total === 1 ? "" : "s"}`;
   faces = page.entries
     .filter((entry) => entry.avatarUrl)
     .slice(0, 4)
     .map((entry) => ({ src: entry.avatarUrl!, name: entry.username }));
 } catch (error) {
-  console.error("[guestbook] home tile failed", error);
+  console.error("[guestbook] home figure failed", error);
 }
 ---
 
-<LinkTile class="[grid-area:gb]" href="/guestbook" title="Guestbook" detail={detail} icon="book">
+<Figure label="Guestbook" value={value} detail={detail} href="/guestbook">
   {
     faces.length > 0 && (
-      <span slot="corner" class="flex" aria-hidden="true">
+      <span slot="beside" class="flex" aria-hidden="true">
         {faces.map((face) => (
           <img
             src={face.src}
@@ -31,10 +33,10 @@ try {
             height="22"
             loading="lazy"
             decoding="async"
-            class="-ml-1.5 h-[22px] w-[22px] rounded-full border-2 border-surface bg-raised first:ml-0 group-hover:border-raised"
+            class="-ml-1.5 h-[22px] w-[22px] rounded-full border-2 border-base bg-raised first:ml-0"
           />
         ))}
       </span>
     )
   }
-</LinkTile>
+</Figure>

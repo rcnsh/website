@@ -88,8 +88,24 @@ leading 0.86, sized so the surname ends before the cover turns solid.
 - Home opens on the field, full-bleed and one screen tall: name, tagline, bio,
   the now-playing card, and a caption naming what the triangles are drawing.
   On a phone the cover runs edge to edge above the name instead of beside it.
-- The tile grid follows, unchanged in content, reordered so writing and the
-  contribution year come first.
+- A ledger follows instead of a tile grid (`LedgerSection`): six numbered
+  entries, Writing, Here & now, The year, Selected work, Uses, Elsewhere,
+  each with its heading and corner link in a left gutter and its content as
+  hairline rows beside it. Eleven boxes of equal weight competed with each
+  other and squeezed the contribution year into half a row; one column read
+  top to bottom ranks them and gives the year the full width. The single
+  figures (time, repos, followers, since, files, guestbook) share one row of
+  `Figure`s rather than a tile each. Nothing on the home page below the hero
+  is boxed: rows and figures that link mark it with `row-tick` or an arrow.
+- The ledger's first rule is the hero's foot, and the page under the hero is
+  at least a screen, so scrolled to the bottom the hero's edge meets the
+  header's. From 1280px the ledger aims to *be* that screen: short entries
+  pair up (Writing beside Here & now, Uses beside Elsewhere), each heading
+  folds into a row above its content, the year's figures stand beside the
+  graph and repo descriptions keep to one line. It fits exactly on a tall
+  desktop window (about 1,070px under the header); a shorter one scrolls,
+  and a taller one stretches the last row, so the pair's divider still
+  meets the footer's rule.
 - Every inner page opens on a title band (`page-band`): full-bleed, a third
   of a screen tall, the title at display size on the left and the field's
   picture on the right. On `/music` that picture is the middle two thirds of

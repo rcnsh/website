@@ -1,13 +1,12 @@
 ---
-import StatTile from "@/components/home/StatTile.astro";
+import Figure from "@/components/home/Figure.astro";
 import { getProfile } from "@/lib/github";
 
-// Deferred island. Three tiles in three separate grid areas: the island emits
-// no wrapper, so each lands as a direct child of the page grid.
+// Deferred island. Three figures and no wrapper, so each lands as a direct
+// child of the figure grid.
 //
 // The loader throws on failure rather than caching a null, so the catch is
-// here. The tiles still degrade to em dashes — there is no room in a figure
-// tile for a sentence — but the failure is logged rather than silent.
+// here. The figures degrade to em dashes, and the failure is logged.
 let profile: Awaited<ReturnType<typeof getProfile>> = null;
 try {
   profile = await getProfile();
@@ -16,23 +15,13 @@ try {
 }
 const since = profile ? new Date(profile.createdAt).getFullYear() : null;
 const years = since ? new Date().getFullYear() - since : null;
+const yearsText = years === null ? "—" : years === 0 ? "this year" : `${years} year${years === 1 ? "" : "s"}`;
 ---
 
-<StatTile
-  class="[grid-area:s1]"
-  label="Repos"
-  value={profile ? String(profile.publicRepos) : "—"}
-  detail="public"
-/>
-<StatTile
-  class="[grid-area:s2]"
-  label="Followers"
-  value={profile ? String(profile.followers) : "—"}
-  detail="on GitHub"
-/>
-<StatTile
-  class="[grid-area:s3]"
+<Figure label="Repos" value={profile ? String(profile.publicRepos) : "—"} detail="public" />
+<Figure label="Followers" value={profile ? String(profile.followers) : "—"} detail="on GitHub" />
+<Figure
   label="On GitHub since"
   value={since ? String(since) : "—"}
-  detail={years ? `${years} year${years === 1 ? "" : "s"}` : undefined}
+  detail={yearsText}
 />

@@ -151,7 +151,7 @@ Polling, no sockets. Two things tick:
 - `NowPlaying.tsx` polls `/api/spotify/now-playing` every 30s, interpolates the
   progress bar locally every second, re-polls near the end of a track, stops
   while the tab is hidden and goes stale after three failed polls.
-- `ClockTile.astro` re-renders every second.
+- `Clock.astro` re-renders every second.
 
 Both read the "live updates" switch in the settings menu (`src/lib/prefs.ts`,
 `localStorage` key `rcn:live`) and stop when it is off.
