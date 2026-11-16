@@ -159,6 +159,15 @@ const pgp = externalLinks.find((link) => link.icon === "key");
     border-bottom: 1px solid var(--color-line-soft);
   }
 
+  /* The rest of the page is at least a screen too, so scrolled to the
+     bottom the hero's rule meets the header's, as it meets the screen's
+     foot at the top. The slack goes into main, above the footer. */
+  @media (min-width: 768px) {
+    :global(.page-shell:has(> main > .hero)) {
+      min-height: calc(200svh - var(--header-h));
+    }
+  }
+
   .hero-frame {
     padding-block: clamp(2.5rem, 7vh, 5rem) clamp(1.5rem, 4vh, 2.75rem);
   }
