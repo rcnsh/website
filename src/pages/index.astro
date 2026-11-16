@@ -14,7 +14,7 @@ import Stats from "@/components/widgets/Stats.astro";
 import { formatDate, getPosts, isoDate, postHref, readingTime } from "@/lib/blog";
 import { externalLinks, home, site } from "@/lib/site";
 
-const recentPosts = (await getPosts()).slice(0, 2);
+const recentPosts = (await getPosts()).slice(0, 3);
 const [firstName, ...rest] = site.author.split(" ");
 const github = externalLinks.find((link) => link.icon === "github");
 const githubHref = github?.href ?? `https://github.com/${site.githubUser}`;
@@ -75,7 +75,7 @@ const elsewhere = externalLinks.map((link) => ({
             {recentPosts.map((post) => (
               <li>
                 <a href={postHref(post)} class="row-tick group block">
-                  <div class="grid gap-x-6 gap-y-1.5 py-4 md:grid-cols-[7rem_minmax(0,1fr)_auto] md:items-baseline xl:grid-cols-[auto_minmax(0,1fr)] [li:first-child_&]:pt-0.5">
+                  <div class="grid gap-x-6 gap-y-1.5 py-4 md:grid-cols-[7rem_minmax(0,1fr)_auto] xl:py-3.5 md:items-baseline xl:grid-cols-[auto_minmax(0,1fr)] [li:first-child_&]:pt-0.5">
                     <time class="font-mono text-[13px] text-ink-faint" datetime={isoDate(post.data.pubDate)}>
                       {formatDate(post.data.pubDate)}
                     </time>
@@ -84,7 +84,7 @@ const elsewhere = externalLinks.map((link) => ({
                         {post.data.title}
                         {post.data.draft && <span class="label ml-2 align-middle text-brand">draft</span>}
                       </h3>
-                      <p class="mt-1.5 text-[14.5px] leading-[1.55] text-ink-dim">{post.data.description}</p>
+                      <p class="mt-1.5 text-[14.5px] leading-[1.55] text-ink-dim xl:truncate">{post.data.description}</p>
                     </div>
                     <span class="font-mono text-[13px] text-ink-faint max-md:hidden xl:col-start-2 xl:row-start-1 xl:justify-self-end">{readingTime(post.body)} min</span>
                   </div>
@@ -99,7 +99,7 @@ const elsewhere = externalLinks.map((link) => ({
     </LedgerSection>
 
     <LedgerSection n={2} label="Here & now" id="now-heading" col="end">
-      <div class="grid grid-cols-2 gap-x-6 gap-y-8 md:grid-cols-3 xl:grid-cols-[repeat(3,auto)] xl:justify-between xl:gap-y-6">
+      <div class="grid grid-cols-2 gap-x-6 gap-y-8 md:grid-cols-3 xl:grid-cols-2 xl:gap-y-4">
         <Clock />
         <Stats server:defer>
           <Fragment slot="fallback">

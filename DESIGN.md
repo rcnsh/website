@@ -102,8 +102,10 @@ leading 0.86, sized so the surname ends before the cover turns solid.
   header's. From 1280px the ledger aims to *be* that screen: short entries
   pair up (Writing beside Here & now, Uses beside Elsewhere), each heading
   folds into a row above its content, the year's figures stand beside the
-  graph and repo descriptions keep to one line. It fits exactly on a tall
-  desktop window (about 1,070px under the header); a shorter one scrolls,
+  graph, post and repo descriptions keep to one line, and Here & now
+  stands its six figures in three rows of two beside the three latest posts.
+  It fits exactly on a tall desktop window (about 1,140px under the
+  header); a shorter one scrolls,
   and a taller one stretches the last row, so the pair's divider still
   meets the footer's rule.
 - Every inner page opens on a title band (`page-band`): full-bleed, a third
