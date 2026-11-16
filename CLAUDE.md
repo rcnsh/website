@@ -508,7 +508,12 @@ reason.
 pointer's light outside a field is held to the two dimmest levels for that
 reason (`near * id * 0.38` in `shader.ts`); raise it and body text loses
 contrast wherever the pointer is. Something that needs a surface of its own
-takes `tile-link` or sets a background itself.
+takes `tile-link` or sets a background itself. A dense widget the light
+would scramble (the contribution graph) takes `data-lattice-quiet`: the
+shader draws nothing inside it, a field's picture included, and the
+pointer's light thins out over half its reach as the pointer, or a
+triangle, nears it. The field measures them every drawn frame and takes
+the first `QUIET_MAX` (4) on screen.
 
 **`page-band` (`global.css`) breaks out of the page frame by `--page-w`**, the
 viewport without its scrollbar, which TopBar publishes beside `--header-h`;

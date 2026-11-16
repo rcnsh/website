@@ -3,7 +3,7 @@ import { COVER_EVENT, coverCaption, currentCover } from "../lattice-source.ts";
 import { liveUpdates, motionReduced, onPrefChange } from "../prefs.ts";
 import { coverTone, drawCover } from "./cover.ts";
 import { type CoverLayout, coverTexels, placeCover, placeMark, type Rect } from "./geometry.ts";
-import { FRAGMENT, VERTEX } from "./shader.ts";
+import { FRAGMENT, QUIET_MAX, VERTEX } from "./shader.ts";
 import type { ToneCurve } from "./tone.ts";
 
 /**
@@ -245,6 +245,8 @@ export function startLattice(canvas: HTMLCanvasElement): void {
         whole: uniform("uWhole"),
         pointer: uniform("uPointer"),
         reach: uniform("uReach"),
+        quiet: uniform("uQuiet"),
+        quietCount: uniform("uQuietCount"),
         from: uniform("uFrom"),
         to: uniform("uTo"),
         fromRect: uniform("uFromRect"),
@@ -480,6 +482,23 @@ export function startLattice(canvas: HTMLCanvasElement): void {
       });
   };
 
+  /**
+   * The lattice stays out of `data-lattice-quiet` elements on screen.
+   * Measured every drawn frame: they scroll, and they can arrive in a server
+   * island after the page is bound. Returns how many slots it filled.
+   */
+  const quietBoxes = new Float32Array(QUIET_MAX * 4);
+  const measureQuiet = () => {
+    let i = 0;
+    for (const element of document.querySelectorAll("[data-lattice-quiet]")) {
+      if (i === QUIET_MAX) break;
+      const r = element.getBoundingClientRect();
+      if (r.width === 0 || r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
+      quietBoxes.set([r.left * ratio, r.top * ratio, r.right * ratio, r.bottom * ratio], i++ * 4);
+    }
+    return i;
+  };
+
   const draw = (now: number) => {
     frame = 0;
     if (!host || document.hidden || lost) return;
@@ -550,6 +569,8 @@ export function startLattice(canvas: HTMLCanvasElement): void {
       // `?cell=` keeps the pointer's light the same size on screen.
       gl.uniform1f(locations.reach, pointerReach());
       gl.uniform3f(locations.pointer, pointer.x * ratio, pointer.y * ratio, frozen ? 0 : pointer.strength);
+      gl.uniform1i(locations.quietCount, measureQuiet());
+      gl.uniform4fv(locations.quiet, quietBoxes);
       gl.uniform4f(locations.fromRect, from.rect.x, from.rect.y, from.rect.w, from.rect.h);
       gl.uniform4f(locations.toRect, to.rect.x, to.rect.y, to.rect.w, to.rect.h);
       gl.uniform1f(locations.fromKind, from.kind);

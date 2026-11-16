@@ -25,8 +25,12 @@ const tapReads = TAPS.map(
   ([a, b, c]) => `  sum += texture2D(tex, clamp(texelAt(rect, a * ${a.toFixed(6)} + b * ${b.toFixed(6)} + c * ${c.toFixed(6)}), 0.0, 1.0)).rgb;`,
 ).join("\n");
 
+/** How many `data-lattice-quiet` boxes the shader takes at once. */
+export const QUIET_MAX = 4;
+
 export const FRAGMENT = /* glsl */ `
 precision highp float;
+#define QUIET_MAX ${QUIET_MAX}
 
 uniform vec2 uResolution;
 uniform vec4 uField;      // x, y, w, h in px, y down from the top
@@ -41,6 +45,8 @@ uniform float uBand;      // 1 on a title band: the short dissolve, no fade at t
 uniform float uWhole;     // 1 on a phone's title band: the whole square, its near edge just ragged
 uniform vec3 uPointer;    // x, y in px, strength 0..1
 uniform float uReach;     // how far round the pointer it uncovers, px
+uniform vec4 uQuiet[QUIET_MAX]; // boxes the lattice stays out of, px in the viewport: x0, y0, x1, y1
+uniform int uQuietCount;  // how many of them are in use
 
 uniform sampler2D uFrom;
 uniform sampler2D uTo;
@@ -157,8 +163,35 @@ vec2 source(sampler2D tex, vec4 rect, float kind, vec2 centre, vec2 c0, vec2 c1,
   return vec2(lum, mix(band, ranked, inside));
 }
 
+bool inQuiet(vec2 at) {
+  for (int i = 0; i < QUIET_MAX; i++) {
+    if (i >= uQuietCount) break;
+    vec4 b = uQuiet[i];
+    if (all(greaterThanEqual(at, b.xy)) && all(lessThanEqual(at, b.zw))) return true;
+  }
+  return false;
+}
+
+// How far a point is from the nearest quiet box, px; 0 inside one.
+float quietDistance(vec2 at) {
+  float d = 1e6;
+  for (int i = 0; i < QUIET_MAX; i++) {
+    if (i >= uQuietCount) break;
+    vec4 b = uQuiet[i];
+    d = min(d, length(max(max(b.xy - at, at - b.zw), 0.0)));
+  }
+  return d;
+}
+
 void main() {
-  vec2 p = vec2(gl_FragCoord.x, uResolution.y - gl_FragCoord.y) - uField.xy;
+  vec2 screen = vec2(gl_FragCoord.x, uResolution.y - gl_FragCoord.y);
+  // Nothing at all inside a quiet box, not even the tip of a triangle whose
+  // centre is outside it.
+  if (inQuiet(screen)) {
+    gl_FragColor = vec4(0.0);
+    return;
+  }
+  vec2 p = screen - uField.xy;
 
   float v = p.y / (uCell * ROW);
   float u = p.x / uCell + 0.5 * v;
@@ -206,6 +239,12 @@ void main() {
 
   // The pointer uncovers the lattice around it and lifts what is there.
   float near = uPointer.z * (1.0 - smoothstep(0.0, uReach, distance(centre, uPointer.xy - uField.xy)));
+  // Kept off a dense widget whose own triangles it would scramble: it thins
+  // out, triangle by triangle, as the pointer nears one and over a band
+  // round it (half its reach), so nothing stops at the box's edge.
+  float quietEdge = uReach * 0.5;
+  near *= smoothstep(0.0, quietEdge, quietDistance(uPointer.xy))
+    * smoothstep(0.0, quietEdge, quietDistance(centre + uField.xy));
 
   float presence = s.y * (1.0 - uFade) + near * 0.85;
   if (id2 > presence || revealFront < 0.0) {
