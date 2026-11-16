@@ -148,9 +148,7 @@
     { "name": "Tailwind", "url": "https://tailwindcss.com/" },
     { "name": "Cloudflare", "url": "https://developers.cloudflare.com/workers/" },
     { "name": "Postgres", "url": "https://www.postgresql.org/" },
-    { "name": "Neovim", "url": "https://neovim.io/" },
-    { "name": "Git", "url": "https://git-scm.com/" },
-    { "name": "Docker", "url": "https://www.docker.com/" }
+    { "name": "Git", "url": "https://git-scm.com/" }
   ],
 
   "pinnedRepos": [
