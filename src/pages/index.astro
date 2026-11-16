@@ -14,7 +14,7 @@ import Stats from "@/components/widgets/Stats.astro";
 import { formatDate, getPosts, isoDate, postHref, readingTime } from "@/lib/blog";
 import { externalLinks, home, site } from "@/lib/site";
 
-const recentPosts = (await getPosts()).slice(0, 3);
+const recentPosts = (await getPosts()).slice(0, 2);
 const [firstName, ...rest] = site.author.split(" ");
 const github = externalLinks.find((link) => link.icon === "github");
 const pgp = externalLinks.find((link) => link.icon === "key");
