@@ -46,10 +46,11 @@ export function placeMark(
 /**
  * How a cover sits in its field. `wide`: the home field, hung off the far
  * edge. `narrow`: a phone's home field, edge to edge across the top.
- * `compact`: a title band on a phone, the far two fifths. `band`: a title
- * band from a tablet up, see `BAND_COVER_SHOWN`.
+ * `square`: a title band on a phone, the whole square in its top corner.
+ * `compact`: a short home field (a landscape phone), the far two fifths.
+ * `band`: a title band from a tablet up, see `BAND_COVER_SHOWN`.
  */
-export type CoverLayout = "wide" | "narrow" | "compact" | "band";
+export type CoverLayout = "wide" | "narrow" | "square" | "compact" | "band";
 
 /**
  * How much of a cover's height a title band shows. The band is short and
@@ -61,15 +62,23 @@ export type CoverLayout = "wide" | "narrow" | "compact" | "band";
 export const BAND_COVER_SHOWN = 0.65;
 /** The widest a band's cover may get, as a share of the frame, clear of the title. */
 const BAND_COVER_ROOM = 0.7;
+/** A phone band's square, as a share of the frame: past the title, short of the edge. */
+const SQUARE_COVER_ROOM = 0.52;
 
 /**
  * The square a cover is drawn into. `inset` is the page frame's margin, which
- * a band's cover keeps its far edge to, in line with the tiles below it.
+ * a band's cover keeps its far edge to, in line with the tiles below it, and
+ * a phone's home cover keeps below the header. `foot` is the height of the
+ * row of links or figures along a band's foot, which a `square` stays above.
  */
-export function placeCover(field: { w: number; h: number }, layout: CoverLayout, inset = 0): Rect {
+export function placeCover(field: { w: number; h: number }, layout: CoverLayout, inset = 0, foot = 0): Rect {
   if (layout === "narrow") {
     const side = field.w;
-    return { x: 0, y: 0, w: side, h: side };
+    return { x: 0, y: inset, w: side, h: side };
+  }
+  if (layout === "square") {
+    const side = Math.max(1, Math.min((field.w - inset * 2) * SQUARE_COVER_ROOM, field.h - inset - foot));
+    return { x: field.w - inset - side, y: inset, w: side, h: side };
   }
   if (layout === "band") {
     const side = Math.min(field.h / BAND_COVER_SHOWN, (field.w - inset * 2) * BAND_COVER_ROOM);

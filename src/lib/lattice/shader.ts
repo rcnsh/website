@@ -38,6 +38,7 @@ uniform float uMix;       // 0..1, from one source to the next
 uniform float uFade;      // 0..1, how far the field has scrolled away
 uniform float uNarrow;    // 1 on a phone: dissolve downwards, not sideways
 uniform float uBand;      // 1 on a title band: the short dissolve, no fade at the foot
+uniform float uWhole;     // 1 on a phone's title band: the whole square, its near edge just ragged
 uniform vec3 uPointer;    // x, y in px, strength 0..1
 uniform float uReach;     // how far round the pointer it uncovers, px
 
@@ -69,13 +70,17 @@ vec2 latticePx(vec2 uv) {
 // against chance, decides which triangles in the band survive.
 const float COVER_GONE_X = 0.24;
 const float COVER_SOLID_X = 0.5;
-const float COVER_SOLID_Y = 0.5;
-const float COVER_GONE_Y = 0.7;
+const float COVER_SOLID_Y = 0.74;
+const float COVER_GONE_Y = 0.95;
 const float COVER_RANK = 0.45;
 // A title band's cover is a strip beside the title, not a square under a
 // name, so it is solid over most of its width and only its near end goes.
 const float BAND_GONE_X = 0.02;
 const float BAND_SOLID_X = 0.32;
+// A phone's band has room for the whole square beside the title, so only a
+// sliver of its near edge thins out.
+const float WHOLE_GONE_X = -0.04;
+const float WHOLE_SOLID_X = 0.1;
 // How far a cover's ordered dither moves a triangle, in level steps. A full
 // step weaves a tone-mapped cover all over, since most of it sits between
 // two levels; 0.6 still grades a glow without patterning the flat areas.
@@ -133,8 +138,8 @@ vec2 source(sampler2D tex, vec4 rect, float kind, vec2 centre, vec2 c0, vec2 c1,
   // its own square and thins out down it, clear of the name below.
   float lum = coverMean(tex, rect, c0, c1, c2) * inside;
   vec2 n = centre / field;
-  float goneX = mix(COVER_GONE_X, BAND_GONE_X, uBand);
-  float solidX = mix(COVER_SOLID_X, BAND_SOLID_X, uBand);
+  float goneX = mix(mix(COVER_GONE_X, BAND_GONE_X, uBand), WHOLE_GONE_X, uWhole);
+  float solidX = mix(mix(COVER_SOLID_X, BAND_SOLID_X, uBand), WHOLE_SOLID_X, uWhole);
   // The home field fades out at its foot; a band's foot is its rule.
   float foot = mix(1.0 - smoothstep(0.9, 1.0, n.y), 1.0, uBand);
   // Round the home cover a faint dark scatter; past a band's cover, which

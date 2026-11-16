@@ -249,7 +249,9 @@ const pgp = externalLinks.find((link) => link.icon === "key");
       min-height: 0;
     }
     .hero-frame {
-      padding-top: 68vw;
+      /* The cover's inset below the header, then its last thin scatter, which
+         the name's text-shadow grounds. */
+      padding-top: calc(22px + 88vw);
     }
     .hero-name {
       font-size: 17.5vw;

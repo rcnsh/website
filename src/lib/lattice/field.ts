@@ -242,6 +242,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
         fade: uniform("uFade"),
         narrow: uniform("uNarrow"),
         band: uniform("uBand"),
+        whole: uniform("uWhole"),
         pointer: uniform("uPointer"),
         reach: uniform("uReach"),
         from: uniform("uFrom"),
@@ -285,8 +286,11 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   const cellSize = () => (smallField() ? CELL_SMALL : narrow ? CELL_NARROW : wideCell) * ratio;
   /** A title band, as against a home hero that happens to be short (a landscape phone). */
   const titleBand = () => Boolean(host?.classList.contains("page-band"));
-  const coverLayout = (): CoverLayout =>
-    smallField() ? (!narrow && titleBand() ? "band" : "compact") : narrow ? "narrow" : "wide";
+  const coverLayout = (): CoverLayout => {
+    if (!smallField()) return narrow ? "narrow" : "wide";
+    if (!titleBand()) return "compact";
+    return narrow ? "square" : "band";
+  };
 
   /** Where a picture sits in the field, in device pixels. */
   const place = (key: string): Rect => {
@@ -296,7 +300,8 @@ export function startLattice(canvas: HTMLCanvasElement): void {
     // A full-bleed field keeps its picture to the page frame.
     const frame = 1184 * ratio;
     const inset = Math.max((fieldSize.w - frame) / 2, 0) + 22 * ratio;
-    if (key.startsWith("cover:")) return placeCover(fieldSize, coverLayout(), inset);
+    // A phone band's foot row (links, figures) with its padding, with room to wrap once.
+    if (key.startsWith("cover:")) return placeCover(fieldSize, coverLayout(), inset, 76 * ratio);
     if (key.startsWith("text:")) {
       // Across the top of its block, above the heading.
       const w = Math.min(fieldSize.w - 56 * ratio, 560 * ratio);
@@ -304,9 +309,13 @@ export function startLattice(canvas: HTMLCanvasElement): void {
     }
     if (key.startsWith("svg:")) {
       const aspect = aspects.get(key) ?? 2;
-      const w = narrow ? fieldSize.w * 0.56 : Math.min((fieldSize.w - inset * 2) * 0.5, fieldSize.h * 0.84 * aspect);
+      // A phone's band is too narrow to put it beside the title, so it goes
+      // behind it, across the frame and centred, where it is big enough to read.
+      const w = narrow
+        ? Math.min(fieldSize.w - inset * 2, fieldSize.h * 0.9 * aspect)
+        : Math.min((fieldSize.w - inset * 2) * 0.5, fieldSize.h * 0.84 * aspect);
       const h = w / aspect;
-      return { x: fieldSize.w - (narrow ? 14 * ratio : inset) - w, y: narrow ? 14 * ratio : (fieldSize.h - h) / 2, w, h };
+      return { x: narrow ? (fieldSize.w - w) / 2 : fieldSize.w - inset - w, y: (fieldSize.h - h) / 2, w, h };
     }
     // A phone's home field has the room above the name; a title block does not.
     if (narrow && fieldSize.h > 520 * ratio)
@@ -533,8 +542,10 @@ export function startLattice(canvas: HTMLCanvasElement): void {
       gl.uniform1f(locations.reveal, easeOut(reveal));
       gl.uniform1f(locations.mix, easeInOut(mix));
       gl.uniform1f(locations.fade, Math.min(Math.max(-box.top / Math.max(box.height, 1), 0), 1) * 0.85);
-      gl.uniform1f(locations.narrow, coverLayout() === "narrow" ? 1 : 0);
-      gl.uniform1f(locations.band, coverLayout() === "band" ? 1 : 0);
+      const layout = coverLayout();
+      gl.uniform1f(locations.narrow, layout === "narrow" ? 1 : 0);
+      gl.uniform1f(locations.band, layout === "band" || layout === "square" ? 1 : 0);
+      gl.uniform1f(locations.whole, layout === "square" ? 1 : 0);
       // Reach follows the designed cell, not the drawn one, so a finer
       // `?cell=` keeps the pointer's light the same size on screen.
       gl.uniform1f(locations.reach, pointerReach());

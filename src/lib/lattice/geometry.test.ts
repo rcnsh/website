@@ -53,8 +53,21 @@ test("a wide field hangs the cover off its far edge", () => {
   assert.equal(cover.w <= field.h, true);
 });
 
-test("a narrow field runs the cover edge to edge across the top", () => {
-  assert.deepEqual(placeCover({ w: 390, h: 1000 }, "narrow"), { x: 0, y: 0, w: 390, h: 390 });
+test("a narrow field runs the cover edge to edge across the top, clear of the header", () => {
+  assert.deepEqual(placeCover({ w: 390, h: 1000 }, "narrow", 20), { x: 0, y: 20, w: 390, h: 390 });
+});
+
+test("a phone's title band shows the whole cover in its top corner, above the foot row", () => {
+  const inset = 22;
+  const foot = 70;
+  const wide = placeCover({ w: 448, h: 400 }, "square", inset, foot);
+  assert.equal(wide.w, wide.h);
+  assert.equal(wide.x + wide.w, 448 - inset);
+  assert.equal(wide.y, inset);
+  // Too short for its share of the width: the foot row decides.
+  const short = placeCover({ w: 448, h: 260 }, "square", inset, foot);
+  assert.equal(short.y + short.h, 260 - foot);
+  assert.equal(short.x + short.w, 448 - inset);
 });
 
 test("a title band crops its cover to the middle strip, ending on the frame", () => {
