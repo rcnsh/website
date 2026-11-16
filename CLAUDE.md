@@ -55,6 +55,20 @@ give a `prerender = false` page the router: soft navigation from it would run
 every other page's scripts under its policy. A page that only needs to know
 the reader stays prerendered and asks after load (`/guestbook`, see Caching).
 
+**A page from another build gets a full load, never a swap.** Island host ids
+are random per build, so the union's hashes are too, and island props are
+encrypted with the build's key: an island URL from another build gets a 400,
+and Astro leaves its fallback up for good. `reloadAcrossBuilds`
+(`page-lifecycle.ts`) compares each fetched page's meta CSP with the
+document's and refuses the swap when they differ, so the first click after a
+deploy is a full load. For the same reason pages carry no
+`stale-while-revalidate` (`staticAssets` in `shared/cache-policy.ts`): the
+router fetches pages with `fetch()`, which a browser answers from a stale copy
+under it, and a reload of a different page does not refresh that copy. `ASTRO_KEY`
+is a Workers Builds secret (production and previews), so the key survives
+deploys and a page still held at the edge keeps working islands. Rotating it
+breaks every cached page's islands until the edge copies expire.
+
 **The router submits same-origin forms itself:** it posts with `fetch`,
 follows the route's redirect and swaps in the page it lands on, so the player
 keeps going. `loadServerPagesDirectly` must leave form posts alone: refused,
@@ -88,7 +102,9 @@ the owner hold) are meant to drop. TopBar republishes `--header-h` per page.
 **No `transition:animate`.** It emits an inline `<style>` Astro does not hash,
 which the build refuses. The browser's crossfade is off in `global.css`.
 
-**One CSP violation per navigation to a page with server islands is expected.**
+**A CSP violation per policy on each navigation to a page with server islands is expected.**
+Every meta CSP a page brings stays in force for the document, so the count
+grows by one per page visited.
 The router waits for inline module scripts by appending a `data:` script, which
 `script-src` refuses; the refusal fires `error`, which is all it waits for.
 Adding `data:` to `script-src` to quiet it would be a real hole. Astro's script

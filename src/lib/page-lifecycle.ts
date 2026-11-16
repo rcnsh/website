@@ -104,6 +104,39 @@ export function wipePagesIn(): void {
 }
 
 /**
+ * The meta CSP every prerendered page of a build shares (csp-union), so it
+ * names the build: its island scripts' hashes change with every one.
+ */
+function buildOf(doc: Document): string | null {
+  return doc.querySelector('meta[http-equiv="content-security-policy" i]')?.getAttribute("content") ?? null;
+}
+
+/**
+ * A page from another build cannot be swapped into this document: its island
+ * scripts are not in the policy this document enforces, and their props are
+ * encrypted with that build's key, which the live Worker may refuse. Fetched
+ * after a deploy, or a stale copy from a cache, it gets a full load instead.
+ *
+ * A refused form post is retried as a GET of its action, which those routes
+ * answer by redirecting back to the form (see CSP and the router).
+ */
+export function reloadAcrossBuilds(): void {
+  // Dev pages each keep their own policy, so every page would differ.
+  if (import.meta.env.DEV) return;
+  const own = buildOf(document);
+  if (own === null) return;
+  document.addEventListener("astro:before-preparation", (event) => {
+    const preparation = event as TransitionBeforePreparationEvent;
+    const load = preparation.loader;
+    preparation.loader = async () => {
+      await load();
+      if (preparation.defaultPrevented || preparation.signal.aborted) return;
+      if (buildOf(preparation.newDocument) !== own) preparation.preventDefault();
+    };
+  });
+}
+
+/**
  * Links into SSR pages and API routes go straight to a full load. Left to
  * itself the router would fetch the page, see it has no <ClientRouter />,
  * throw it away and load it again: two renders, two session lookups.

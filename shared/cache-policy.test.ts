@@ -22,5 +22,5 @@ test("the named policies", () => {
   assert.equal(uncachedError, "no-store");
   assert.equal(privateNoStore, "private, no-store");
   assert.equal(serverIslands, "public, max-age=60, s-maxage=300, stale-while-revalidate=3600");
-  assert.equal(staticAssets, "public, max-age=0, s-maxage=600, stale-while-revalidate=86400");
+  assert.equal(staticAssets, "public, max-age=0, s-maxage=600");
 });

@@ -170,8 +170,14 @@ const imageAlt = `${site.author} — ${site.name}`;
 
     <script>
       import { holdOwnerViewOnFiles } from "@/components/files/owner-view";
-      import { keepReaderAttributes, wipePagesIn, loadServerPagesDirectly } from "@/lib/page-lifecycle";
+      import {
+        keepReaderAttributes,
+        wipePagesIn,
+        loadServerPagesDirectly,
+        reloadAcrossBuilds,
+      } from "@/lib/page-lifecycle";
 
+      reloadAcrossBuilds();
       keepReaderAttributes();
       wipePagesIn();
       loadServerPagesDirectly();

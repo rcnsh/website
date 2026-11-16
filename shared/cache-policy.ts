@@ -47,5 +47,11 @@ export const privateNoStore: CachePolicy = "private, no-store";
  */
 export const serverIslands: CachePolicy = publicFor(60, { edge: 300, swr: 3600 });
 
-/** The `_headers` default for statically served pages: revalidate, but from the edge. */
-export const staticAssets: CachePolicy = publicFor(0, { edge: 600, swr: 86400 });
+/**
+ * The `_headers` default for statically served pages: revalidate, but from the
+ * edge. No `stale-while-revalidate`: the router fetches pages with `fetch()`,
+ * which a browser answers from a stale copy under it, and a page from an
+ * earlier build has islands the live Worker refuses. See CLAUDE.md §
+ * Maintenance › CSP and the router.
+ */
+export const staticAssets: CachePolicy = publicFor(0, { edge: 600 });
