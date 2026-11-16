@@ -85,24 +85,24 @@
       {
         "title": "BUILDING WITH",
         "items": [
-          { "name": "TypeScript", "url": "https://www.typescriptlang.org/", "art": "typescript" },
-          { "name": "Python", "url": "https://python.org/", "art": "python" },
-          { "name": "Rust", "url": "https://www.rust-lang.org/", "art": "rust" },
-          { "name": "Astro", "url": "https://astro.build/", "art": "astro" },
-          { "name": "Next.js", "url": "https://nextjs.org/", "art": "nextjs" },
-          { "name": "React", "url": "https://react.dev/", "art": "react" },
-          { "name": "Tailwind", "url": "https://tailwindcss.com/", "art": "tailwind" },
-          { "name": "three.js", "url": "https://threejs.org/", "art": "threejs" },
+          { "name": "TypeScript", "url": "https://www.typescriptlang.org/", "art": "typescript", "home": "primary" },
+          { "name": "Python", "url": "https://python.org/", "art": "python", "home": "supporting" },
+          { "name": "Rust", "url": "https://www.rust-lang.org/", "art": "rust", "home": "primary" },
+          { "name": "Astro", "url": "https://astro.build/", "art": "astro", "home": "primary" },
+          { "name": "Next.js", "url": "https://nextjs.org/", "art": "nextjs", "home": "supporting" },
+          { "name": "React", "url": "https://react.dev/", "art": "react", "home": "primary" },
+          { "name": "Tailwind", "url": "https://tailwindcss.com/", "art": "tailwind", "home": "supporting" },
+          { "name": "three.js", "url": "https://threejs.org/", "art": "threejs", "home": "supporting" },
           { "name": "MCP", "url": "https://modelcontextprotocol.io/", "art": "mcp" }
         ]
       },
       {
         "title": "RUNNING ON",
         "items": [
-          { "name": "Cloudflare", "url": "https://developers.cloudflare.com/workers/", "art": "cloudflare" },
+          { "name": "Cloudflare", "url": "https://developers.cloudflare.com/workers/", "art": "cloudflare", "home": "primary" },
           { "name": "Vercel", "url": "https://vercel.com/", "art": "vercel" },
           { "name": "macOS", "url": "https://www.apple.com/macos/", "art": "macos" },
-          { "name": "Linux", "url": "https://www.linux.org/", "art": "linux" }
+          { "name": "Linux", "url": "https://www.linux.org/", "art": "linux", "home": "supporting" }
         ]
       }
     ]
@@ -138,18 +138,6 @@
     }
   ],
 
-  "stack": [
-    { "name": "TypeScript", "url": "https://www.typescriptlang.org/", "primary": true },
-    { "name": "Astro", "url": "https://astro.build/", "primary": true },
-    { "name": "Next.js", "url": "https://nextjs.org/", "primary": true },
-    { "name": "Python", "url": "https://python.org/", "primary": true },
-    { "name": "Linux", "url": "https://www.linux.org/", "primary": true },
-    { "name": "React", "url": "https://react.dev/" },
-    { "name": "Tailwind", "url": "https://tailwindcss.com/" },
-    { "name": "Cloudflare", "url": "https://developers.cloudflare.com/workers/" },
-    { "name": "Postgres", "url": "https://www.postgresql.org/" },
-    { "name": "Git", "url": "https://git-scm.com/" }
-  ],
 
   "pinnedRepos": [
     "terminus",

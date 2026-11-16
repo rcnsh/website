@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   dailyDriver,
   groupSpan,
+  homeStack,
   driverFact,
   linkHost,
   pluggedIn,
@@ -67,4 +68,16 @@ test("groups pair up narrow then wide, evenly when the same size", () => {
 
   const closed = sized(6, 9, 6, 4, 4);
   assert.deepEqual([3, 4].map((i) => groupSpan(closed, i)), [6, 6]);
+});
+
+test("home stack puts primary items first, each set in /uses order", () => {
+  const tagged: UsesGroup[] = [
+    { title: "A", items: [
+      { name: "Py", art: "x", home: "supporting" },
+      { name: "TS", art: "x", home: "primary" },
+      { name: "Off", art: "x" },
+    ] },
+    { title: "B", items: [{ name: "CF", art: "x", home: "primary" }] },
+  ];
+  assert.deepEqual(homeStack(tagged).map((i) => i.name), ["TS", "CF", "Py"]);
 });

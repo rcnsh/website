@@ -1,9 +1,10 @@
 ---
-import { stack } from "@/lib/site";
+import { uses } from "@/lib/site";
+import { homeStack } from "@/lib/uses";
 
-// Primary tools come first and carry the dot, so they read as the day-to-day
-// set and the rest as the supporting cast.
-const ordered = [...stack.filter((item) => item.primary), ...stack.filter((item) => !item.primary)];
+// Drawn from /uses so the two cannot drift. Primary tools carry the dot, so
+// they read as the day-to-day set and the rest as the supporting cast.
+const ordered = homeStack(uses.groups);
 ---
 
 <section class="tile [grid-area:st]" aria-labelledby="stack-heading">
@@ -27,12 +28,12 @@ const ordered = [...stack.filter((item) => item.primary), ...stack.filter((item)
             rel="noopener noreferrer"
             class:list={[
               "inline-flex items-center gap-[7px] rounded border px-2.5 py-1.5 font-mono text-xs transition-colors",
-              item.primary
+              item.home === "primary"
                 ? "border-line bg-raised text-ink hover:border-line-strong"
                 : "border-line-soft text-ink-dim hover:border-line-strong hover:text-ink",
             ]}
           >
-            {item.primary && <i class="bg-brand-gradient h-[5px] w-[5px] rounded-full" aria-hidden="true" />}
+            {item.home === "primary" && <i class="bg-brand-gradient h-[5px] w-[5px] rounded-full" aria-hidden="true" />}
             {item.name}
           </a>
         </li>

@@ -75,17 +75,23 @@ const schema = z.object({
           title: z.string().min(1),
           items: z
             .array(
-              z.object({
-                name: z.string().min(1),
-                url: z.url().optional(),
-                /** Second line — a model, a maker, a qualifier. */
-                detail: z.string().optional(),
-                /**
-                 * Which drawing to show: a hand-drawn shape in UsesArt.astro,
-                 * or a brand mark. An unknown name renders a placeholder.
-                 */
-                art: z.string().min(1),
-              }),
+              z
+                .object({
+                  name: z.string().min(1),
+                  url: z.url().optional(),
+                  /** Second line — a model, a maker, a qualifier. */
+                  detail: z.string().optional(),
+                  /**
+                   * Which drawing to show: a hand-drawn shape in UsesArt.astro,
+                   * or a brand mark. An unknown name renders a placeholder.
+                   */
+                  art: z.string().min(1),
+                  /** On the home Uses tile; `primary` leads and carries the dot. */
+                  home: z.enum(["primary", "supporting"]).optional(),
+                })
+                .refine((item) => !item.home || item.url, {
+                  error: "an item on the home tile needs a url",
+                }),
             )
             .min(1),
         }),
@@ -94,16 +100,6 @@ const schema = z.object({
   }),
   nav: z.array(linkSchema).min(1),
   links: z.array(linkSchema),
-  stack: z
-    .array(
-      z.object({
-        name: z.string().min(1),
-        url: z.url(),
-        /** Highlighted — the things actually reached for first. */
-        primary: z.boolean().optional(),
-      }),
-    )
-    .min(1),
   pinnedRepos: z.array(z.string()),
 });
 
@@ -137,7 +133,6 @@ export const home = config.home;
 export const pages = config.pages;
 export const nav = config.nav;
 export const externalLinks = config.links;
-export const stack = config.stack;
 export const uses = config.uses;
 export const pinnedRepos = config.pinnedRepos;
 

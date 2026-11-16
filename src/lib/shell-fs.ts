@@ -1,6 +1,7 @@
 import { dir, file, type VDir, type VNode } from "./shell";
 import { formatDate, getPosts, postHref } from "./blog";
-import { externalLinks, home, nav, site, stack, uses } from "./site";
+import { externalLinks, home, nav, site, uses } from "./site";
+import { homeStack } from "./uses";
 
 /**
  * Builds the filesystem the command palette's shell walks, from what the site
@@ -84,7 +85,7 @@ export async function buildFs(): Promise<VDir> {
 
     file(
       "stack.txt",
-      stack.map((item) => `${item.name}\t${item.url}`).join("\n"),
+      homeStack(uses.groups).map((item) => `${item.name}\t${item.url}`).join("\n"),
       "/uses",
     ),
 

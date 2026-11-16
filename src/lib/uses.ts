@@ -9,6 +9,7 @@ export type UsesItem = {
   detail?: string;
   url?: string;
   art: string;
+  home?: "primary" | "supporting";
 };
 
 export type UsesGroup = { title: string; items: UsesItem[] };
@@ -64,4 +65,13 @@ export function countLabel(n: number): string {
 
 export function linkHost(url: string): string {
   return new URL(url).hostname.replace(/^www\./, "");
+}
+
+/** The home tile's chips: primary items first, each set in its /uses order. */
+export function homeStack(groups: UsesGroup[]): UsesItem[] {
+  const items = groups.flatMap((group) => group.items);
+  return [
+    ...items.filter((item) => item.home === "primary"),
+    ...items.filter((item) => item.home === "supporting"),
+  ];
 }
