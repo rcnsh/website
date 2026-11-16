@@ -227,8 +227,7 @@ classes (a fixed-height box never matches a line's height). A line that
 wraps with its content is sample text made transparent on `placeholder-block`,
 so it wraps where the real one will. `placeholder-block` is for boxes only
 (art, maps, charts). Where a component can, it draws its own skeleton
-(`pending` on `Contributions`, `Repos`; no `value` on `StatTile`;
-`detail: { pending }` on `LinkTile`) and the page passes that as the
+(`pending` on `Contributions`, `Repos`; no `value` on `Figure`) and the page passes that as the
 fallback, so the two cannot drift. A `pending` render must not fetch: it is
 prerendered. Check a change by holding `/_server-islands/` and `/api/` in
 Playwright and comparing each tile's height before and after release.
@@ -337,7 +336,7 @@ function, asked only when a decision needs it, so a public download costs no
 session lookup. The logic lives in `bucket-view.ts` with the R2 listing, tree
 cache and rules injected, so it tests under node.
 
-**Islands and the home tile render the visitor view only.** They are cached
+**Islands and the home page's files figure render the visitor view only.** They are cached
 publicly (see Caching), so the owner's full tree comes from
 `/api/files/visibility` after hydration. They use `view(false)`, or
 `publicSummary()` where the usage bar needs hidden totals: sizes, never names.

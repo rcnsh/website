@@ -2,42 +2,33 @@
 import { uses } from "@/lib/site";
 import { homeStack } from "@/lib/uses";
 
-// Drawn from /uses so the two cannot drift. Primary tools carry the dot, so
+// Drawn from /uses so the two cannot drift. Primary tools are in full ink, so
 // they read as the day-to-day set and the rest as the supporting cast.
 const ordered = homeStack(uses.groups);
 ---
 
-<section class="tile [grid-area:st]" aria-labelledby="stack-heading">
-  <div class="mb-4 flex items-center gap-2.5">
-    <h2 class="label" id="stack-heading">Uses</h2>
-    <a
-      href="/uses"
-      class="ml-auto rule-link font-mono text-[11px] text-ink-faint transition-colors hover:text-ink"
-    >
-      Full setup &rarr;
-    </a>
-  </div>
-
-  <ul class="flex flex-wrap gap-1.5">
-    {
-      ordered.map((item) => (
-        <li>
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            class:list={[
-              "inline-flex items-center gap-[7px] rounded border px-2.5 py-1.5 font-mono text-xs transition-colors",
-              item.home === "primary"
-                ? "border-line bg-raised text-ink hover:border-line-strong"
-                : "border-line-soft text-ink-dim hover:border-line-strong hover:text-ink",
-            ]}
-          >
-            {item.home === "primary" && <i class="bg-brand-gradient h-[5px] w-[5px] rounded-full" aria-hidden="true" />}
-            {item.name}
-          </a>
-        </li>
-      ))
-    }
-  </ul>
-</section>
+<ul class="flex flex-wrap items-baseline gap-y-1 font-mono text-[15px] leading-[1.9]">
+  {
+    ordered.map((item, index) => (
+      <li class="inline-flex items-baseline">
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          class:list={[
+            "rule-link transition-colors",
+            item.home === "primary" ? "text-ink hover:text-brand-alt" : "text-ink-dim hover:text-ink",
+          ]}
+        >
+          {item.name}
+        </a>
+        {/* After the item, so a wrapped line never opens on a separator. */}
+        {index < ordered.length - 1 && (
+          <span class="px-2.5 text-ink-faint" aria-hidden="true">
+            ·
+          </span>
+        )}
+      </li>
+    ))
+  }
+</ul>

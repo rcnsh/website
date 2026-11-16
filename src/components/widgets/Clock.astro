@@ -6,50 +6,34 @@ import { clock } from "@/lib/site";
  * load, before a deferred island's HTML exists. Shows my time, not the
  * visitor's — see `clock.timeZone`.
  */
-interface Props {
-  class?: string;
-}
-
-const { class: className } = Astro.props;
-
 // "Asia/Singapore" → "Singapore". The zone database names places this way.
 const city = clock.timeZone.split("/").at(-1)!.replaceAll("_", " ");
 ---
 
-<section
-  class:list={["tile flex flex-col justify-between", className]}
-  aria-labelledby="clock-heading"
+{/* Laid out like a ledger Figure, so the row's lines align. Config comes in
+    via data attributes — importing site.ts would ship Zod. */}
+<div
+  class="flex min-w-0 flex-col gap-2.5"
+  data-clock
+  data-tz={clock.timeZone}
+  data-hour12={String(clock.hour12)}
 >
-  <h2 class="label" id="clock-heading">{clock.label}</h2>
-  {
-    /* Config comes in via data attributes — importing site.ts would ship Zod. */
-  }
-  <div
-    data-clock
-    data-tz={clock.timeZone}
-    data-hour12={String(clock.hour12)}
-  >
-    <div class="flex items-baseline gap-1 font-mono tabular-nums">
-      <span
-        data-clock-hm
-        class="text-[2.375rem] font-semibold leading-none tracking-[-0.04em] text-ink"
-      >--:--</span>
-      <span data-clock-s class="w-[2.2ch] text-[0.9375rem] text-ink-faint">--</span>
-    </div>
-    <div class="mt-2.5 flex items-center justify-between gap-3 font-mono text-[11px] text-ink-faint">
-      <span>{city} · <span data-clock-offset>UTC</span></span>
-      <span data-clock-day></span>
-    </div>
-    {/* Progress through the minute, so the tile visibly ticks. */}
-    <div class="mt-3 h-0.5 overflow-hidden rounded-full bg-line-soft" aria-hidden="true">
-      <div
-        data-clock-bar
-        class="bg-brand-gradient h-full origin-left scale-x-0 transition-transform duration-700 ease-linear"
-      >
-      </div>
-    </div>
-  </div>
-</section>
+  <span class="font-mono text-[12.5px] text-ink-faint">{clock.label}</span>
+  <span class="flex items-baseline gap-1 font-mono tabular-nums">
+    <span data-clock-hm class="text-[2.125rem] font-bold leading-none tracking-[-0.04em] text-ink">--:--</span>
+    <span data-clock-s class="w-[2.2ch] text-[0.875rem] text-ink-faint">--</span>
+  </span>
+  <span class="font-mono text-[12.5px] text-ink-faint">
+    {city} · <span data-clock-offset>UTC</span> · <span data-clock-day></span>
+  </span>
+  {/* Progress through the minute, so the figure visibly ticks. */}
+  <span class="block h-0.5 max-w-[10rem] overflow-hidden rounded-full bg-line-soft" aria-hidden="true">
+    <span
+      data-clock-bar
+      class="bg-brand-gradient block h-full origin-left scale-x-0 transition-transform duration-700 ease-linear"
+    ></span>
+  </span>
+</div>
 
 <script>
   import { liveUpdates, onPrefChange } from "@/lib/prefs";

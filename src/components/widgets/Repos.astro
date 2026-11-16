@@ -5,7 +5,7 @@ import { pinnedRepos } from "@/lib/site";
 import { relativeTime } from "@/lib/utils";
 
 interface Props {
-  /** Render the island's own fallback: four cards, nothing in them yet. */
+  /** Render the island's own fallback: four rows, nothing in them yet. */
   pending?: boolean;
 }
 
@@ -25,96 +25,76 @@ if (!pending) {
   }
 }
 
-const cardBox =
-  "relative flex flex-1 flex-col rounded-card border border-line-soft bg-[color-mix(in_oklab,var(--color-base)_50%,var(--color-surface))] px-4 pb-3.5 pt-4";
-const card = `${cardBox} tile-link group transition-colors hover:border-line-strong hover:bg-raised`;
+// Below 1024px a third column squeezes the description to five lines or
+// more, so the meta goes under it there.
+const row = "grid gap-x-6 gap-y-1 py-3.5 md:grid-cols-[10.5rem_minmax(0,1fr)] md:items-baseline lg:grid-cols-[10.5rem_minmax(0,1fr)_auto]";
+const meta = "font-mono text-[12.5px] md:col-start-2 lg:col-start-auto";
 ---
 
-<section
-  class="tile flex flex-col [grid-area:rp]"
-  aria-labelledby={pending ? undefined : "repos-heading"}
-  aria-hidden={pending || undefined}
->
-  <div class="mb-4 flex items-center gap-2.5">
-    <h2 class="label" id={pending ? undefined : "repos-heading"}>Selected work</h2>
-    <a
-      href="https://github.com/rcnsh"
-      target="_blank"
-      rel="noopener noreferrer"
-      tabindex={pending ? -1 : undefined}
-      class="ml-auto rule-link font-mono text-[11px] text-ink-faint transition-colors hover:text-ink"
-    >
-      All repos &rarr;
-    </a>
-  </div>
-
-  {
-    pending ? (
-      // The loaded card's lines, with a three-line description: most run to three.
-      <ul class="grid flex-1 gap-2.5 sm:grid-cols-2">
-        {Array.from({ length: SHOWN }, () => (
-          <li class="flex">
-            <div class={cardBox}>
-              <span class="font-mono text-sm font-medium">
-                <span class="placeholder-text w-28" />
+{
+  pending ? (
+    // The sample is as long as a typical description (about 100 characters),
+    // so it wraps to the same lines at every width.
+    <ul class="divide-y divide-line-soft" aria-hidden="true">
+      {Array.from({ length: SHOWN }, () => (
+        <li class="[&:first-child>div]:pt-0.5">
+          <div class={row}>
+            <span class="font-mono text-[14.5px] font-medium">
+              <span class="placeholder-text w-28" />
+            </span>
+            <p class="text-[14.5px] leading-[1.55] xl:truncate">
+              <span class="placeholder-ghost">
+                A small tool that does one job from where you already are, on the web and on the devices you carry.
               </span>
-              <p class="mb-3.5 mt-2 text-[13.5px] leading-[1.55]">
-                <span class="placeholder-text w-full" />
-                <span class="placeholder-text w-full" />
-                <span class="placeholder-text w-1/2" />
-              </p>
-              <span class="mt-auto font-mono text-[11px]">
-                <span class="placeholder-text w-32" />
-              </span>
-            </div>
-          </li>
-        ))}
-      </ul>
-    ) : failed ? (
-      <p class="py-6 text-sm text-ink-faint">
-        Couldn't reach GitHub.
-        {import.meta.env.DEV && (
-          <>
-            {" "}Set <code class="font-mono text-ink-dim">GITHUB_TOKEN</code> to
-            raise the rate limit.
-          </>
-        )}
-      </p>
-    ) : repos.length === 0 ? (
-      <p class="py-6 text-sm text-ink-faint">Nothing to show yet.</p>
-    ) : (
-      <ul class="grid flex-1 gap-2.5 sm:grid-cols-2">
-        {repos.map((repo) => (
-          <li class="flex">
-            <a
-              href={repo.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              class={card}
-            >
-              <span class="font-mono text-sm font-medium text-ink transition-colors group-hover:text-brand-alt">
+            </p>
+            <span class={meta}>
+              <span class="placeholder-text w-28" />
+            </span>
+          </div>
+        </li>
+      ))}
+    </ul>
+  ) : failed ? (
+    <p class="text-sm text-ink-faint">
+      Couldn't reach GitHub.
+      {import.meta.env.DEV && (
+        <>
+          {" "}Set <code class="font-mono text-ink-dim">GITHUB_TOKEN</code> to
+          raise the rate limit.
+        </>
+      )}
+    </p>
+  ) : repos.length === 0 ? (
+    <p class="text-sm text-ink-faint">Nothing to show yet.</p>
+  ) : (
+    <ul class="divide-y divide-line-soft">
+      {repos.map((repo) => (
+        <li>
+          <a
+            href={repo.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="row-tick group block [li:first-child_&>div]:pt-0.5"
+          >
+            <div class={row}>
+              <span class="font-mono text-[14.5px] font-medium text-ink transition-colors group-hover:text-brand-alt">
                 {repo.name}
               </span>
-              <p class="mb-3.5 mt-2 text-[13.5px] leading-[1.55] text-ink-dim">
-                {repo.description ?? "No description."}
-              </p>
-              <span class="mt-auto flex flex-wrap gap-x-3.5 gap-y-1 font-mono text-[11px] text-ink-faint">
+              <p class="text-[14.5px] leading-[1.55] text-ink-dim xl:truncate" title={repo.description ?? undefined}>{repo.description ?? "No description."}</p>
+              <span class:list={[meta, "flex flex-wrap items-center gap-x-3 whitespace-nowrap text-ink-faint"]}>
                 {repo.language && (
                   <span class="inline-flex items-center gap-1.5">
-                    <i
-                      class="h-2 w-2 rounded-full"
-                      style={`background: ${languageColour(repo.language)}`}
-                    />
+                    <i class="h-[7px] w-[7px] rounded-full" style={`background: ${languageColour(repo.language)}`} />
                     {repo.language}
                   </span>
                 )}
                 {repo.stars > 0 && <span>★ {repo.stars}</span>}
                 <span>{relativeTime(repo.updatedAt)}</span>
               </span>
-            </a>
-          </li>
-        ))}
-      </ul>
-    )
-  }
-</section>
+            </div>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )
+}

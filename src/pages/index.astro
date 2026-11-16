@@ -1,15 +1,15 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import RichText from "@/components/RichText.astro";
-import FilesTile from "@/components/home/FilesTile.astro";
-import GuestbookTile from "@/components/home/GuestbookTile.astro";
-import LinkTile from "@/components/home/LinkTile.astro";
+import Figure from "@/components/home/Figure.astro";
+import FilesFigure from "@/components/home/FilesFigure.astro";
+import GuestbookFigure from "@/components/home/GuestbookFigure.astro";
+import LedgerSection from "@/components/home/LedgerSection.astro";
 import NowPlaying from "@/components/react/NowPlaying";
-import ClockTile from "@/components/widgets/ClockTile.astro";
+import Clock from "@/components/widgets/Clock.astro";
 import Contributions from "@/components/widgets/Contributions.astro";
 import Repos from "@/components/widgets/Repos.astro";
 import Stack from "@/components/widgets/Stack.astro";
-import StatTile from "@/components/home/StatTile.astro";
 import Stats from "@/components/widgets/Stats.astro";
 import { formatDate, getPosts, isoDate, postHref, readingTime } from "@/lib/blog";
 import { externalLinks, home, site } from "@/lib/site";
@@ -17,7 +17,13 @@ import { externalLinks, home, site } from "@/lib/site";
 const recentPosts = (await getPosts()).slice(0, 2);
 const [firstName, ...rest] = site.author.split(" ");
 const github = externalLinks.find((link) => link.icon === "github");
-const pgp = externalLinks.find((link) => link.icon === "key");
+const githubHref = github?.href ?? `https://github.com/${site.githubUser}`;
+// "/pgp_key.asc.txt" → "pgp_key.asc": what each link points at, after its name.
+const elsewhere = externalLinks.map((link) => ({
+  ...link,
+  external: /^https?:/.test(link.href),
+  detail: link.href.split("/").pop()!.replace(/\.txt$/, ""),
+}));
 ---
 
 <Layout>
@@ -56,51 +62,33 @@ const pgp = externalLinks.find((link) => link.icon === "key");
   </section>
 
   {/*
-    Every tile names its grid area, and the areas are restated per breakpoint
-    below, so a tile that is slow to arrive (a server island) holds its place
-    rather than letting the others reflow into it. Islands emit no wrapper, so
-    their tiles are direct children of the grid too.
+    The ledger: one numbered entry per subject, read top to bottom. Each
+    server island renders inside its own entry, so a slow one holds its place
+    and nothing reflows into it. From 1280px the short entries pair up, so
+    the whole ledger fits a screen under the header.
   */}
-  <div class="home-grid bento pb-2">
-    <ClockTile class="[grid-area:ck]" />
-
-    <Stats server:defer>
-      <Fragment slot="fallback">
-        <StatTile class="[grid-area:s1]" label="Repos" detail="public" />
-        <StatTile class="[grid-area:s2]" label="Followers" detail="on GitHub" />
-        <StatTile class="[grid-area:s3]" label="On GitHub since" />
-      </Fragment>
-    </Stats>
-
-    <section class="tile flex flex-col [grid-area:wr]" aria-labelledby="writing-heading">
-      <div class="mb-4 flex items-center gap-2.5">
-        <h2 class="label" id="writing-heading">Writing</h2>
-        <a href="/blog" class="ml-auto rule-link font-mono text-[11px] text-ink-faint transition-colors hover:text-ink">
-          All posts &rarr;
-        </a>
-      </div>
-
+  <div class="flex-1 pb-6 xl:grid xl:grid-cols-2 xl:grid-rows-[auto_auto_auto_1fr] xl:pb-0">
+    <LedgerSection n={1} label="Writing" id="writing-heading" link={{ href: "/blog", text: "all posts" }} col="start">
       {
         recentPosts.length > 0 ? (
-          <ul class="flex flex-1 flex-col divide-y divide-line-soft">
+          <ul class="divide-y divide-line-soft">
             {recentPosts.map((post) => (
               <li>
-                <a href={postHref(post)} class="row-tick group block py-[15px] [li:first-child_&]:pt-0.5"><div>
-                  <time class="font-mono text-[11px] text-ink-faint" datetime={isoDate(post.data.pubDate)}>
-                    {formatDate(post.data.pubDate)} · {readingTime(post.body)} min
-                  </time>
-                  <h3 class="mt-1.5 text-[16px] font-medium leading-snug text-ink transition-colors group-hover:text-brand-alt">
-                    {post.data.title}
-                    {post.data.draft && <span class="label ml-2 align-middle text-brand">draft</span>}
-                    <span
-                      aria-hidden="true"
-                      class="inline-block -translate-x-1 text-brand opacity-0 transition duration-200 group-hover:translate-x-0 group-hover:opacity-100"
-                    >
-                      &rarr;
-                    </span>
-                  </h3>
-                  <p class="mt-1.5 text-[13.5px] leading-[1.55] text-ink-dim">{post.data.description}</p>
-                </div></a>
+                <a href={postHref(post)} class="row-tick group block">
+                  <div class="grid gap-x-6 gap-y-1.5 py-4 md:grid-cols-[7rem_minmax(0,1fr)_auto] md:items-baseline xl:grid-cols-[auto_minmax(0,1fr)] [li:first-child_&]:pt-0.5">
+                    <time class="font-mono text-[13px] text-ink-faint" datetime={isoDate(post.data.pubDate)}>
+                      {formatDate(post.data.pubDate)}
+                    </time>
+                    <div class="xl:col-span-2 xl:row-start-2">
+                      <h3 class="text-[18px] font-medium leading-snug text-ink transition-colors group-hover:text-brand-alt">
+                        {post.data.title}
+                        {post.data.draft && <span class="label ml-2 align-middle text-brand">draft</span>}
+                      </h3>
+                      <p class="mt-1.5 text-[14.5px] leading-[1.55] text-ink-dim">{post.data.description}</p>
+                    </div>
+                    <span class="font-mono text-[13px] text-ink-faint max-md:hidden xl:col-start-2 xl:row-start-1 xl:justify-self-end">{readingTime(post.body)} min</span>
+                  </div>
+                </a>
               </li>
             ))}
           </ul>
@@ -108,46 +96,70 @@ const pgp = externalLinks.find((link) => link.icon === "key");
           <p class="text-sm text-ink-faint">Nothing published yet.</p>
         )
       }
-    </section>
+    </LedgerSection>
 
-    <Contributions server:defer>
-      <Contributions slot="fallback" pending />
-    </Contributions>
+    <LedgerSection n={2} label="Here & now" id="now-heading" col="end">
+      <div class="grid grid-cols-2 gap-x-6 gap-y-8 md:grid-cols-3 xl:grid-cols-[repeat(3,auto)] xl:justify-between xl:gap-y-6">
+        <Clock />
+        <Stats server:defer>
+          <Fragment slot="fallback">
+            <Figure label="Repos" detail="public" />
+            <Figure label="Followers" detail="on GitHub" />
+            <Figure label="On GitHub since" />
+          </Fragment>
+        </Stats>
+        <FilesFigure server:defer>
+          <Figure slot="fallback" label="Files" href="/files" />
+        </FilesFigure>
+        <GuestbookFigure server:defer>
+          <Figure slot="fallback" label="Guestbook" href="/guestbook" />
+        </GuestbookFigure>
+      </div>
+    </LedgerSection>
 
-    <FilesTile server:defer>
-      <LinkTile slot="fallback" class="[grid-area:fl]" href="/files" title="Files" detail={{ pending: "00 objects · 000 MB on R2" }} icon="file" />
-    </FilesTile>
+    <LedgerSection n={3} label="The year" id="contrib-heading" link={{ href: githubHref, text: "github", external: true }}>
+      <Contributions server:defer>
+        <Contributions slot="fallback" pending />
+      </Contributions>
+    </LedgerSection>
 
-    <Repos server:defer>
-      <Repos slot="fallback" pending />
-    </Repos>
+    <LedgerSection
+      n={4}
+      label="Selected work"
+      id="repos-heading"
+      link={{ href: githubHref + "?tab=repositories", text: "all repos", external: true }}
+    >
+      <Repos server:defer>
+        <Repos slot="fallback" pending />
+      </Repos>
+    </LedgerSection>
 
-    <Stack />
+    <LedgerSection n={5} label="Uses" id="stack-heading" link={{ href: "/uses", text: "full setup" }} col="start">
+      <Stack />
+    </LedgerSection>
 
-    <LinkTile
-      class="[grid-area:gh]"
-      href={github?.href ?? `https://github.com/${site.githubUser}`}
-      title="GitHub"
-      detail={`@${site.githubUser}`}
-      icon="github"
-      external
-    />
-
-    {
-      pgp && (
-        <LinkTile
-          class="[grid-area:pg]"
-          href={pgp.href}
-          title={pgp.label}
-          detail={pgp.href.split("/").pop()!.replace(/\.txt$/, "")}
-          icon="key"
-        />
-      )
-    }
-
-    <GuestbookTile server:defer>
-      <LinkTile slot="fallback" class="[grid-area:gb]" href="/guestbook" title="Guestbook" detail={{ pending: "00 signatures" }} icon="book" />
-    </GuestbookTile>
+    <LedgerSection n={6} label="Elsewhere" id="elsewhere-heading" col="end">
+      <ul class="flex flex-wrap gap-x-8 gap-y-2 font-mono text-[15px]">
+        {
+          elsewhere.map((link) => (
+            <li>
+              <a
+                href={link.href}
+                target={link.external ? "_blank" : undefined}
+                rel={link.external ? "noopener noreferrer" : undefined}
+                class="group rule-link inline-flex items-baseline gap-2 text-ink transition-colors hover:text-brand-alt"
+              >
+                {link.label}
+                <span class="text-ink-faint">{link.detail}</span>
+                <span aria-hidden="true" class="text-ink-faint transition-colors group-hover:text-brand-alt">
+                  {link.external ? "↗" : "→"}
+                </span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </LedgerSection>
   </div>
 </Layout>
 
@@ -156,12 +168,30 @@ const pgp = externalLinks.find((link) => link.icon === "key");
     position: relative;
     min-height: calc(100svh - var(--header-h));
     display: flex;
-    border-bottom: 1px solid var(--color-line-soft);
+  }
+
+  /* The ledger's first rule is the hero's foot, and the footer closes its
+     last row, so nothing but the ledger stands between them. Any slack goes
+     into that last row, so its divider runs down to the footer's rule. */
+  :global(main:has(> .hero)) {
+    display: flex;
+    flex-direction: column;
+  }
+  .hero + :global(div) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding-top: 0;
+  }
+  :global(.page-shell:has(> main > .hero) > footer) {
+    margin-top: 0;
   }
 
   /* The rest of the page is at least a screen too, so scrolled to the
      bottom the hero's rule meets the header's, as it meets the screen's
-     foot at the top. The slack goes into main, above the footer. */
+     foot at the top. The slack goes into the ledger's last row. From
+     1280px the ledger pairs its short entries to fit one screen exactly
+     where it can (LedgerSection.astro). */
   @media (min-width: 768px) {
     :global(.page-shell:has(> main > .hero)) {
       min-height: calc(200svh - var(--header-h));
@@ -264,44 +294,6 @@ const pgp = externalLinks.find((link) => link.icon === "key");
     }
     .hero-name {
       font-size: 17.5vw;
-    }
-  }
-
-  .home-grid {
-    margin-top: 0.25rem;
-    grid-auto-rows: minmax(104px, auto);
-    grid-template-areas:
-      "wr wr wr wr wr hm hm hm hm hm hm hm"
-      "wr wr wr wr wr hm hm hm hm hm hm hm"
-      "ck ck ck s1 s1 s2 s2 s3 s3 fl fl fl"
-      "rp rp rp rp rp rp rp st st st st st"
-      "rp rp rp rp rp rp rp gh gh gh pg pg"
-      "rp rp rp rp rp rp rp gb gb gb gb gb";
-  }
-
-  @media (max-width: 1020px) {
-    .home-grid {
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-      grid-template-areas:
-        "wr wr wr wr wr wr"
-        "hm hm hm hm hm hm"
-        "ck ck ck s1 s1 s1"
-        "s2 s2 s2 s3 s3 s3"
-        "rp rp rp rp rp rp"
-        "rp rp rp rp rp rp"
-        "st st st st st st"
-        "gh gh gh pg pg pg"
-        "gb gb gb fl fl fl";
-    }
-  }
-
-  @media (max-width: 640px) {
-    .home-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      grid-auto-rows: auto;
-      grid-template-areas:
-        "wr wr" "hm hm" "ck ck" "s1 s2" "s3 s3" "rp rp" "st st"
-        "gh pg" "gb fl";
     }
   }
 </style>

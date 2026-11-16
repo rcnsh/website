@@ -1,0 +1,117 @@
+---
+/**
+ * One entry in the home page's ledger: a numbered gutter holding the heading
+ * and its corner link, and the content beside it. On a phone, and on a wide
+ * screen where entries pair up (`col`), the gutter folds into one row above
+ * the content.
+ */
+interface Props {
+  n: number;
+  label: string;
+  id: string;
+  link?: { href: string; text: string; external?: boolean };
+  /** Which half of a pair this is from 1280px up; unset spans the row. */
+  col?: "start" | "end";
+}
+
+const { n, label, id, link, col } = Astro.props;
+---
+
+<section class="ledger-section" data-col={col} aria-labelledby={id}>
+  <div class="ledger-gutter">
+    <span class="font-mono text-[13px] font-bold tabular-nums text-brand" aria-hidden="true">
+      {String(n).padStart(2, "0")}
+    </span>
+    <h2 class="label text-[12px]" id={id}>{label}</h2>
+    {
+      link && (
+        <a
+          href={link.href}
+          target={link.external ? "_blank" : undefined}
+          rel={link.external ? "noopener noreferrer" : undefined}
+          class="ledger-link rule-link font-mono text-[13px] text-ink-faint transition-colors hover:text-ink"
+        >
+          {link.text} &rarr;
+        </a>
+      )
+    }
+  </div>
+  <div class="min-w-0">
+    <slot />
+  </div>
+</section>
+
+<style>
+  .ledger-section {
+    position: relative;
+    display: grid;
+    grid-template-columns: 11rem minmax(0, 1fr);
+    align-content: start;
+    gap: 2.5rem;
+    padding-block: 2.25rem;
+    border-top: 1px solid var(--color-line-soft);
+  }
+
+  /* The first row hangs from the full rule (its pair too, from 1280px), and
+     its first entry from the mark's slanted tab, the way a tile does; the
+     rest are divided by the soft one. */
+  .ledger-section:first-child {
+    border-top-color: var(--color-line);
+  }
+  .ledger-section:first-child {
+    background: linear-gradient(120deg, var(--color-brand) calc(100% - 2px), transparent calc(100% - 2px)) no-repeat
+      0 -1px / 26px 3px;
+  }
+
+  .ledger-gutter {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.625rem;
+  }
+
+  .ledger-link {
+    margin-top: auto;
+  }
+
+  @media (max-width: 767px), (min-width: 1280px) {
+    .ledger-section {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 1.25rem;
+      padding-block: 1.75rem;
+    }
+    .ledger-gutter {
+      flex-direction: row;
+      align-items: baseline;
+      gap: 0.75rem;
+    }
+    /* Its padding is the underline's room; kept out of the row's height so
+       the heading sits level with a neighbour's that has no link. */
+    .ledger-link {
+      margin: -0.3rem 0 -0.3rem auto;
+    }
+  }
+
+  /* Paired so the ledger fits a screen under the header: scrolled to the
+     bottom, the hero's rule meets the header's (see index.astro). */
+  @media (min-width: 1280px) {
+    .ledger-section {
+      grid-column: 1 / -1;
+      gap: 1rem;
+      padding-block: 1.5rem;
+    }
+    .ledger-section[data-col] {
+      grid-column: auto;
+    }
+    .ledger-section:first-child + [data-col="end"] {
+      border-top-color: var(--color-line);
+    }
+    .ledger-section[data-col="start"] {
+      padding-right: 2.5rem;
+    }
+    .ledger-section[data-col="end"] {
+      padding-left: 2.5rem;
+      border-left: 1px solid var(--color-line-soft);
+    }
+  }
+</style>

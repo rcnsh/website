@@ -1,0 +1,56 @@
+---
+/**
+ * One figure in the ledger's "Here & now" row: a label, the figure, a line
+ * under it. Without a `value` it is its own skeleton: the figure pulses in a
+ * line of its own type, and so does the detail unless it is fixed text, so
+ * it is the same height when it lands. With `href` the whole figure is the
+ * link, marked by an arrow beside the label; a pending one is a link too, so
+ * an island that never lands still leaves the way in.
+ */
+interface Props {
+  label: string;
+  value?: string;
+  detail?: string;
+  href?: string;
+}
+
+const { label, value, detail, href } = Astro.props;
+const pending = value === undefined;
+const Tag = href ? "a" : "div";
+---
+
+<Tag
+  href={Tag === "a" ? href : undefined}
+  class="group flex min-w-0 flex-col gap-2.5"
+  aria-hidden={(pending && !href) || undefined}
+>
+  <span class="flex items-center gap-2 font-mono text-[12.5px] text-ink-faint">
+    {label}
+    {
+      href && (
+        <span
+          aria-hidden="true"
+          class="transition-[color,translate] duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-brand-alt"
+        >
+          ↗
+        </span>
+      )
+    }
+  </span>
+  <span class="flex items-center gap-3">
+    <span
+      class:list={[
+        "font-mono text-[2.125rem] font-bold leading-none tracking-[-0.04em] tabular-nums text-ink transition-colors",
+        Tag === "a" && "group-hover:text-brand-alt",
+      ]}
+    >
+      {value ?? <span class="placeholder-text w-16" />}
+    </span>
+    <slot name="beside" />
+  </span>
+  {
+    (detail || pending) && (
+      <span class="font-mono text-[12.5px] text-ink-faint">{detail ?? <span class="placeholder-text w-20" />}</span>
+    )
+  }
+</Tag>
