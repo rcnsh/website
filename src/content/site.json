@@ -19,7 +19,7 @@
   },
 
   "home": {
-    "bio": "I study computer science at [Newcastle University](https://www.ncl.ac.uk/) and I'm currently studying abroad at the [National University of Singapore](https://www.nus.edu.sg/). Most of what I write is TypeScript and Python, and the rest of my time goes on experimenting with anything I'm finding interesting."
+    "bio": "I study computer science at [Newcastle University](https://www.ncl.ac.uk/) and I'm spending this year on exchange at the [National University of Singapore](https://www.nus.edu.sg/). Most of what I build is TypeScript, plus some Rust, Swift and Kotlin, and a growing share of it is tooling for AI agents to use. The rest of my time goes on small tools that keep my data on infrastructure I control."
   },
 
   "pages": {
