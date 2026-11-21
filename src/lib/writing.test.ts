@@ -1,7 +1,9 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { cadence, wordCount } from "./writing.ts";
-import { readingTime } from "./utils.ts";
+import * as utils from "./utils.ts";
+
+const { readingTime } = utils;
 
 describe("word count", () => {
   test("drops fenced and inline code", () => {
@@ -11,6 +13,14 @@ describe("word count", () => {
   test("agrees with readingTime", () => {
     const body = "word ".repeat(1234);
     assert.equal(readingTime(body), Math.max(1, Math.round(wordCount(body) / 200)));
+  });
+
+  test("utils.ts counts words with the same function", () => {
+    assert.equal(utils.wordCount, wordCount);
+    for (const body of ["", "one", "a  b\t\nc", "x ```y z``` w", "`a` b `c d`", "word ".repeat(321)]) {
+      assert.equal(utils.wordCount(body), wordCount(body));
+      assert.equal(readingTime(body), Math.max(1, Math.round(wordCount(body) / 200)));
+    }
   });
 
   test("empty body", () => {

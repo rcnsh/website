@@ -1,7 +1,4 @@
-export function wordCount(body = ""): number {
-  const prose = body.replace(/```[\s\S]*?```/g, " ").replace(/`[^`]*`/g, " ");
-  return prose.split(/\s+/).filter(Boolean).length;
-}
+export { wordCount } from "./utils.ts";
 
 export type CadenceMonth = {
   year: number;

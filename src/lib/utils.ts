@@ -50,10 +50,13 @@ export function relativeTime(input: string | Date): string {
 
 const WORDS_PER_MINUTE = 200;
 
-export function readingTime(body = ""): number {
+export function wordCount(body = ""): number {
   const prose = body.replace(/```[\s\S]*?```/g, " ").replace(/`[^`]*`/g, " ");
-  const words = prose.split(/\s+/).filter(Boolean).length;
-  return Math.max(1, Math.round(words / WORDS_PER_MINUTE));
+  return prose.split(/\s+/).filter(Boolean).length;
+}
+
+export function readingTime(body = ""): number {
+  return Math.max(1, Math.round(wordCount(body) / WORDS_PER_MINUTE));
 }
 
 export function formatDuration(ms: number): string {
