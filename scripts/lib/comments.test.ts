@@ -121,6 +121,9 @@ test("Astro: frontmatter with templates, regexes, JSX and dashed comments", () =
   assert.deepEqual(texts("<div><p>x</p><!-- unclosed", "astro"), ["<!-- unclosed"]);
   assert.deepEqual(texts("<p>x <!-- unclosed", "astro"), ["<!-- unclosed"]);
   assert.deepEqual(texts("<!><p>y</p><!-- real -->", "astro"), ["<!>", "<!-- real -->"]);
+  assert.deepEqual(texts("<abbr><!--a--></abbr><Header /><!--Header-->", "astro"), ["<!--a-->", "<!--Header-->"]);
+  assert.deepEqual(texts("<p>x <!-- unclosed {y}", "astro"), ["<!-- unclosed "]);
+  assert.deepEqual(texts("<p>a</p><iframe>x <!-- y</iframe>", "astro"), []);
 });
 
 test("YAML quotes, escapes and block scalars", () => {
