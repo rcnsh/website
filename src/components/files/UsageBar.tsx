@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { HiddenTotals } from "@/lib/bucket-totals";
 import { kindTotals, type KindTotal } from "@/lib/files-nav";
-import { formatBytes } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 import { KIND_COLOUR, KIND_LABEL, PRIVATE_COLOUR, PRIVATE_LABEL } from "./kinds";
 import { subscribeOwnerTree } from "./owner-view";
 
@@ -11,11 +11,44 @@ interface Props {
   ownerSlots?: number;
 }
 
+type UsageBarProps = Props | { pending: true };
+
 type Segment = { key: string; label: string; colour: string; objects: number; bytes: number };
 
 const count = (n: number) => n.toLocaleString("en-GB");
 
-export default function UsageBar({ kinds: visitorKinds, hidden: visitorHidden, ownerSlots = 0 }: Props) {
+const legend = "mt-auto grid grid-cols-2 gap-x-4.5 gap-y-3.5 pt-5.5 min-[641px]:grid-cols-3 min-[1021px]:grid-cols-4";
+const entry = "flex flex-col gap-1 font-mono text-[11px]";
+const figure = "flex items-center gap-1.75 text-[15px] font-semibold";
+
+export default function UsageBar(props: UsageBarProps) {
+  return "pending" in props ? <PendingUsage /> : <LoadedUsage {...props} />;
+}
+
+function PendingUsage() {
+  return (
+    <div className="contents" aria-hidden="true">
+      <div className="placeholder-block mt-1 h-3 rounded-[3px]" />
+      <ul className={legend}>
+        {Object.keys(KIND_LABEL).map((kind) => (
+          <li key={kind} className={entry}>
+            <b className={figure}>
+              <i className="placeholder-block size-2 shrink-0 rounded-[2px]" />
+              <span>
+                <span className="placeholder-text w-14" />
+              </span>
+            </b>
+            <span>
+              <span className="placeholder-text w-20" />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function LoadedUsage({ kinds: visitorKinds, hidden: visitorHidden, ownerSlots = 0 }: Props) {
   const [view, setView] = useState({ kinds: visitorKinds, hidden: visitorHidden, owner: false });
 
   useEffect(
@@ -55,10 +88,10 @@ export default function UsageBar({ kinds: visitorKinds, hidden: visitorHidden, o
           />
         ))}
       </div>
-      <ul className="mt-auto grid grid-cols-2 gap-x-4.5 gap-y-3.5 pt-5.5 min-[641px]:grid-cols-3 min-[1021px]:grid-cols-4">
+      <ul className={legend}>
         {segments.map((s) => (
-          <li key={s.key} className="flex flex-col gap-1 font-mono text-[11px] text-ink-faint">
-            <b className="flex items-center gap-1.75 text-[15px] font-semibold tracking-[-0.02em] text-ink tabular-nums">
+          <li key={s.key} className={cn(entry, "text-ink-faint")}>
+            <b className={cn(figure, "tracking-[-0.02em] text-ink tabular-nums")}>
               <i className="size-2 shrink-0 rounded-[2px]" style={{ background: s.colour }} />
               {formatBytes(s.bytes)}
             </b>
@@ -66,7 +99,7 @@ export default function UsageBar({ kinds: visitorKinds, hidden: visitorHidden, o
           </li>
         ))}
         {Array.from({ length: padding }, (_, i) => (
-          <li key={`pad-${i}`} aria-hidden="true" className="invisible flex flex-col gap-1 font-mono text-[11px]">
+          <li key={`pad-${i}`} aria-hidden="true" className={cn(entry, "invisible")}>
             <b className="text-[15px] font-semibold">0 B</b>-
           </li>
         ))}
