@@ -180,6 +180,21 @@ interface AstroNode {
   children?: AstroNode[];
 }
 
+function tagEnd(source: string, start: number): number {
+  let quote = "";
+  let depth = 0;
+  for (let i = start + 1; i < source.length; i++) {
+    const c = source[i];
+    if (quote) {
+      if (c === quote) quote = "";
+    } else if (c === '"' || c === "'" || c === "`") quote = c;
+    else if (c === "{") depth++;
+    else if (c === "}") depth--;
+    else if (c === ">" && depth <= 0) return i + 1;
+  }
+  return source.length;
+}
+
 const RAW_TEXT = ["textarea", "title", "script", "style", "iframe", "noembed", "noframes", "xmp", "plaintext"];
 
 function astroRanges(source: string): Range[] {
@@ -266,11 +281,15 @@ function astroRanges(source: string): Range[] {
       }
       return;
     }
+    const tag = node.type === "element" || node.type === "component" || node.type === "custom-element"
+      ? source.indexOf(`<${node.name ?? ""}`, cursor)
+      : -1;
     for (const attr of node.attributes ?? []) {
       if (attr.kind === "expression" && attr.value) code(attr.value, true);
       if ((attr.kind === "spread" || attr.kind === "shorthand") && attr.name) code(attr.name, true);
       if (attr.kind === "template-literal" && attr.raw) code(attr.raw, true);
     }
+    if (tag !== -1) cursor = Math.max(cursor, tagEnd(source, tag));
     const raw = node.type === "element" && (node.name === "script" || node.name === "style");
     const json = node.attributes?.some(
       (attr) => attr.name === "type" && /^application\/(ld\+)?json$/.test(attr.value ?? ""),
