@@ -31,6 +31,8 @@ export const PREFLIGHT_HEADERS: Record<string, string> = {
   "access-control-max-age": "86400",
 };
 
+const LARGEST_OBJECT = 2 ** 43;
+
 const SINGLE_RANGE = /^bytes=(\d*)-(\d*)$/i;
 
 type RangeParts = { first: number | null; last: number | null };
@@ -38,12 +40,14 @@ type RangeParts = { first: number | null; last: number | null };
 function rangeParts(range: string | null): RangeParts | null {
   const match = range?.trim().match(SINGLE_RANGE);
   if (!match) return null;
-  const read = (part: string) => (part === "" ? null : Number(part));
-  const first = read(match[1]);
-  let last = read(match[2]);
-  if (first === null && last === null) return null;
-  if (first !== null && !Number.isSafeInteger(first)) return { first: Number.POSITIVE_INFINITY, last: null };
-  if (last !== null && !Number.isSafeInteger(last)) last = first === null ? Number.MAX_SAFE_INTEGER : null;
+  const [rawFirst, rawLast] = [match[1], match[2]];
+  if (rawFirst === "" && rawLast === "") return null;
+  if (rawFirst !== "" && rawLast !== "" && BigInt(rawLast) < BigInt(rawFirst)) return null;
+  const read = (part: string) => (part === "" ? null : Math.min(Number(part), LARGEST_OBJECT));
+  const first = rawFirst !== "" && BigInt(rawFirst) >= BigInt(LARGEST_OBJECT) ? Number.POSITIVE_INFINITY : read(rawFirst);
+  if (first === Number.POSITIVE_INFINITY) return { first, last: null };
+  let last = read(rawLast);
+  if (first !== null && last === LARGEST_OBJECT) last = null;
   if (first !== null && last !== null && last < first) return null;
   return { first, last };
 }

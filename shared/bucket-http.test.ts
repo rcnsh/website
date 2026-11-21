@@ -53,6 +53,8 @@ test("R2 is handed one valid bytes range, normalised, and nothing else", () => {
   assert.equal(asked(" Bytes=2-"), "bytes=2-");
   assert.equal(asked("bytes=-3"), "bytes=-3");
   assert.equal(asked("bytes=0-99999999999999999999999"), "bytes=0-");
+  assert.equal(asked("bytes=0-9007199254740991"), "bytes=0-");
+  assert.equal(asked("bytes=-9007199254740991"), `bytes=-${2 ** 43}`);
   for (const range of [null, "bytes=3-1", "bytes=0-1,4-5", "items=0-5", "bytes=-", "bytes=abc", "bytes=-0", "bytes=99999999999999999999999-"]) {
     assert.equal(asked(range), undefined, String(range));
   }
@@ -62,6 +64,8 @@ test("a reversed range is ignored; a start past any size is refused", () => {
   assert.equal(unsatisfiable("bytes=10-5", 5), false);
   assert.deepEqual(rangeOutcome("bytes=10-5", { size: 5 }), { kind: "full" });
   assert.equal(unsatisfiable("bytes=99999999999999999999999-", 5), true);
+  assert.equal(unsatisfiable("bytes=99999999999999999999999-5", 100), false);
+  assert.deepEqual(rangeOutcome("bytes=99999999999999999999999-5", { size: 100 }), { kind: "full" });
 });
 
 test("rangeOutcome serves a span, refuses an empty one, and ignores a range R2 did not apply", () => {
