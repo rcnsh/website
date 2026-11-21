@@ -142,7 +142,8 @@ itself.
 **Astro's meta carries `script-src` and `style-src` only.** Everything else
 (`connect-src`, `media-src`, `img-src`) binds from the header alone, which is
 why the bucket origin needs to be in `BUCKET_ORIGIN` (`shared/security.ts`) and
-nowhere else. Pass Astro any `directives` and that stops being true: those
+in no other policy. It must match `PUBLIC_BUCKET_URL` and the upload Worker's
+route; `shared/security.test.ts` fails when they differ. Pass Astro any `directives` and that stops being true: those
 hosts must then be in both policies. `worker-src` is the trap: it falls back to
 `script-src`, which the meta *does* bind.
 
