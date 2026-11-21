@@ -217,9 +217,15 @@ function astroRanges(source: string): Range[] {
   const visit = (node: AstroNode) => {
     if (node.type === "frontmatter") return code(node.value ?? "", false);
     if (node.type === "comment") {
-      const at = locate(`<!--${node.value}`);
-      if (at === -1) return;
-      const end = cursor + (source.startsWith("-->", cursor) ? 3 : 0);
+      const value = node.value ?? "";
+      const opener = [`<!--${value}`, `<!${value}`, `<${value}`].find(
+        (o) => source.indexOf(o, cursor) !== -1,
+      );
+      if (!opener) throw new Error(`cannot place an Astro comment in the source: ${value.slice(0, 60)}`);
+      const at = source.indexOf(opener, cursor);
+      let end = at + opener.length;
+      const closer = ["-->", "--!>", "->", ">"].find((c) => source.startsWith(c, end));
+      if (closer) end += closer.length;
       cursor = end;
       out.push({ start: at, end });
       return;
@@ -229,7 +235,7 @@ function astroRanges(source: string): Range[] {
       const value = node.value ?? "";
       const at = locate(value);
       const open = value.indexOf("<!--");
-      if (at !== -1 && open !== -1) out.push({ start: at + open, end: at + value.length });
+      if (node === last && at !== -1 && open !== -1) out.push({ start: at + open, end: at + value.length });
       return;
     }
     for (const attr of node.attributes ?? []) {
@@ -251,7 +257,9 @@ function astroRanges(source: string): Range[] {
       } else visit(child);
     }
   };
-  visit(parseAstro(source, { position: false }).ast as AstroNode);
+  const root = parseAstro(source, { position: false }).ast as AstroNode;
+  const last = root.children?.at(-1);
+  visit(root);
   return out;
 }
 
