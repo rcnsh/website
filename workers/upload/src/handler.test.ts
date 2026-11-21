@@ -127,3 +127,22 @@ test("an empty span from R2 is a 416, and a refused range on a missing key is a 
   bucket.head = async () => null;
   assert.equal((await ranged(env, "/music/gone.mp3", "bytes=9-")).status, 404);
 });
+
+test("a failed precondition is a 412 that cannot be cached, whatever the object's own policy", async () => {
+  const { env } = fakeEnv();
+  const bucket = env.BUCKET as unknown as { get: (key: string) => Promise<unknown> };
+  const original = (await bucket.get("music/a.mp3")) as Record<string, unknown>;
+  bucket.get = async () => {
+    const { body: _body, ...rest } = original;
+    return {
+      ...rest,
+      writeHttpMetadata: (headers: Headers) => headers.set("cache-control", "public, max-age=31536000"),
+    };
+  };
+  const response = await createHandler().fetch(
+    new Request("https://upload.rcn.sh/music/a.mp3", { headers: { "if-match": '"other"' } }),
+    env,
+  );
+  assert.equal(response.status, 412);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+});

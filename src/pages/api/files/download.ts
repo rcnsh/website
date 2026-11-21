@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { contentRange, isRangeError, span, unsatisfiable } from "../../../../shared/bucket-http.ts";
+import { contentRange, isRangeError, rangeOutcome } from "../../../../shared/bucket-http.ts";
+import { uncachedError } from "../../../../shared/cache-policy.ts";
 import { bucket } from "@/lib/bucket";
 import { policies, privateNoStore } from "@/lib/http";
 import { requireOwner } from "@/lib/owner";
@@ -46,25 +47,25 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   if (!r2) return new Response("Bucket not configured", { status: 503 });
 
   const range = request.headers.get("range");
+  const refuse = (status: 404 | 416, extra: Record<string, string> = {}) =>
+    new Response(status === 404 ? "Not found" : "Range not satisfiable", {
+      status,
+      headers: { "cache-control": uncachedError, ...extra },
+    });
   let object: R2ObjectBody | null;
   try {
     object = await r2.get(decision.key, range ? { range: request.headers } : undefined);
   } catch (error) {
     if (!range || !isRangeError(error)) throw error;
-    const head = await r2.head(decision.key).catch(() => undefined);
-    if (head === null) return new Response("Not found", { status: 404 });
-    return new Response("Range not satisfiable", {
-      status: 416,
-      headers: head ? { "content-range": `bytes */${head.size}` } : {},
-    });
+    const head = await r2.head(decision.key);
+    return head ? refuse(416, { "content-range": `bytes */${head.size}` }) : refuse(404);
   }
 
-  if (!object) return new Response("Not found", { status: 404 });
-  if (unsatisfiable(range, object.size)) {
-    return new Response("Range not satisfiable", {
-      status: 416,
-      headers: { "content-range": `bytes */${object.size}` },
-    });
+  if (!object) return refuse(404);
+  const outcome = rangeOutcome(range, object);
+  if (outcome.kind === "unsatisfiable") {
+    await object.body.cancel();
+    return refuse(416, { "content-range": outcome.contentRange });
   }
 
   const headers = new Headers();
@@ -87,16 +88,9 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
     );
   }
 
-  const served = range ? span(object) : null;
-  if (range && object.range && !served) {
-    return new Response("Range not satisfiable", {
-      status: 416,
-      headers: { "content-range": `bytes */${object.size}` },
-    });
-  }
-  if (served) {
-    headers.set("content-range", contentRange(served, object.size));
-    headers.set("content-length", String(served.length));
+  if (outcome.kind === "partial") {
+    headers.set("content-range", contentRange(outcome.span, object.size));
+    headers.set("content-length", String(outcome.span.length));
     return new Response(object.body, { status: 206, headers });
   }
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { contentRange, corsHeaders, isRangeError, keyFromPath, parseOrigins, span, unsatisfiable } from "./bucket-http.ts";
+import { contentRange, corsHeaders, isRangeError, keyFromPath, parseOrigins, rangeOutcome, span, unsatisfiable } from "./bucket-http.ts";
 
 test("keyFromPath decodes each segment the way publicUrl encodes it", () => {
   assert.equal(keyFromPath("/Jacob%20Wiltshire_0xD6C31FE5_public.asc"), "Jacob Wiltshire_0xD6C31FE5_public.asc");
@@ -31,11 +31,34 @@ test("a range starting past the end is unsatisfiable; others are not", () => {
   assert.equal(unsatisfiable(null, 10), false);
 });
 
-test("a zero-byte suffix, or any range on an empty object, is unsatisfiable", () => {
+test("a zero-byte suffix, or a bytes range on an empty object, is unsatisfiable; units are case-blind", () => {
   assert.equal(unsatisfiable("bytes=-0", 10), true);
+  assert.equal(unsatisfiable("Bytes=-0", 10), true);
   assert.equal(unsatisfiable("bytes=0-", 0), true);
   assert.equal(unsatisfiable("bytes=-5", 10), false);
   assert.equal(unsatisfiable("bytes=-5", 0), true);
+  assert.equal(unsatisfiable("BYTES=10-", 10), true);
+});
+
+test("a malformed, multi-part or other-unit range is ignored, even on an empty object", () => {
+  for (const range of ["items=0-5", "bytes=abc", "bytes=0-1,4-5", "bytes=-"]) {
+    assert.equal(unsatisfiable(range, 0), false, range);
+    assert.deepEqual(rangeOutcome(range, { size: 0 }), { kind: "full" }, range);
+  }
+});
+
+test("rangeOutcome serves a span, refuses an empty one, and ignores a range R2 did not apply", () => {
+  assert.deepEqual(rangeOutcome(null, { size: 10, range: { offset: 2 } }), { kind: "full" });
+  assert.deepEqual(rangeOutcome("bytes=2-", { size: 10, range: { offset: 2 } }), {
+    kind: "partial",
+    span: { offset: 2, length: 8 },
+  });
+  assert.deepEqual(rangeOutcome("bytes=-0", { size: 10 }), { kind: "unsatisfiable", contentRange: "bytes */10" });
+  assert.deepEqual(rangeOutcome("bytes=2-", { size: 10, range: { offset: 10 } }), {
+    kind: "unsatisfiable",
+    contentRange: "bytes */10",
+  });
+  assert.deepEqual(rangeOutcome("bytes=2-", { size: 10 }), { kind: "full" });
   assert.equal(span({ size: 10, range: { offset: 10 } }), null);
 });
 

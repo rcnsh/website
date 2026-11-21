@@ -5,8 +5,7 @@ import {
   contentRange,
   PREFLIGHT_HEADERS,
   parseOrigins,
-  span,
-  unsatisfiable,
+  rangeOutcome,
 } from "../../../shared/bucket-http.ts";
 import { uncachedError } from "../../../shared/cache-policy.ts";
 import { decideRead, REFUSALS, type RuleRow, rulesLoader } from "../../../shared/visibility.ts";
@@ -49,10 +48,7 @@ export function createHandler() {
       }
 
       const key = keyFromPath(new URL(request.url).pathname);
-      if (!key) {
-        headers.set("cache-control", uncachedError);
-        return text(REFUSALS["bad-request"].message, REFUSALS["bad-request"].status, headers);
-      }
+      if (!key) return text(REFUSALS["bad-request"].message, REFUSALS["bad-request"].status, headers);
 
       rules ??= rulesLoader(async () => {
         const { results } = await env.DB.prepare("SELECT prefix, visibility FROM file_visibility").all<RuleRow>();
@@ -61,7 +57,6 @@ export function createHandler() {
 
       const decision = await decideRead(key, rules.load, async () => false);
       if (!decision.ok) {
-        headers.set("cache-control", uncachedError);
         if (decision.refusal === "unavailable") console.error("[upload] rules unavailable", decision.error);
         const refusal = REFUSALS[decision.refusal];
         return text(refusal.message, refusal.status, headers);
@@ -80,33 +75,32 @@ export function createHandler() {
         object = await env.BUCKET.get(key, { range: request.headers, onlyIf: request.headers });
       } catch (error) {
         if (!request.headers.has("range") || !isRangeError(error)) throw error;
-        const head = await env.BUCKET.head(key).catch(() => undefined);
-        if (head === null) return text("Not found", 404, headers);
-        if (head) headers.set("content-range", `bytes */${head.size}`);
+        const head = await env.BUCKET.head(key);
+        if (!head) return text("Not found", 404, headers);
+        headers.set("content-range", `bytes */${head.size}`);
         return text("Range not satisfiable", 416, headers);
       }
       if (!object) return text("Not found", 404, headers);
 
-      if (unsatisfiable(request.headers.get("range"), object.size)) {
-        headers.set("content-range", `bytes */${object.size}`);
+      if (!("body" in object)) {
+        describe(object, headers);
+        const notModified = request.headers.has("if-none-match") || request.headers.has("if-modified-since");
+        if (!notModified) headers.set("cache-control", uncachedError);
+        return new Response(null, { status: notModified ? 304 : 412, headers });
+      }
+
+      const outcome = rangeOutcome(request.headers.get("range"), object);
+      if (outcome.kind === "unsatisfiable") {
+        await object.body.cancel();
+        headers.set("content-range", outcome.contentRange);
         return text("Range not satisfiable", 416, headers);
       }
 
       describe(object, headers);
 
-      if (!("body" in object)) {
-        const notModified = request.headers.has("if-none-match") || request.headers.has("if-modified-since");
-        return new Response(null, { status: notModified ? 304 : 412, headers });
-      }
-
-      const served = request.headers.has("range") ? span(object) : null;
-      if (request.headers.has("range") && object.range && !served) {
-        headers.set("content-range", `bytes */${object.size}`);
-        return text("Range not satisfiable", 416, headers);
-      }
-      if (served) {
-        headers.set("content-range", contentRange(served, object.size));
-        headers.set("content-length", String(served.length));
+      if (outcome.kind === "partial") {
+        headers.set("content-range", contentRange(outcome.span, object.size));
+        headers.set("content-length", String(outcome.span.length));
         return new Response(object.body, { status: 206, headers });
       }
 

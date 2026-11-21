@@ -31,14 +31,18 @@ export const PREFLIGHT_HEADERS: Record<string, string> = {
   "access-control-max-age": "86400",
 };
 
+const SINGLE_RANGE = /^bytes=(\d*)-(\d*)$/i;
+
 export function unsatisfiable(range: string | null, size: number): boolean {
-  if (range && (size === 0 || /^bytes=-0+$/.test(range))) return true;
-  const match = range?.match(/^bytes=(\d+)-\d*$/);
-  return match !== null && match !== undefined && Number(match[1]) >= size;
+  const match = range?.trim().match(SINGLE_RANGE);
+  if (!match) return false;
+  const [, first, last] = match;
+  if (first === "") return last !== "" && (Number(last) === 0 || size === 0);
+  return Number(first) >= size;
 }
 
 export function isRangeError(error: unknown): boolean {
-  return /\(10039\)|range not satisfiable|not satisfiable/i.test(error instanceof Error ? error.message : String(error));
+  return /\(10039\)|not satisfiable/i.test(error instanceof Error ? error.message : String(error));
 }
 
 export type ByteRange = { offset?: number; length?: number; suffix?: number };
@@ -55,6 +59,20 @@ export function span(object: { size: number; range?: ByteRange }): Span | null {
   const offset = range.offset ?? 0;
   const length = Math.min(range.length ?? object.size - offset, object.size - offset);
   return length > 0 ? { offset, length } : null;
+}
+
+export type RangeOutcome =
+  | { kind: "full" }
+  | { kind: "partial"; span: Span }
+  | { kind: "unsatisfiable"; contentRange: string };
+
+export function rangeOutcome(range: string | null, object: { size: number; range?: ByteRange }): RangeOutcome {
+  const refused = { kind: "unsatisfiable", contentRange: `bytes */${object.size}` } as const;
+  if (!range) return { kind: "full" };
+  if (unsatisfiable(range, object.size)) return refused;
+  const served = span(object);
+  if (served) return { kind: "partial", span: served };
+  return object.range ? refused : { kind: "full" };
 }
 
 export function contentRange({ offset, length }: Span, size: number): string {
