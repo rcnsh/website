@@ -90,6 +90,15 @@ export function shareBetween(shares: number[], from: number, to: number): number
   return sum;
 }
 
+export const ERA_STYLE = {
+  newcastle: { colour: "var(--color-brand)", dash: undefined },
+  singapore: { colour: "#c08050", dash: "6 4" },
+} as const satisfies Record<string, { colour: string; dash: string | undefined }>;
+
+export function eraStyle(key: string): { colour: string; dash: string | undefined } {
+  return Object.hasOwn(ERA_STYLE, key) ? ERA_STYLE[key as keyof typeof ERA_STYLE] : { colour: "var(--color-ink-dim)", dash: undefined };
+}
+
 export const FIRST_STATS_YEAR = 2020;
 
 export function statsYears(now: Date): string[] {

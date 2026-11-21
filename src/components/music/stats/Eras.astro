@@ -1,6 +1,6 @@
 ---
 import { getEras, type Eras } from "@/lib/music-stats";
-import { monthLabel, monthRange, percent } from "@/lib/music-stats-view";
+import { ERA_STYLE, monthLabel, monthRange, percent } from "@/lib/music-stats-view";
 
 let data: Eras | null = null;
 try {
@@ -9,8 +9,8 @@ try {
   console.error("[music-stats] eras island failed", error);
 }
 
-const BEFORE = "var(--color-brand)";
-const AFTER = "#c08050";
+const BEFORE = ERA_STYLE.newcastle.colour;
+const AFTER = ERA_STYLE.singapore.colour;
 const ROWS = 5;
 
 const range = (months: { from: string; to: string } | null) => (months ? monthRange(months.from, months.to) : "");

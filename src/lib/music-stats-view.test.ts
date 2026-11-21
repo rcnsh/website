@@ -1,7 +1,10 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
+  ERA_STYLE,
   cover,
+  eraStyle,
   heatLevel,
   linePath,
   monthLabel,
@@ -92,5 +95,26 @@ describe("song and artist links", () => {
     assert.equal(spotifyUrl("artist", "name:Some Export Artist"), null);
     assert.equal(spotifyUrl("artist", null), null);
     assert.equal(spotifyUrl("track", undefined), null);
+  });
+});
+
+describe("era palette", () => {
+  test("each era has its own colour, and Singapore is dashed", () => {
+    assert.notEqual(ERA_STYLE.newcastle.colour, ERA_STYLE.singapore.colour);
+    assert.equal(ERA_STYLE.newcastle.dash, undefined);
+    assert.ok(ERA_STYLE.singapore.dash);
+  });
+
+  test("an unknown era falls back to a neutral line", () => {
+    assert.deepEqual(eraStyle("singapore"), ERA_STYLE.singapore);
+    assert.equal(eraStyle("toString").colour, "var(--color-ink-dim)");
+  });
+
+  test("Eras and TimeOfDayPanel both read it", () => {
+    for (const name of ["Eras.astro", "TimeOfDayPanel.astro"]) {
+      const source = readFileSync(new URL(`../components/music/stats/${name}`, import.meta.url), "utf8");
+      assert.match(source, /import \{[^}]*\b(ERA_STYLE|eraStyle)\b[^}]*\} from "@\/lib\/music-stats-view"/, name);
+      for (const era of Object.values(ERA_STYLE)) assert.ok(!source.includes(era.colour), `${name} repeats ${era.colour}`);
+    }
   });
 });
