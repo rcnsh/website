@@ -2,15 +2,16 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import satori from "satori";
 import sharp from "sharp";
+import { loadPalette } from "./palette.ts";
 
-const COLOR = {
-  base: "#0d0d0c",
-  line: "#262420",
-  ink: "#e8e3d9",
-  inkDim: "#a09a8f",
-  inkFaint: "#6d675e",
-  brand: "#7f8ad0",
-} as const;
+export const OG_COLOR = loadPalette({
+  base: "base",
+  line: "line",
+  ink: "ink",
+  inkDim: "ink-dim",
+  inkFaint: "ink-faint",
+  brand: "brand",
+});
 
 const WIDTH = 1200;
 const HEIGHT = 630;
@@ -87,7 +88,7 @@ export async function renderOgImage(card: OgCard): Promise<ArrayBuffer> {
         flexDirection: "column",
         width: "100%",
         height: "100%",
-        backgroundColor: COLOR.base,
+        backgroundColor: OG_COLOR.base,
         padding: "68px 76px",
         fontFamily: "Geist",
       },
@@ -97,15 +98,15 @@ export async function renderOgImage(card: OgCard): Promise<ArrayBuffer> {
             "div",
             {
               display: "flex",
-              borderBottom: `2px solid ${COLOR.brand}`,
+              borderBottom: `2px solid ${OG_COLOR.brand}`,
               paddingBottom: 10,
               fontFamily: "Geist Mono",
               fontSize: 26,
               letterSpacing: "-0.02em",
             },
             [
-              el("span", { color: COLOR.ink }, "rcn"),
-              el("span", { color: COLOR.inkFaint }, ".sh"),
+              el("span", { color: OG_COLOR.ink }, "rcn"),
+              el("span", { color: OG_COLOR.inkFaint }, ".sh"),
             ],
           ),
         ]),
@@ -129,7 +130,7 @@ export async function renderOgImage(card: OgCard): Promise<ArrayBuffer> {
                 fontSize: title.length > 48 ? 54 : 68,
                 letterSpacing: "-0.04em",
                 lineHeight: 1.08,
-                color: COLOR.ink,
+                color: OG_COLOR.ink,
               },
               title,
             ),
@@ -141,7 +142,7 @@ export async function renderOgImage(card: OgCard): Promise<ArrayBuffer> {
                     marginTop: 26,
                     fontSize: 27,
                     lineHeight: 1.5,
-                    color: COLOR.inkDim,
+                    color: OG_COLOR.inkDim,
                   },
                   description,
                 )
@@ -155,12 +156,12 @@ export async function renderOgImage(card: OgCard): Promise<ArrayBuffer> {
             display: "flex",
             alignItems: "center",
             gap: 14,
-            borderTop: `1px solid ${COLOR.line}`,
+            borderTop: `1px solid ${OG_COLOR.line}`,
             paddingTop: 26,
             fontFamily: "Geist Mono",
             fontSize: 21,
             letterSpacing: "0.02em",
-            color: COLOR.inkFaint,
+            color: OG_COLOR.inkFaint,
           },
           (card.meta ?? []).flatMap((part, index) =>
             index === 0

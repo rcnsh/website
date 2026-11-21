@@ -13,6 +13,8 @@ const PAGES_OUT_DIR = path.join(ROOT, "public/og/pages");
 
 const LAYOUT_SOURCES = [
   path.join(ROOT, "src/lib/og.ts"),
+  path.join(ROOT, "src/lib/palette.ts"),
+  path.join(ROOT, "src/styles/global.css"),
   fileURLToPath(import.meta.url),
 ];
 
