@@ -220,15 +220,23 @@ function astroRanges(source: string): Range[] {
     if (node.type === "frontmatter") return code(node.value ?? "", false);
     if (node.type === "comment") {
       const value = node.value ?? "";
-      const next = [source.indexOf("<!", cursor), source.indexOf("<?", cursor)].filter((i) => i !== -1);
-      const at = next.length ? Math.min(...next) : -1;
-      const opener = [`<!--${value}`, `<!${value}`, `<${value}`].find((o) => source.startsWith(o, at));
-      if (at === -1 || !opener) {
-        throw new Error(`cannot place an Astro comment in the source: ${value.slice(0, 60)}`);
+      const openers = [`<!--${value}`, `<!${value}`, ...(value ? [`</${value}`, `<${value}`] : [])];
+      let at = cursor - 1;
+      let opener: string | undefined;
+      while (!opener) {
+        at = source.indexOf("<", at + 1);
+        if (at === -1) throw new Error(`cannot place an Astro comment in the source: ${value.slice(0, 60)}`);
+        if (source[at + 1] === "/" && !/[A-Za-z]/.test(source[at + 2] ?? "")) opener = "</";
+        else if ("!?/".includes(source[at + 1])) opener = openers.find((o) => source.startsWith(o, at));
       }
       let end = at + opener.length;
-      const closer = ["-->", "--!>", "->", ">"].find((c) => source.startsWith(c, end));
-      if (closer) end += closer.length;
+      if (opener.startsWith("<!--")) {
+        const closer = ["-->", "--!>", "->", ">"].find((c) => source.startsWith(c, end));
+        if (closer) end += closer.length;
+      } else {
+        const close = source.indexOf(">", at);
+        end = close === -1 ? source.length : close + 1;
+      }
       cursor = end;
       out.push({ start: at, end });
       return;
@@ -238,7 +246,7 @@ function astroRanges(source: string): Range[] {
       const value = node.value ?? "";
       const at = locate(value);
       const open = value.indexOf("<!--");
-      if (node === last && at !== -1 && open !== -1) out.push({ start: at + open, end: at + value.length });
+      if (node === last && at !== -1 && open !== -1) out.push({ start: at + open, end: source.length });
       return;
     }
     for (const attr of node.attributes ?? []) {
@@ -261,14 +269,20 @@ function astroRanges(source: string): Range[] {
     }
   };
   const root = parseAstro(source, { position: false }).ast as AstroNode;
-  let last: AstroNode | undefined;
-  const findLast = (node: AstroNode) => {
-    if (node.type === "text") last = node;
-    if (node.type === "expression") return;
-    if (node.type === "element" && RAW_TEXT.includes(node.name ?? "")) return;
-    for (const child of node.children ?? []) findLast(child);
+  const order: { node: AstroNode; text: boolean }[] = [];
+  const walk = (node: AstroNode, foreign: boolean) => {
+    if (node.type === "text") return void order.push({ node, text: true });
+    if (node.type === "expression") return void order.push({ node, text: true });
+    if (node.type !== "root") order.push({ node, text: false });
+    const inForeign = foreign || node.name === "svg" || node.name === "math";
+    if (node.type === "element" && !inForeign && RAW_TEXT.includes(node.name ?? "")) return;
+    for (const child of node.children ?? []) walk(child, inForeign);
   };
-  findLast(root);
+  walk(root, false);
+  let last: AstroNode | undefined;
+  for (let i = order.length - 1; i >= 0 && order[i].text; i--) {
+    if (order[i].node.type === "text" && order[i].node.value?.includes("<!--")) last = order[i].node;
+  }
   visit(root);
   return out;
 }

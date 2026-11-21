@@ -122,7 +122,12 @@ test("Astro: frontmatter with templates, regexes, JSX and dashed comments", () =
   assert.deepEqual(texts("<p>x <!-- unclosed", "astro"), ["<!-- unclosed"]);
   assert.deepEqual(texts("<!><p>y</p><!-- real -->", "astro"), ["<!>", "<!-- real -->"]);
   assert.deepEqual(texts("<abbr><!--a--></abbr><Header /><!--Header-->", "astro"), ["<!--a-->", "<!--Header-->"]);
-  assert.deepEqual(texts("<p>x <!-- unclosed {y}", "astro"), ["<!-- unclosed "]);
+  assert.deepEqual(texts("<p>x <!-- unclosed {y}", "astro"), ["<!-- unclosed {y}"]);
+  assert.deepEqual(texts("<p>x <!-- unclosed {y} more", "astro"), ["<!-- unclosed {y} more"]);
+  assert.deepEqual(texts("<!doctype html>\n<html><body><!-- real --></body></html>", "astro"), ["<!-- real -->"]);
+  assert.deepEqual(texts('<div title="<!x>"></div><!-- real -->', "astro"), ["<!-- real -->"]);
+  assert.deepEqual(texts("<p>a</p></3><!-- b -->", "astro"), ["</3>", "<!-- b -->"]);
+  assert.deepEqual(texts("<p>a</p><svg><title>x <!-- y</title></svg>", "astro"), ["<!-- y</title></svg>"]);
   assert.deepEqual(texts("<p>a</p><iframe>x <!-- y</iframe>", "astro"), []);
 });
 
