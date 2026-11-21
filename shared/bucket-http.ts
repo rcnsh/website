@@ -57,10 +57,6 @@ export function rangeToAsk(range: string | null): Headers | undefined {
   return new Headers({ range: `bytes=${parts.first ?? ""}-${parts.last ?? ""}` });
 }
 
-export function beyondAnyObject(range: string | null): boolean {
-  return rangeParts(range)?.first === Number.POSITIVE_INFINITY;
-}
-
 export function unsatisfiable(range: string | null, size: number): boolean {
   const parts = rangeParts(range);
   if (!parts) return false;

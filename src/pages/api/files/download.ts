@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { beyondAnyObject, contentRange, isRangeError, rangeOutcome, rangeToAsk } from "../../../../shared/bucket-http.ts";
+import { contentRange, isRangeError, rangeOutcome, rangeToAsk } from "../../../../shared/bucket-http.ts";
 import { uncachedError } from "../../../../shared/cache-policy.ts";
 import { bucket } from "@/lib/bucket";
 import { policies, privateNoStore } from "@/lib/http";
@@ -57,11 +57,6 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
       status,
       headers: { ...REFUSAL_HEADERS, ...extra },
     });
-  if (beyondAnyObject(range)) {
-    const head = await r2.head(decision.key);
-    return head ? refuse(416, { "content-range": `bytes */${head.size}` }) : refuse(404);
-  }
-
   const asked = rangeToAsk(range);
   let object: R2ObjectBody | null;
   try {

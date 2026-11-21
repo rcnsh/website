@@ -162,3 +162,11 @@ test("R2 is asked only for one valid bytes range; a malformed one serves the who
     [undefined, undefined, "bytes=1-2"],
   );
 });
+
+test("a range starting past any object is a 416 after preconditions, never a body", async () => {
+  const { env } = fakeEnv();
+  const response = await ranged(env, "/music/a.mp3", "bytes=99999999999999999999999-");
+  assert.equal(response.status, 416);
+  assert.equal(response.headers.get("content-range"), "bytes */5");
+  assert.equal(response.headers.get("etag"), null);
+});
