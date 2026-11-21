@@ -1,0 +1,7 @@
+# 0029. GitHub OAuth sign-in checks state, the token answer and the return path
+
+Sign-in is GitHub OAuth with no scopes requested. The default grant already reads the public profile, which is all sign-in needs, and asking for more would widen what a leaked token could do. The authorize URL and the token exchange in `src/lib/auth.ts` both build `redirect_uri` from one `callbackUrl(origin)` helper, because GitHub rejects the exchange if its `redirect_uri` differs from the one sent to the authorize endpoint.
+
+`src/pages/api/auth/callback.ts` deletes the state and return cookies first, then refuses with a redirect to `/guestbook?error=state` unless the `state` query parameter equals the state cookie set at login. That check is what stops a third party replaying or forcing a login (login CSRF). GitHub answers a spent or forged code with HTTP 200 and an `error` field, so `exchangeCodeForToken` treats any response without `access_token` as failure, whatever its status, and reports `error_description` or `error`.
+
+Sign-in's `?next=` goes through `returnPath()` (`src/lib/return-path.ts`), which accepts same-origin paths only; anything else would make `/api/auth/login` an open redirect. The return path is passed through it on the way in at `/api/auth/login` and again in the callback before redirecting. The cookie comes back from the browser and could have been altered, and skipping the second check turns sign-in into an open redirect.

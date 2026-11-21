@@ -1,0 +1,7 @@
+# 0146. Cover texture sized to the lattice, tone measured on a fixed copy
+
+A cover's pipeline is `src/lib/lattice/cover.ts`, then the shader. The tone curve is measured once per cover by `coverTone` on a fixed `TONE_SAMPLE` (72px) square copy, and applied to a texture drawn by `drawCover` at the size the lattice asks for (`coverTexels` in `src/lib/lattice/geometry.ts`), tone-mapped to greyscale before upload. The shader then averages nine taps per triangle, drops triangles darkest first in the dissolve band, and ordered-dithers to one of five levels. A resize redraws the texture at a new size, so measuring the curve on the texture itself would make the picture shift tone on every resize. Without tone mapping over all five levels, a dark sleeve draws as one flat tone with a few bright blobs.
+
+The texture is 4 texels per triangle side (`COVER_TEXELS_PER_SIDE`), rounded up to a multiple of 16 (`COVER_TEXEL_STEP`) and clamped to 16..512. At that density the nine taps across a triangle add up to its mean: coarser and a triangle's taps blur into its neighbours, finer and they skip pixels between them. Rounding to 16-texel steps means dragging a window edge redraws the texture every few dozen pixels, not every frame.
+
+`coverTexture` in `src/lib/lattice/field.ts` does not redraw a cover before the field has been measured; it returns the existing texture. Right after bind `fieldSize` is zero, and sizing then would draw a wrong-sized texture; `draw()` measures the field and calls `replace()` on the next frame, which sizes it properly.

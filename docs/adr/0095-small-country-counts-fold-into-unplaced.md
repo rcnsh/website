@@ -1,0 +1,5 @@
+# 0095. Countries with fewer than three signatures fold into unplaced
+
+The country histogram from `getStats()` (`src/lib/guestbook.ts`) is public, and the signer list is short, so a country bucket of one identifies a named person. A country with fewer than 3 signatures (`MIN_COUNTRY_COUNT`) is folded into `unplaced` in the public stats. The threshold is applied in a second pass over the summed per-country counts, so it applies to a country's whole count, not to whichever grouped row happened to be read first. Country `T1`, Cloudflare's placeholder for Tor exit traffic, null countries from the imported rows, and anything that is not two uppercase letters count as unplaced too.
+
+The map's caption (`GuestbookMap.astro`) labels unplaced signatures as "without a location". The imported entries predate the country column, and saying so avoids implying they came from nowhere. The ranking tile (`src/components/widgets/GuestbookCountries.astro`) shows a line explaining the `unplaced` count, because the map's caption counts those signatures as having no location while the ranking omits them, and without the explanation the two read as contradictory.

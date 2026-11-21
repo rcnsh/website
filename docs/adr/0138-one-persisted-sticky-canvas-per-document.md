@@ -1,0 +1,7 @@
+# 0138. One persisted, sticky lattice canvas per document
+
+The lattice field is a single canvas behind every page (`src/components/Lattice.astro`), persisted with `transition:persist` across soft navigations. Its script therefore runs once per document, and `startLattice` (`src/lib/lattice/field.ts`) starts the field once per document rather than per page; starting it per page would create a second WebGL context and a second frame loop. After each swap the field rebinds to the new page's `data-lattice` host instead.
+
+The canvas is `position: sticky; top: 0` with `height: 100dvh; margin-bottom: -100dvh`, and it stays a direct child of `<body>`. A macOS rubber-band bounce moves the page's content, sticky elements included, but leaves fixed elements behind, so a fixed canvas slides off the page it draws. The `-100dvh` margin takes the sticky canvas out of the flow so it covers the viewport exactly as a fixed one would. `<body>` is the box it sticks within, which is why it must be its direct child.
+
+The field rebinds whenever its host is disconnected, checked both in `draw()` and in the IntersectionObserver callback, and when no host is present at bind it watches the body with a MutationObserver until one appears. On /files the FilesRoot server island replaces its fallback after bind, the `data-lattice` host (`FilesHero`) included. A removed element measures zero, so waiting for the observer to notice draws an empty field for a frame or two; and when no host exists at bind, the island's title block lands later.

@@ -1,0 +1,5 @@
+# 0221. Build secrets are one DEV_VARS file, checked before checkout
+
+The scheduled build in `.github/workflows/build.yml` writes `.dev.vars` from a single `DEV_VARS` repository secret that holds the whole file. The build then reads its variables the same way local development does. Which variables belong in the file is the concern of `.dev.vars.example`, not of the workflow, so adding a variable needs no workflow change.
+
+Before checkout, a step checks that `DEV_VARS`, `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are non-empty. When any is missing it fails with an error naming the missing ones and where to add them (Settings, Secrets and variables, Actions), and describes what each holds: a filled-in `.dev.vars`, and an API token with Workers Scripts:Edit and R2:Read plus its account id. An unset secret expands to the empty string rather than erroring, so nothing else can tell that case from a real failure, and without the check every later step fails as a hundred lines of wrangler stack trace with "the secret is not set" buried in the middle. Running before checkout ends the run in seconds rather than minutes.

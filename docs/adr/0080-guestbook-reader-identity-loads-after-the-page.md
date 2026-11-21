@@ -1,0 +1,9 @@
+# 0080. /guestbook is prerendered and learns who is reading after load
+
+Only prerendered pages carry the router, which keeps the site-wide player playing into and out of a page. So `src/pages/guestbook.astro` is prerendered and served alike to everyone. Its live parts arrive after load: the totals and signatures as server islands, and who is reading from `/api/guestbook/signer` (`private, no-store`).
+
+The sign tile's body (`src/components/react/GuestbookSign.tsx`) is a client component that learns the reader and the outcome of their last post in the browser. `GuestbookList` (`src/components/react/GuestbookList.tsx`) asks who is reading through `useSigner` and only then shows delete controls on the reader's own entries: the list arrives in a publicly cached server island, rendered alike for everyone, so nothing about the reader can be in it.
+
+Both go through `loadSigner` in `src/lib/guestbook-signer.ts`, a module free of server imports; the route imports only its types (`SignerView`). `loadSigner` makes one request per page shown, shared by the form and the list, drops a failed request so the next caller retries, and forgets its answer on `astro:before-swap`. Module state outlives the page under the router, and the next `/guestbook` may be the one a post redirected to, which changes the answer. The listener that forgets the answer on a `pageshow` with `persisted` is registered at module import, so it runs before any island's own `pageshow` listener: Back from the back-forward cache after a full load away (signing out or in) may restore an answer that describes a different reader.
+
+`src/components/react/useSigner.ts` returns `null` while it asks. A page restored from the back-forward cache may predate a sign-out, so on `pageshow` with `persisted` true it asks again, keeping the previous view until the new answer arrives: an unchanged answer keeps the form and the text typed into it.

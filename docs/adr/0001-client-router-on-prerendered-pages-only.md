@@ -1,0 +1,7 @@
+# 0001. The client router runs on prerendered pages only
+
+The site is `output: "static"` (`astro.config.ts`): pages prerender by default, and live data arrives through server islands or routes that export `prerender = false`. Most pages stay static assets served from the edge, and only the parts that need live data pay for a Worker render. Soft navigation through `<ClientRouter />` keeps the site-wide player playing between pages.
+
+`src/layouts/Layout.astro` renders `<ClientRouter />` only when `Astro.isPrerendered`. Prerendered pages share one CSP (the union built by `scripts/csp-union.ts`), while an SSR page's policy names only its own scripts, so soft navigation from an SSR page would run other pages' scripts under the wrong policy.
+
+The router full-loads any page without `<ClientRouter />`, but only after fetching it, finding no router, and discarding it: two renders and two session lookups. `loadServerPagesDirectly` (`src/lib/page-lifecycle.ts`) prevents soft navigation for links where `needsFullLoad` (`src/lib/server-pages.ts`) is true: the paths in `SERVER_PAGES`, anything under `/api/`, and any path with a file extension other than `.html` (`/rss.xml`, `/now.svg`), which the router would fetch, find is not HTML, and load again. `SERVER_PAGES` lists the `.astro` pages with `prerender = false`, and `server-pages.test.ts` pins it to `src/pages`. Form posts are left to the router: refused, it retries a post as a GET. A post that changes who the reader is (signing out) carries `data-astro-reload`, since the document holds state for the old reader.

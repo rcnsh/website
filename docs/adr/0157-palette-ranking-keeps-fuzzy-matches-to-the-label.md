@@ -1,0 +1,3 @@
+# 0157. Palette ranking keeps fuzzy matches to the label
+
+The command palette's `score` (`src/components/CommandPalette.astro`) ranks a row by the first of four tests it passes, in order: a prefix of the label (1000), a substring of the label (800 minus its offset), a literal substring of the label plus keywords (500), and a subsequence match over the label only (200 minus the gaps, floored at 1). A subsequence search over the whole keyword line lets almost any short query thread some path through, matching everything. Restricting the subsequence match to the label keeps fuzzy matches meaningful, while keywords still match as literal runs.
