@@ -202,6 +202,7 @@ function astroRanges(source: string): Range[] {
     let joined = "";
     const map: { from: number; to: number; at: number }[] = [];
     for (const child of node.children ?? []) {
+      if (ended) return;
       if (child.type === "text" && child.value) {
         const at = locate(child.value);
         if (at !== -1) map.push({ from: joined.length, to: joined.length + child.value.length, at });
@@ -216,7 +217,14 @@ function astroRanges(source: string): Range[] {
       if (piece) out.push({ start: piece.at + r.start - piece.from, end: piece.at + r.end - piece.from });
     }
   };
+  let ended = false;
   const visit = (node: AstroNode) => {
+    if (ended) return;
+    if (node.type === "doctype") {
+      const at = source.toLowerCase().indexOf("<!doctype", cursor);
+      if (at !== -1) cursor = source.indexOf(">", at) + 1;
+      return;
+    }
     if (node.type === "frontmatter") return code(node.value ?? "", false);
     if (node.type === "comment") {
       const value = node.value ?? "";
@@ -226,7 +234,7 @@ function astroRanges(source: string): Range[] {
       while (!opener) {
         at = source.indexOf("<", at + 1);
         if (at === -1) throw new Error(`cannot place an Astro comment in the source: ${value.slice(0, 60)}`);
-        if (source[at + 1] === "/" && !/[A-Za-z]/.test(source[at + 2] ?? "")) opener = "</";
+        if (!value && source[at + 1] === "/" && !/[A-Za-z>]/.test(source[at + 2] ?? "")) opener = "</";
         else if ("!?/".includes(source[at + 1])) opener = openers.find((o) => source.startsWith(o, at));
       }
       let end = at + opener.length;
@@ -246,7 +254,10 @@ function astroRanges(source: string): Range[] {
       const value = node.value ?? "";
       const at = locate(value);
       const open = value.indexOf("<!--");
-      if (node === last && at !== -1 && open !== -1) out.push({ start: at + open, end: source.length });
+      if (node === last && at !== -1 && open !== -1) {
+        out.push({ start: at + open, end: source.length });
+        ended = true;
+      }
       return;
     }
     for (const attr of node.attributes ?? []) {
