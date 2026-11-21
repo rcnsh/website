@@ -218,7 +218,7 @@ function astroRanges(source: string): Range[] {
     if (node.type === "frontmatter") return code(node.value ?? "", false);
     if (node.type === "comment") {
       const value = node.value ?? "";
-      const [at, opener] = [`<!--${value}`, `<!${value}`, `<${value}`]
+      const [at, opener] = [`<!--${value}`, `<!${value}`, ...(value ? [`<${value}`] : [])]
         .map((o) => [source.indexOf(o, cursor), o] as const)
         .filter(([i]) => i !== -1)
         .sort(([a, x], [b, y]) => a - b || y.length - x.length)[0] ?? [-1, ""];
