@@ -217,12 +217,21 @@ function astroRanges(source: string): Range[] {
   const visit = (node: AstroNode) => {
     if (node.type === "frontmatter") return code(node.value ?? "", false);
     if (node.type === "comment") {
-      const at = locate(`<!--${node.value}-->`);
-      if (at !== -1) out.push({ start: at, end: at + (node.value ?? "").length + 7 });
+      const at = locate(`<!--${node.value}`);
+      if (at === -1) return;
+      const end = cursor + (source.startsWith("-->", cursor) ? 3 : 0);
+      cursor = end;
+      out.push({ start: at, end });
       return;
     }
     if (node.type === "expression") return expression(node);
-    if (node.type === "text") return void locate(node.value ?? "");
+    if (node.type === "text") {
+      const value = node.value ?? "";
+      const at = locate(value);
+      const open = value.indexOf("<!--");
+      if (at !== -1 && open !== -1) out.push({ start: at + open, end: at + value.length });
+      return;
+    }
     for (const attr of node.attributes ?? []) {
       if (attr.kind === "expression" && attr.value) code(attr.value, true);
       if ((attr.kind === "spread" || attr.kind === "shorthand") && attr.name) code(attr.name, true);
@@ -243,10 +252,6 @@ function astroRanges(source: string): Range[] {
     }
   };
   visit(parseAstro(source, { position: false }).ast as AstroNode);
-  const unclosed = source.lastIndexOf("<!--");
-  if (unclosed > source.lastIndexOf("-->") && !out.some((r) => r.start <= unclosed && unclosed < r.end)) {
-    out.push({ start: unclosed, end: source.length });
-  }
   return out;
 }
 

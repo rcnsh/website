@@ -110,6 +110,10 @@ test("Astro: frontmatter with templates, regexes, JSX and dashed comments", () =
   assert.deepEqual(texts("<p {x /* shorthand */}>t</p>", "astro"), ["/* shorthand */"]);
   assert.deepEqual(texts("<p a=`${x /* tpl */}`>t</p>", "astro"), ["/* tpl */"]);
   assert.deepEqual(texts("<p>x</p><!-- never", "astro"), ["<!-- never"]);
+  assert.deepEqual(texts("<p>x</p>\n<!-- a\n<p>y</p>", "astro"), ["<!-- a\n<p>y</p>"]);
+  assert.deepEqual(texts('---\nconst s = "<!--";\n---\n<p>x</p>', "astro"), []);
+  assert.deepEqual(texts("<script>const s = '<!--';</script>\n<p>y</p>", "astro"), []);
+  assert.deepEqual(texts('<p>{"<!--"}</p>\n<p>y</p>', "astro"), []);
 });
 
 test("YAML quotes, escapes and block scalars", () => {
