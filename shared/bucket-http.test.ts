@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { contentRange, corsHeaders, isRangeError, keyFromPath, parseOrigins, rangeOutcome, span, unsatisfiable } from "./bucket-http.ts";
+import { contentRange, corsHeaders, isRangeError, keyFromPath, parseOrigins, parseRange, rangeOutcome, span, unsatisfiable } from "./bucket-http.ts";
 
 test("keyFromPath decodes each segment the way publicUrl encodes it", () => {
   assert.equal(keyFromPath("/Jacob%20Wiltshire_0xD6C31FE5_public.asc"), "Jacob Wiltshire_0xD6C31FE5_public.asc");
@@ -44,6 +44,15 @@ test("a malformed, multi-part or other-unit range is ignored, even on an empty o
   for (const range of ["items=0-5", "bytes=abc", "bytes=0-1,4-5", "bytes=-"]) {
     assert.equal(unsatisfiable(range, 0), false, range);
     assert.deepEqual(rangeOutcome(range, { size: 0 }), { kind: "full" }, range);
+  }
+});
+
+test("parseRange hands R2 one valid bytes range and nothing else", () => {
+  assert.deepEqual(parseRange("bytes=2-5"), { offset: 2, length: 4 });
+  assert.deepEqual(parseRange("Bytes=2-"), { offset: 2 });
+  assert.deepEqual(parseRange("bytes=-3"), { suffix: 3 });
+  for (const range of [null, "bytes=3-1", "bytes=0-1,4-5", "items=0-5", "bytes=-", "bytes=abc"]) {
+    assert.equal(parseRange(range), null, String(range));
   }
 });
 

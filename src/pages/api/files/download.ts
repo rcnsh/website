@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { contentRange, isRangeError, rangeOutcome } from "../../../../shared/bucket-http.ts";
+import { contentRange, isRangeError, parseRange, rangeOutcome } from "../../../../shared/bucket-http.ts";
 import { uncachedError } from "../../../../shared/cache-policy.ts";
 import { bucket } from "@/lib/bucket";
 import { policies, privateNoStore } from "@/lib/http";
@@ -29,18 +29,23 @@ function inlineSafe(type: string | undefined): boolean {
   );
 }
 
+const REFUSAL_HEADERS = { "cache-control": uncachedError, "x-content-type-options": "nosniff" };
+
 export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   const owner = async () => !(await requireOwner({ request, cookies, url, locals }, { refuse: "not-found" }));
   const decision = await bucket.view(owner).canRead(url.searchParams.get("key"));
 
   if (!decision.ok) {
     if (decision.refusal === "unavailable") console.error("[files] rules unavailable", decision.error);
-    return new Response(REFUSALS[decision.refusal].message, { status: REFUSALS[decision.refusal].status });
+    return new Response(REFUSALS[decision.refusal].message, {
+      status: REFUSALS[decision.refusal].status,
+      headers: REFUSAL_HEADERS,
+    });
   }
 
   const isPrivate = decision.visibility === "private";
   if (!isPrivate && publicBucketBase()) {
-    return new Response("Not found", { status: 404 });
+    return new Response("Not found", { status: 404, headers: REFUSAL_HEADERS });
   }
 
   const r2 = env.BUCKET;
@@ -50,13 +55,14 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   const refuse = (status: 404 | 416, extra: Record<string, string> = {}) =>
     new Response(status === 404 ? "Not found" : "Range not satisfiable", {
       status,
-      headers: { "cache-control": uncachedError, ...extra },
+      headers: { ...REFUSAL_HEADERS, ...extra },
     });
   let object: R2ObjectBody | null;
   try {
-    object = await r2.get(decision.key, range ? { range: request.headers } : undefined);
+    const asked = parseRange(range);
+    object = await r2.get(decision.key, asked ? { range: asked } : undefined);
   } catch (error) {
-    if (!range || !isRangeError(error)) throw error;
+    if (!parseRange(range) || !isRangeError(error)) throw error;
     const head = await r2.head(decision.key);
     return head ? refuse(416, { "content-range": `bytes */${head.size}` }) : refuse(404);
   }

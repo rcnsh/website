@@ -41,6 +41,18 @@ export function unsatisfiable(range: string | null, size: number): boolean {
   return Number(first) >= size;
 }
 
+export type AskedRange = { offset: number; length?: number } | { suffix: number };
+
+export function parseRange(range: string | null): AskedRange | null {
+  const match = range?.trim().match(SINGLE_RANGE);
+  if (!match) return null;
+  const [, first, last] = match;
+  if (first === "") return last === "" ? null : { suffix: Number(last) };
+  if (last === "") return { offset: Number(first) };
+  if (Number(last) < Number(first)) return null;
+  return { offset: Number(first), length: Number(last) - Number(first) + 1 };
+}
+
 export function isRangeError(error: unknown): boolean {
   return /\(10039\)|not satisfiable/i.test(error instanceof Error ? error.message : String(error));
 }

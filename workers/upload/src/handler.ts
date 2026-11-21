@@ -5,6 +5,7 @@ import {
   contentRange,
   PREFLIGHT_HEADERS,
   parseOrigins,
+  parseRange,
   rangeOutcome,
 } from "../../../shared/bucket-http.ts";
 import { uncachedError } from "../../../shared/cache-policy.ts";
@@ -72,9 +73,10 @@ export function createHandler() {
 
       let object: R2Object | R2ObjectBody | null;
       try {
-        object = await env.BUCKET.get(key, { range: request.headers, onlyIf: request.headers });
+        const range = parseRange(request.headers.get("range"));
+        object = await env.BUCKET.get(key, { ...(range ? { range } : {}), onlyIf: request.headers });
       } catch (error) {
-        if (!request.headers.has("range") || !isRangeError(error)) throw error;
+        if (!parseRange(request.headers.get("range")) || !isRangeError(error)) throw error;
         const head = await env.BUCKET.head(key);
         if (!head) return text("Not found", 404, headers);
         headers.set("content-range", `bytes */${head.size}`);

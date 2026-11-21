@@ -146,3 +146,16 @@ test("a failed precondition is a 412 that cannot be cached, whatever the object'
   assert.equal(response.status, 412);
   assert.equal(response.headers.get("cache-control"), "no-store");
 });
+
+test("R2 is asked only for one valid bytes range; a malformed one serves the whole file", async () => {
+  const { env } = fakeEnv();
+  const bucket = env.BUCKET as unknown as { get: (key: string, options?: { range?: unknown }) => Promise<unknown> };
+  const asked: unknown[] = [];
+  const original = bucket.get;
+  bucket.get = async (key, options) => (asked.push(options?.range), original(key));
+  for (const range of ["bytes=0-1,4-5", "bytes=3-1"]) {
+    assert.equal((await ranged(env, "/music/a.mp3", range)).status, 200, range);
+  }
+  await ranged(env, "/music/a.mp3", "bytes=1-2");
+  assert.deepEqual(asked, [undefined, undefined, { offset: 1, length: 2 }]);
+});
