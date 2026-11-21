@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { contentRange, corsHeaders, isRangeError, keyFromPath, parseOrigins, parseRange, rangeOutcome, span, unsatisfiable } from "./bucket-http.ts";
+import { contentRange, corsHeaders, isRangeError, keyFromPath, parseOrigins, rangeOutcome, rangeToAsk, span, unsatisfiable } from "./bucket-http.ts";
 
 test("keyFromPath decodes each segment the way publicUrl encodes it", () => {
   assert.equal(keyFromPath("/Jacob%20Wiltshire_0xD6C31FE5_public.asc"), "Jacob Wiltshire_0xD6C31FE5_public.asc");
@@ -47,13 +47,17 @@ test("a malformed, multi-part or other-unit range is ignored, even on an empty o
   }
 });
 
-test("parseRange hands R2 one valid bytes range and nothing else", () => {
-  assert.deepEqual(parseRange("bytes=2-5"), { offset: 2, length: 4 });
-  assert.deepEqual(parseRange("Bytes=2-"), { offset: 2 });
-  assert.deepEqual(parseRange("bytes=-3"), { suffix: 3 });
-  for (const range of [null, "bytes=3-1", "bytes=0-1,4-5", "items=0-5", "bytes=-", "bytes=abc"]) {
-    assert.equal(parseRange(range), null, String(range));
+test("R2 is handed a Range only when it is one valid bytes range it can answer", () => {
+  for (const range of ["bytes=2-5", "Bytes=2-", "bytes=-3", "bytes=0-1048575"]) assert.equal(rangeToAsk(range), true, range);
+  for (const range of [null, "bytes=3-1", "bytes=0-1,4-5", "items=0-5", "bytes=-", "bytes=abc", "bytes=-0", "bytes=99999999999999999999999-"]) {
+    assert.equal(rangeToAsk(range), false, String(range));
   }
+});
+
+test("a reversed or oversized range is ignored rather than refused", () => {
+  assert.equal(unsatisfiable("bytes=10-5", 5), false);
+  assert.equal(unsatisfiable("bytes=99999999999999999999999-", 5), false);
+  assert.deepEqual(rangeOutcome("bytes=10-5", { size: 5 }), { kind: "full" });
 });
 
 test("rangeOutcome serves a span, refuses an empty one, and ignores a range R2 did not apply", () => {

@@ -33,24 +33,28 @@ export const PREFLIGHT_HEADERS: Record<string, string> = {
 
 const SINGLE_RANGE = /^bytes=(\d*)-(\d*)$/i;
 
-export function unsatisfiable(range: string | null, size: number): boolean {
-  const match = range?.trim().match(SINGLE_RANGE);
-  if (!match) return false;
-  const [, first, last] = match;
-  if (first === "") return last !== "" && (Number(last) === 0 || size === 0);
-  return Number(first) >= size;
-}
+type RangeParts = { first: number | null; last: number | null };
 
-export type AskedRange = { offset: number; length?: number } | { suffix: number };
-
-export function parseRange(range: string | null): AskedRange | null {
+function rangeParts(range: string | null): RangeParts | null {
   const match = range?.trim().match(SINGLE_RANGE);
   if (!match) return null;
-  const [, first, last] = match;
-  if (first === "") return last === "" ? null : { suffix: Number(last) };
-  if (last === "") return { offset: Number(first) };
-  if (Number(last) < Number(first)) return null;
-  return { offset: Number(first), length: Number(last) - Number(first) + 1 };
+  const [first, last] = [match[1], match[2]].map((part) => (part === "" ? null : Number(part)));
+  if ([first, last].some((n) => n !== null && !Number.isSafeInteger(n))) return null;
+  if (first === null && last === null) return null;
+  if (first !== null && last !== null && last < first) return null;
+  return { first, last };
+}
+
+export function rangeToAsk(range: string | null): boolean {
+  const parts = rangeParts(range);
+  return parts !== null && !(parts.first === null && parts.last === 0);
+}
+
+export function unsatisfiable(range: string | null, size: number): boolean {
+  const parts = rangeParts(range);
+  if (!parts) return false;
+  if (parts.first === null) return parts.last === 0 || size === 0;
+  return parts.first >= size;
 }
 
 export function isRangeError(error: unknown): boolean {

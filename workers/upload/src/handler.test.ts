@@ -157,5 +157,8 @@ test("R2 is asked only for one valid bytes range; a malformed one serves the who
     assert.equal((await ranged(env, "/music/a.mp3", range)).status, 200, range);
   }
   await ranged(env, "/music/a.mp3", "bytes=1-2");
-  assert.deepEqual(asked, [undefined, undefined, { offset: 1, length: 2 }]);
+  assert.deepEqual(
+    asked.map((range) => (range instanceof Headers ? range.get("range") : range)),
+    [undefined, undefined, "bytes=1-2"],
+  );
 });

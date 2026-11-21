@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { contentRange, isRangeError, parseRange, rangeOutcome } from "../../../../shared/bucket-http.ts";
+import { contentRange, isRangeError, rangeOutcome, rangeToAsk } from "../../../../shared/bucket-http.ts";
 import { uncachedError } from "../../../../shared/cache-policy.ts";
 import { bucket } from "@/lib/bucket";
 import { policies, privateNoStore } from "@/lib/http";
@@ -49,7 +49,7 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   }
 
   const r2 = env.BUCKET;
-  if (!r2) return new Response("Bucket not configured", { status: 503 });
+  if (!r2) return new Response("Bucket not configured", { status: 503, headers: REFUSAL_HEADERS });
 
   const range = request.headers.get("range");
   const refuse = (status: 404 | 416, extra: Record<string, string> = {}) =>
@@ -57,12 +57,12 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
       status,
       headers: { ...REFUSAL_HEADERS, ...extra },
     });
+  const asked = rangeToAsk(range);
   let object: R2ObjectBody | null;
   try {
-    const asked = parseRange(range);
-    object = await r2.get(decision.key, asked ? { range: asked } : undefined);
+    object = await r2.get(decision.key, asked ? { range: request.headers } : undefined);
   } catch (error) {
-    if (!parseRange(range) || !isRangeError(error)) throw error;
+    if (!asked || !isRangeError(error)) throw error;
     const head = await r2.head(decision.key);
     return head ? refuse(416, { "content-range": `bytes */${head.size}` }) : refuse(404);
   }
