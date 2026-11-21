@@ -178,6 +178,38 @@ function expressionRanges(template: string, open: number, close: number): Range[
   );
 }
 
+function regexEnd(source: string, start: number): number {
+  let inClass = false;
+  for (let i = start + 1; i < source.length; i++) {
+    const c = source[i];
+    if (c === "\\") i++;
+    else if (c === "\n") return i;
+    else if (c === "[") inClass = true;
+    else if (c === "]") inClass = false;
+    else if (c === "/" && !inClass) return i;
+  }
+  return source.length;
+}
+
+function closesCleanly(code: string): boolean {
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, code);
+  while (scanner.scan() !== ts.SyntaxKind.EndOfFileToken) {
+    if (scanner.isUnterminated()) return false;
+  }
+  return true;
+}
+
+function frontmatter(source: string): { body: string; start: number; end: number } | null {
+  const open = /^\uFEFF?\s*---[ \t]*\r?\n/.exec(source);
+  if (!open) return null;
+  const start = open[0].length;
+  for (const close of source.slice(start).matchAll(/---[ \t]*(?:\r?\n|$)/g)) {
+    const body = source.slice(start, start + close.index);
+    if (closesCleanly(body)) return { body, start, end: start + close.index + close[0].length };
+  }
+  return null;
+}
+
 function templateRanges(template: string): Range[] {
   const out: Range[] = [];
   let inTag = false;
@@ -192,10 +224,18 @@ function templateRanges(template: string): Range[] {
       continue;
     }
     if (depth > 0) {
+      if (template.startsWith("//", i) || template.startsWith("/*", i)) {
+        const end = template.indexOf(template[i + 1] === "/" ? "\n" : "*/", i + 2);
+        i = end === -1 ? template.length : end + (template[i + 1] === "/" ? 0 : 1);
+        continue;
+      }
       let back = i - 1;
       while (back >= 0 && /\s/.test(template[back])) back--;
-      const before = template[back] ?? "";
-      if ("'\"`".includes(c) && /[=(,:[{?&|!+\-*/%<>;]/.test(before)) quote = c;
+      const prev = template[back] ?? "";
+      const operand =
+        /[=(,:[{?&|!+\-*/%;]/.test(prev) || (prev === ">" && template[back - 1] === "=");
+      if ("'\"`".includes(c) && operand) quote = c;
+      else if (c === "/" && operand) i = regexEnd(template, i);
       else if (c === "{") depth++;
       else if (c === "}" && --depth === 0) out.push(...expressionRanges(template, open, i));
       continue;
@@ -223,17 +263,17 @@ function astroRanges(source: string): Range[] {
   const blank = (s: string) => s.replace(/[^\n]/g, " ");
   let template = source;
 
-  const fm = /^---\r?\n([\s\S]*?)---[ \t]*(?:\r?\n|$)/.exec(source);
+  const fm = frontmatter(source);
   if (fm) {
-    out.push(...shifted(tsRanges(fm[1], false), fm[0].indexOf(fm[1])));
-    template = blank(fm[0]) + template.slice(fm[0].length);
+    out.push(...shifted(tsRanges(fm.body, false), fm.start));
+    template = blank(source.slice(0, fm.end)) + template.slice(fm.end);
   }
 
   for (const [tag, read] of [
     ["script", (s: string) => tsRanges(s, false)],
     ["style", (s: string) => scan(s, CSS)],
   ] as const) {
-    const re = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)</${tag}>`, "g");
+    const re = new RegExp(`<${tag}\\b[^>]*?(?<!/)>([\\s\\S]*?)</${tag}>`, "g");
     for (const m of template.matchAll(re)) {
       const start = m.index + m[0].indexOf(">") + 1;
       const opening = m[0].slice(0, start - m.index);

@@ -37,11 +37,14 @@ const current: Baseline = Object.fromEntries(
 );
 
 const readBaseline = (): Baseline => {
+  let text: string;
   try {
-    return JSON.parse(readFileSync(BASELINE, "utf8"));
-  } catch {
-    return {};
+    text = readFileSync(BASELINE, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    throw error;
   }
+  return JSON.parse(text);
 };
 
 const compare = (baseline: Baseline) => {

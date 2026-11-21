@@ -81,6 +81,21 @@ test("an Astro brace or comment marker inside a string is not structure", () => 
   assert.deepEqual(texts("<script type='application/json'>{\"a\": \"//\"}</script>", "astro"), []);
 });
 
+test("Astro: self-closing scripts, regex literals and fences inside strings", () => {
+  assert.deepEqual(
+    texts('<script is:inline set:html={X} />\n<!-- found -->\n<script>import "./x";</script>', "astro"),
+    ["<!-- found -->"],
+  );
+  assert.deepEqual(
+    texts("<p>{s.replace(/'/g, \"\")}</p>\n<!-- later -->\n<p>{/* later2 */}</p>", "astro"),
+    ["<!-- later -->", "/* later2 */"],
+  );
+  assert.deepEqual(texts("---\nconst x = `\n---\n`;\n// hidden\n---\n<p/>", "astro"), ["// hidden"]);
+  assert.deepEqual(texts("\uFEFF---\n// bom\n---\n<p/>", "astro"), ["// bom"]);
+  assert.deepEqual(texts('<p>{xs.map((x) => "\'")}<code>/api</code></p>\n<!-- arrow -->', "astro"), ["<!-- arrow -->"]);
+  assert.deepEqual(texts("<p>{a /* it's */ && b}</p>\n<!-- after -->", "astro"), ["/* it's */", "<!-- after -->"]);
+});
+
 test("YAML quotes, escapes and block scalars", () => {
   assert.deepEqual(texts("run: echo don't # leak\n", "yaml"), ["# leak"]);
   assert.deepEqual(texts('a: "x \\" # not"\n', "yaml"), []);

@@ -20,7 +20,7 @@ npm run preview    # build, then wrangler dev on the real bindings
 ## Maintenance
 
 Things that will break if you change them without knowing why. Most were paid
-for once already; the code carries no comments, so this is the
+for once already; the code takes no new comments, so this is the
 record.
 
 ### CSP and the router
