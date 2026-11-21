@@ -127,6 +127,22 @@ describe("edgeCached", () => {
     assert.equal(h.stores.get("things")?.size, 0);
   });
 
+  for (const sent of ["no-store", "private, no-store", "private"]) {
+    test(`a 2xx sent with "${sent}" is returned as sent and not stored`, async () => {
+      const h = harness();
+      const response = await h.edgeCached(
+        "things",
+        URL_,
+        async () => new Response("{}", { headers: { "cache-control": sent } }),
+        { policy: POLICY, headers: { vary: "cookie" } },
+      );
+      await h.settle();
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("cache-control"), sent);
+      assert.equal(h.stores.get("things")?.size, 0);
+    });
+  }
+
   test("caches are kept apart by name", async () => {
     const h = harness();
     await h.edgeCached("a", URL_, body({ from: "a" }), { policy: POLICY });

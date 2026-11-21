@@ -188,8 +188,10 @@ serves stale past them, so the browser gets a 15-minute ceiling instead.
 CDN-cache a Worker's responses on `cache-control` alone, so the routes that
 need it (files search, guestbook list, now-playing) keep one copy per colo in
 the Cache API. It rebuilds a hit, because a cached Response's headers are
-immutable and the middleware writes to them, and never stores a rejection or
-a non-2xx. Keep cache names and key URLs stable: changing either orphans every
+immutable and the middleware writes to them, and never stores a rejection,
+a non-2xx, or an answer its producer sent `no-store` or `private` (that one
+goes out with its own `cache-control`), so a producer must send no
+`cache-control` of its own. Keep cache names and key URLs stable: changing either orphans every
 copy until it expires. The Cache API is per colo, so `invalidateEdge` clears
 only the colo the write ran in; elsewhere a copy lives out its max-age.
 
