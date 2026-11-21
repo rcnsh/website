@@ -175,6 +175,7 @@ interface AstroNode {
   name?: string;
   value?: string;
   kind?: string;
+  raw?: string;
   attributes?: AstroNode[];
   children?: AstroNode[];
 }
@@ -186,6 +187,9 @@ function astroRanges(source: string): Range[] {
     if (!value) return -1;
     const at = source.indexOf(value, cursor);
     if (at !== -1) cursor = at + value.length;
+    else if (/\/\/|\/\*|<!--/.test(value)) {
+      throw new Error(`cannot place parsed Astro text in the source: ${value.slice(0, 60)}`);
+    }
     return at;
   };
   const code = (value: string, jsx: boolean) => {
@@ -221,6 +225,8 @@ function astroRanges(source: string): Range[] {
     if (node.type === "text") return void locate(node.value ?? "");
     for (const attr of node.attributes ?? []) {
       if (attr.kind === "expression" && attr.value) code(attr.value, true);
+      if ((attr.kind === "spread" || attr.kind === "shorthand") && attr.name) code(attr.name, true);
+      if (attr.kind === "template-literal" && attr.raw) code(attr.raw, true);
     }
     const raw = node.type === "element" && (node.name === "script" || node.name === "style");
     const json = node.attributes?.some(
@@ -237,6 +243,10 @@ function astroRanges(source: string): Range[] {
     }
   };
   visit(parseAstro(source, { position: false }).ast as AstroNode);
+  const unclosed = source.lastIndexOf("<!--");
+  if (unclosed > source.lastIndexOf("-->") && !out.some((r) => r.start <= unclosed && unclosed < r.end)) {
+    out.push({ start: unclosed, end: source.length });
+  }
   return out;
 }
 

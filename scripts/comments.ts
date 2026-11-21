@@ -22,7 +22,13 @@ for (const file of files) {
   } catch {
     continue;
   }
-  const comments = findComments(source, kindOf(file)!);
+  let comments: Comment[];
+  try {
+    comments = findComments(source, kindOf(file)!);
+  } catch (error) {
+    console.error(`[comments] ${file}: ${(error as Error).message}`);
+    process.exit(1);
+  }
   if (comments.length) found.set(file, comments);
 }
 
