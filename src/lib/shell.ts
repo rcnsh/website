@@ -1,21 +1,9 @@
 import { parse } from "shell-quote";
 
-/**
- * A small POSIX-ish shell over a read-only view of the site. Every command is a
- * real one, behaving like its coreutils namesake for the flags it accepts;
- * anything unimplemented says so rather than guessing.
- *
- * No server imports — this runs in the browser. lib/shell-fs.ts builds the
- * filesystem and hands it over as plain data.
- */
-
-// --- Filesystem ---
-
 export type VFile = {
   type: "file";
   name: string;
   content: string;
-  /** Where `xdg-open` sends you, when the file stands for a real page. */
   href?: string;
 };
 
@@ -42,13 +30,11 @@ export const file = (name: string, content: string, href?: string): VFile => ({
   href,
 });
 
-/** Byte length, so `ls -l` and `wc -c` agree with each other. */
 const sizeOf = (node: VNode): number =>
   node.type === "file"
     ? new TextEncoder().encode(node.content).length
     : node.children.reduce((total, child) => total + sizeOf(child), 0);
 
-/** Splits a path into segments, resolving `.` and `..` against `cwd`. */
 export function resolvePath(cwd: string, target: string): string {
   const segments = (target.startsWith("/") ? target : `${cwd}/${target}`).split(
     "/",
@@ -79,8 +65,6 @@ export function lookup(root: VDir, path: string): VNode | null {
   return node;
 }
 
-// --- Execution ---
-
 export type ShellState = {
   root: VDir;
   cwd: string;
@@ -88,14 +72,10 @@ export type ShellState = {
 };
 
 export type RunResult = {
-  /** Lines to print. Empty for a command that says nothing, as they should. */
   output: string[];
-  /** True when `output` is an error, so the view can colour it. */
   failed: boolean;
   cwd: string;
-  /** `clear` empties the scrollback. */
   cleared: boolean;
-  /** `xdg-open` hands a URL back for the caller to navigate to. */
   navigate?: string;
 };
 
@@ -103,14 +83,12 @@ type Context = {
   state: ShellState;
   cwd: string;
   stdin: string[];
-  /** Set by `cd`; the runner threads it through the rest of the pipeline. */
   setCwd: (path: string) => void;
   navigate: (href: string) => void;
   clear: () => void;
 };
 
 type Command = {
-  /** Shown by `man` and `help`. */
   usage: string;
   summary: string;
   run: (args: string[], ctx: Context) => string[];
@@ -122,7 +100,6 @@ const fail = (message: string): never => {
   throw new ShellError(message);
 };
 
-/** Splits flags from operands, so `-la` and `-l -a` behave alike. */
 function parseArgs(args: string[]) {
   const flags = new Set<string>();
   const values = new Map<string, string>();
@@ -137,7 +114,6 @@ function parseArgs(args: string[]) {
     }
 
     if (arg.startsWith("-") && arg.length > 1) {
-      // -n 5 takes a value; the rest are boolean and may be bundled.
       if (arg === "-n") {
         values.set("n", args[i + 1] ?? "");
         i += 1;
@@ -159,7 +135,6 @@ const nodeAt = (ctx: Context, target: string, command: string): VNode => {
   return node as VNode;
 };
 
-/** stdin when a command is piped into, otherwise the named files. */
 function inputLines(
   args: string[],
   ctx: Context,
@@ -177,8 +152,6 @@ function inputLines(
 
 const pad = (text: string, width: number) => text.padStart(width);
 
-/** A dot-entry, hidden from listings unless -a. `find` does not use this:
- * real find walks everything. */
 const hidden = (node: VNode) => node.name.startsWith(".");
 
 export const COMMANDS: Record<string, Command> = {
@@ -338,7 +311,6 @@ export const COMMANDS: Record<string, Command> = {
       const pattern = operands[0];
       if (pattern === undefined) fail("usage: grep [-ivn] pattern [file...]");
 
-      // Operands after the pattern are files; inputLines re-parses, so drop it.
       const rest = args.filter((arg) => arg !== pattern);
       const lines = inputLines(rest, ctx, "grep");
 
@@ -371,7 +343,6 @@ export const COMMANDS: Record<string, Command> = {
       const start = resolvePath(ctx.cwd, target);
       const node = nodeAt(ctx, target, "find");
 
-      // Shell globs, not regex: * and ? only.
       const matcher = pattern
         ? new RegExp(
             `^${pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".")}$`,
@@ -607,18 +578,12 @@ export const COMMANDS: Record<string, Command> = {
   },
 };
 
-// --- Completion ---
-
 export type Completion = {
-  /** The line with the completion applied; unchanged when there was nothing. */
   line: string;
-  /** Where the caret should sit afterwards. */
   cursor: number;
-  /** Printed when the completion is ambiguous, the way bash lists matches. */
   candidates: string[];
 };
 
-/** Longest string every candidate starts with. */
 function commonPrefix(values: string[]): string {
   if (values.length === 0) return "";
 
@@ -629,11 +594,6 @@ function commonPrefix(values: string[]): string {
   return prefix;
 }
 
-/**
- * Tab completion, by the shell convention: one match is inserted, many collapse
- * to their common prefix, and only a prefix that adds nothing prints the list.
- * Completes the word under the caret, so fixing an earlier argument works.
- */
 export function complete(
   state: ShellState,
   line: string,
@@ -653,10 +613,8 @@ export function complete(
 
   const word = before.slice(wordStart);
 
-  // A command is expected at the start of the line and after each pipe.
   const isCommand = /(^|\|)\s*$/.test(before.slice(0, wordStart));
 
-  /** The portion of `word` already committed — only the tail gets replaced. */
   let head = "";
   let tails: string[];
 
@@ -672,7 +630,6 @@ export function complete(
     const parent = lookup(state.root, resolvePath(state.cwd, head || "."));
     if (parent?.type !== "dir") return unchanged;
 
-    // Dot-entries only once the dot is typed, the way bash does it.
     tails = parent.children
       .filter(
         (child) =>
@@ -690,11 +647,9 @@ export function complete(
 
   if (tails.length === 1) {
     const only = tails[0]!;
-    // Directories stay open for the next segment; everything else ends a word.
     insert = only.endsWith("/") ? only : `${only} `;
   } else {
     const shared = commonPrefix(tails);
-    // Nothing more to agree on, so show the options instead of doing nothing.
     if (shared.length <= typed.length) {
       return { line, cursor, candidates: tails };
     }
@@ -711,11 +666,6 @@ export function complete(
   };
 }
 
-/**
- * Tokenises with shell-quote, so quoting and escaping behave, then runs the
- * pipeline left to right. Only `|` is supported — redirects would need a
- * writable filesystem, and this one is a view of a website.
- */
 export function run(state: ShellState, line: string): RunResult {
   const trimmed = line.trim();
   if (!trimmed) {
@@ -753,7 +703,6 @@ export function run(state: ShellState, line: string): RunResult {
     };
   }
 
-  // Split on `|`; reject every other operator rather than ignoring it.
   const stages: string[][] = [[]];
   for (const token of tokens) {
     if (typeof token === "string") {
@@ -761,8 +710,6 @@ export function run(state: ShellState, line: string): RunResult {
       continue;
     }
 
-    // shell-quote hands back an unquoted glob for the shell to expand. There
-    // is nothing to expand against, so it passes through as literal text.
     const glob = (token as { pattern?: string }).pattern;
     if (typeof glob === "string") {
       stages[stages.length - 1]!.push(glob);

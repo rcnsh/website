@@ -1,17 +1,5 @@
 import { triangleTaps } from "./geometry.ts";
 
-/**
- * The field's two programs. One full-screen triangle; the fragment shader
- * finds which lattice triangle a pixel is in, reads the source picture under
- * that triangle (a glyph at its centre, a cover averaged over its area), and
- * paints the whole triangle one of five levels, the same five the
- * contribution graph uses.
- *
- * Lattice coordinates (see `geometry.ts`): `v` counts rows, `u` counts sides
- * along a row and shifts half a side per row, so a unit cell is a rhombus and
- * its short diagonal (u = v) splits it into two triangles.
- */
-
 export const VERTEX = /* glsl */ `
 attribute vec2 aPosition;
 void main() {
@@ -19,13 +7,11 @@ void main() {
 }
 `;
 
-/** Each side cut in three: nine equal triangles, one read at each centroid. */
 const TAPS = triangleTaps(3);
 const tapReads = TAPS.map(
   ([a, b, c]) => `  sum += texture2D(tex, clamp(texelAt(rect, a * ${a.toFixed(6)} + b * ${b.toFixed(6)} + c * ${c.toFixed(6)}), 0.0, 1.0)).rgb;`,
 ).join("\n");
 
-/** How many `data-lattice-quiet` boxes the shader takes at once. */
 export const QUIET_MAX = 4;
 
 export const FRAGMENT = /* glsl */ `

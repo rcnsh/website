@@ -8,19 +8,12 @@ import { NO_THUMBS, type ThumbSet } from "@/lib/thumbs";
 
 export const prerender = false;
 
-/**
- * Container, tracks and tags for one object, demuxed on the Worker from ranged
- * reads of its header and index. Public for whatever the bucket serves publicly;
- * a private file's metadata is the owner's alone.
- */
 export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
-  // Refused exactly as /api/files/download refuses them.
   const owner = async () => !(await requireOwner({ request, cookies, url, locals }, { refuse: "not-found-json" }));
   let decision: Awaited<ReturnType<ReturnType<typeof bucket.view>["canRead"]>>;
   try {
     decision = await bucket.view(owner).canRead(url.searchParams.get("key"));
   } catch (error) {
-    // The session lookup behind the owner check; D1 can be briefly out.
     decision = { ok: false, refusal: "unavailable", error };
   }
   if (!decision.ok) {
@@ -45,7 +38,6 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
 
     const meta = await cachedMediaMeta(r2, key, object);
 
-    // Secondary: a failed thumbs lookup only means the browser draws its own.
     let thumbs: ThumbSet = NO_THUMBS;
     if (meta.supported) {
       thumbs = await cachedThumbs(r2, key, uploadedSeconds(object)).catch((error) => {

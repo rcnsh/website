@@ -1,19 +1,8 @@
 ---
 import { TINY_AREA, WORLD_SHAPES, WORLD_VIEWBOX } from "@/lib/world";
 
-/**
- * Where the guestbook has been signed from. Outlines are precomputed by
- * scripts/generate-world.ts, so this only picks a fill per country. No client
- * JavaScript of its own: hover is CSS and the tooltips are <title>. `data-c`
- * is the hook the page's ranking tile uses to light a country from its row,
- * and `data-level` is what the lattice field redraws the map from in the
- * page's title band (`data-lattice="svg:[data-world-map]"`).
- */
-
 interface Props {
-  /** ISO 3166-1 alpha-2 to signature count. */
   counts: Record<string, number>;
-  /** Signatures with no usable country — imported, or Workers didn't say. */
   unplaced: number;
 }
 
@@ -23,11 +12,8 @@ const placed = Object.values(counts).reduce((total, n) => total + n, 0);
 const busiest = Math.max(1, ...Object.values(counts));
 const countries = Object.keys(counts).length;
 
-// One accent, so depth carries the count. The floor keeps a single signature
-// lit: the difference that reads is "someone" versus "no one".
 const opacityFor = (count: number) => 0.4 + 0.6 * (count / busiest);
 
-/** Signed countries too small to read as a filled shape at this size. */
 const dotted = WORLD_SHAPES.filter(
   (shape) =>
     shape.code && (counts[shape.code] ?? 0) > 0 && shape.area < TINY_AREA,
@@ -73,10 +59,6 @@ const summary = countries
     }
 
     {
-      /* After the outlines, so they sit on top. Under TINY_AREA a country is
-         a speck or has no polygon at all, and the dot is all there is. */
-    }
-    {
       dotted.map((shape) => (
         <circle
           cx={shape.cx}
@@ -99,21 +81,15 @@ const summary = countries
       unplaced > 0 && (
         <>
           <span aria-hidden="true">·</span>
-          {/* The imported entries predate the column, so say so rather than implying nowhere. */}
           <span>{unplaced} without a location</span>
         </>
       )
-    }
-    {
-      /* The page's script writes the hovered country here. Touch has no hover,
-         and the ranking tile carries the same figures. */
     }
     <span data-map-tip class="ml-auto hidden text-ink-dim sm:inline" aria-hidden="true"></span>
   </figcaption>
 </figure>
 
 <style>
-  /* Hairlines, like every other divider here — the fill carries the meaning. */
   path {
     stroke: var(--color-line);
     stroke-width: 0.4;
@@ -130,7 +106,6 @@ const summary = countries
     transition: opacity 0.2s var(--ease-out-quint);
   }
 
-  /* Full strength: 3.5px is too small to read an opacity difference. */
   .dot {
     fill: var(--color-brand);
     stroke: var(--color-base);
@@ -138,13 +113,11 @@ const summary = countries
     vector-effect: non-scaling-stroke;
   }
 
-  /* Full strength on hover, so pointing at a country confirms the tooltip. */
   .signed:hover,
   .hl {
     opacity: 1 !important;
   }
 
-  /* Lighter as well as opaque: the busiest country is already near full. */
   .hl {
     fill: var(--color-brand-alt);
   }

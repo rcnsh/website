@@ -10,21 +10,12 @@ try {
   console.error("[music-stats] top over time island failed", error);
 }
 
-// Categorical, in fixed order: the warehouse orders leaders by when they
-// peaked, so a colour belongs to an artist, never to a rank. Checked with the
-// dataviz palette validator on the tile surface (#131311): every adjacent
-// pair clears the colour-blind and normal-vision floors, all >= 3:1.
 const SERIES = ["var(--color-brand)", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#3987e5"];
 
 const quarters = data?.quarters ?? [];
 const leaders = (data?.leaders ?? []).slice(0, SERIES.length).map((leader, i) => ({ ...leader, colour: SERIES[i]! }));
 const maxPlays = Math.max(1, ...quarters.map((q) => q.plays));
 
-/**
- * A song row opens Spotify when the warehouse gave it an id; otherwise its
- * title is plain text. The title's link stretches over the row, so the row
- * still opens the song with the owner's play button beside the title.
- */
 const songLink = (trackId: string | null | undefined) => {
   const href = spotifyUrl("track", trackId);
   return href
@@ -49,8 +40,6 @@ const columns = quarters.map((quarter, qi) => {
 });
 
 const years = (data?.years ?? []).filter((year) => year.artists.length);
-// A year label at each Q1, plus the first column when that leaves room:
-// history starts mid-year, and two labels that close run together.
 const ticks = new Map<number, string>();
 quarters.forEach((quarter, i) => {
   if (quarter.period.endsWith("Q1")) ticks.set(i, quarter.period.slice(0, 4));

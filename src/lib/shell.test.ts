@@ -31,7 +31,6 @@ describe("resolvePath", () => {
     assert.equal(resolvePath("/blog", "/about.txt"), "/about.txt");
     assert.equal(resolvePath("/blog", ".."), "/");
     assert.equal(resolvePath("/blog", "../about.txt"), "/about.txt");
-    // Climbing past the root stays at the root rather than escaping it.
     assert.equal(resolvePath("/", "../../.."), "/");
   });
 });
@@ -63,8 +62,6 @@ describe("run", () => {
   });
 
   it("still finds a dot-entry by name, the way find does", () => {
-    // find walks everything on purpose — being findable deliberately is the
-    // point of hiding it from a plain listing.
     assert.deepEqual(run(state(), "find / -name .hidden").output, ["/.hidden"]);
   });
 
@@ -72,13 +69,10 @@ describe("run", () => {
     const forward = run(state(), "ls").output;
     const backward = run(state(), "sl").output;
 
-    // Defined against ls rather than restating names, so the fixture can grow
-    // without this needing to be rewritten.
     assert.deepEqual(
       backward,
       forward.map((name) => [...name].reverse().join("")),
     );
-    // The joke lands hardest on a directory: its trailing slash comes out front.
     assert.ok(backward.includes("/golb"));
   });
 
@@ -86,8 +80,6 @@ describe("run", () => {
     const forward = run(state(), "ls -l").output;
     const backward = run(state(), "sl -l").output;
 
-    // Mode and size are reversed along with the name — drwxr-xr-x reads back
-    // as x-rx-rxwrd, which is the point.
     assert.deepEqual(
       backward,
       forward.map((line) => [...line].reverse().join("")),
@@ -126,7 +118,6 @@ describe("run", () => {
   });
 
   it("honours grep -v and -i", () => {
-    // Every fixture line contains "o", so -v on it must return nothing.
     assert.deepEqual(run(state(), "cat about.txt | grep -v o").output, []);
     assert.deepEqual(run(state(), "cat about.txt | grep -v hello").output, [
       "world",
@@ -157,12 +148,6 @@ describe("run", () => {
   });
 
   it("reports an unknown command", () => {
-    /*
-      Deliberately nonsense. This used to be `sl`, which was a poor choice —
-      it is a well-known joke utility and duly got implemented, so the test
-      broke for the wrong reason. The guard below fails with an explanation
-      rather than an inscrutable false !== true if that happens again.
-    */
     const name = "frobnicate";
     assert.ok(!(name in COMMANDS), `${name} is a real command now — rename it`);
 
@@ -213,7 +198,6 @@ describe("complete", () => {
   });
 
   it("collapses several commands to their common prefix", () => {
-    // hostname and head share "h", history too — so "h" cannot advance.
     const result = tab("h");
     assert.equal(result.line, "h");
     assert.ok(result.candidates.includes("head"));
@@ -233,7 +217,6 @@ describe("complete", () => {
   });
 
   it("lists matches when the common prefix adds nothing", () => {
-    // first.md and astro-notes.md share no prefix, so both are offered.
     const result = tab("cat blog/");
     assert.deepEqual(result.candidates.sort(), ["astro-notes.md", "first.md"]);
     assert.equal(result.line, "cat blog/");
@@ -251,12 +234,10 @@ describe("complete", () => {
     const line = "cat abo | wc -l";
     const result = tab(line, "/", 7);
     assert.equal(result.line, "cat about.txt  | wc -l");
-    // Caret lands after the inserted word, not at the end of the line.
     assert.equal(result.cursor, 14);
   });
 
   it("offers a dot-entry only once the dot is typed", () => {
-    // Bare Tab must not hand back what ls just hid.
     assert.ok(!tab("cat ").candidates.includes(".hidden"));
     assert.equal(tab("cat .hid").line, "cat .hidden ");
   });

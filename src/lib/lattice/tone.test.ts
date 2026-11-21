@@ -3,7 +3,6 @@ import { test } from "node:test";
 
 import { applyTone, TONE, gammaForMean, percentile, toneCurve, toneMap } from "./tone.ts";
 
-/** The level the shader snaps a tone to. */
 const level = (tone: number) => Math.floor(tone * 4.999);
 const mean = (values: ArrayLike<number>) => Array.from(values).reduce((a, b) => a + b, 0) / values.length;
 
@@ -14,13 +13,11 @@ test("percentile interpolates between ranks", () => {
 });
 
 test("one bright pixel no longer pushes a dark cover into the bottom levels", () => {
-  // A dark sleeve: mid-tones between 10 and 60, and a single lamp at 255.
   const cover = Array.from({ length: 1000 }, (_, i) => 10 + (i % 50));
   cover[0] = 255;
   const levels = new Set(Array.from(toneMap(cover), level));
   assert.deepEqual([...levels].sort(), [0, 1, 2, 3, 4]);
 
-  // The old min-to-max stretch put everything but the lamp in the bottom level.
   const old = cover.slice(1).map((lum) => level((lum - 10) / 245));
   assert.equal(Math.max(...old), 0);
 });
@@ -34,9 +31,6 @@ test("a dark cover is lifted towards the target mean", () => {
 });
 
 test("a cover with its own highlights is lifted less than one without", () => {
-  // Both: two thirds in deep shadow, so the same dark median. One spreads
-  // its last third over the mid-tones (a lit doorway), the other has it all
-  // at full brightness (a black bird on yellow).
   const shadows = Array.from({ length: 600 }, (_, i) => (i % 60) / 2);
   const spread = [...shadows, ...Array.from({ length: 300 }, (_, i) => 30 + (i * 225) / 299)];
   const blocky = [...shadows, ...Array.from({ length: 300 }, () => 255)];
@@ -67,7 +61,6 @@ test("tones stay in 0..1 and keep the order of their luminances", () => {
 });
 
 test("a flat cover keeps its real brightness", () => {
-  // Donda: all black. Stretching it lit the whole field.
   const black = toneMap(Array.from({ length: 500 }, (_, i) => (i % 7 === 0 ? 3 : 1)));
   assert.ok(Math.max(...black) < 0.02, `black cover reached ${Math.max(...black)}`);
   const white = toneMap([250, 252, 251, 250]);
@@ -76,7 +69,6 @@ test("a flat cover keeps its real brightness", () => {
 });
 
 test("grain in a black background is not lifted a level", () => {
-  // Discovery: a bright logo on black with a little noise in the black.
   const lums = Array.from({ length: 1000 }, (_, i) => (i % 5 === 0 ? 150 + (i % 90) : 2 + (i % 6)));
   const out = toneMap(lums);
   const background = Array.from(out).filter((_, i) => i % 5 !== 0);
@@ -85,8 +77,6 @@ test("grain in a black background is not lifted a level", () => {
 });
 
 test("a curve measured on a small copy maps a large copy to the same tones", () => {
-  // The same dark picture at two sizes: every 4th pixel of the large one is
-  // the small one, as a shrunk copy would roughly be.
   const large = Array.from({ length: 4096 }, (_, i) => 8 + 60 * Math.sin(i / 300) ** 2 + (i % 97 === 0 ? 200 : 0));
   const small = large.filter((_, i) => i % 4 === 0);
   const fromSmall = toneCurve(small);

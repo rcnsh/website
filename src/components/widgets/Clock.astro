@@ -1,17 +1,9 @@
 ---
 import { clock } from "@/lib/site";
 
-/**
- * Static, not a server island: Astro hoists component <script> tags to page
- * load, before a deferred island's HTML exists. Shows my time, not the
- * visitor's — see `clock.timeZone`.
- */
-// "Asia/Singapore" → "Singapore". The zone database names places this way.
 const city = clock.timeZone.split("/").at(-1)!.replaceAll("_", " ");
 ---
 
-{/* Laid out like a ledger Figure, so the row's lines align. Config comes in
-    via data attributes — importing site.ts would ship Zod. */}
 <div
   class="flex min-w-0 flex-col gap-2.5"
   data-clock
@@ -26,7 +18,6 @@ const city = clock.timeZone.split("/").at(-1)!.replaceAll("_", " ");
   <span class="font-mono text-[12.5px] text-ink-faint">
     {city} · <span data-clock-offset>UTC</span> · <span data-clock-day></span>
   </span>
-  {/* Progress through the minute, so the figure visibly ticks. */}
   <span class="block h-0.5 max-w-[10rem] overflow-hidden rounded-full bg-line-soft" aria-hidden="true">
     <span
       data-clock-bar
@@ -50,7 +41,6 @@ const city = clock.timeZone.split("/").at(-1)!.replaceAll("_", " ");
 
     const timeZone = node.dataset.tz || "UTC";
 
-    // Built once — constructing a formatter is the slow part.
     const time = new Intl.DateTimeFormat("en-GB", {
       hour: "2-digit",
       minute: "2-digit",
@@ -75,11 +65,9 @@ const city = clock.timeZone.split("/").at(-1)!.replaceAll("_", " ");
       hm.textContent = `${part("hour")}:${part("minute")}${period ? ` ${period}` : ""}`;
       sec.textContent = part("second");
       day.textContent = date.format(now);
-      // "GMT+8" reads as British time to most people; this is a UTC offset.
       offset.textContent = (zone.formatToParts(now).find((p) => p.type === "timeZoneName")?.value ?? "UTC")
         .replace("GMT", "UTC");
       const fraction = now.getSeconds() / 59;
-      // Wrapping to the next minute snaps back rather than sweeping leftwards.
       const wrapped = fraction < lastFraction;
       lastFraction = fraction;
       if (wrapped) bar.style.transition = "none";
@@ -94,8 +82,6 @@ const city = clock.timeZone.split("/").at(-1)!.replaceAll("_", " ");
     let id = 0;
     signal.addEventListener("abort", () => window.clearInterval(id));
 
-    /** Start or stop the tick; the reading is redrawn either way, so a
-     * stopped clock is never a wrong one. */
     const sync = () => {
       window.clearInterval(id);
       id = 0;

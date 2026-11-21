@@ -1,10 +1,5 @@
-/**
- * Guestbook rate limit: one message per signer per day. Rolling, not calendar,
- * so it has no timezone and nobody posts twice by waiting for midnight.
- */
 export const WINDOW_MS = 24 * 60 * 60 * 1000;
 
-/** When this signer may post again, or `null` if they may post now. */
 export function nextAllowedAt(
   lastPostedAt: Date | null | undefined,
   now: Date = new Date(),

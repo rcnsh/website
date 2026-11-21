@@ -1,33 +1,23 @@
 import type { R2Listing, R2Tree } from "./r2";
 import { fileKind } from "./utils.ts";
 
-// Navigation for the /files browser: path math, folder rollups, sorting,
-// search and the deep-link hash. Pure, so `node --test` can load it.
-
 export type SortKey = "name" | "size" | "date";
 export const SORT_KEYS: readonly SortKey[] = ["name", "size", "date"];
 
-/** Two characters, as /api/files/search requires. */
 export const SEARCH_MIN = 2;
 
-/** A row in a column: a folder (key ends in "/") or a file (key is the object key). */
 export type Entry = {
   dir: boolean;
   name: string;
   key: string;
-  /** The prefix the entry sits in. */
   folder: string;
-  /** Bytes; for a folder, everything below it. Null when not known. */
   size: number | null;
-  /** Epoch seconds; for a folder, the newest upload below it. */
   uploaded: number | null;
-  /** Objects below a folder. Null for files, and for folders when not known. */
   count: number | null;
 };
 
 export type FolderStat = { objects: number; bytes: number; latest: number };
 
-/** Objects, bytes and newest upload under every prefix, the root included. */
 export function folderStats(tree: R2Tree): Record<string, FolderStat> {
   const stats: Record<string, FolderStat> = {};
   for (const [prefix, listing] of Object.entries(tree)) {
@@ -50,23 +40,19 @@ export function folderStats(tree: R2Tree): Record<string, FolderStat> {
   return stats;
 }
 
-/** "a/b/" → "a/", "a/" → "", "" → "". */
 export function parentOf(prefix: string): string {
   return prefix.replace(/[^/]*\/$/, "");
 }
 
-/** The prefix a key sits in: "a/b.txt" → "a/", "a/b/" → "a/". */
 export function folderOf(key: string): string {
   return parentOf(key.endsWith("/") ? key : `${key}/`);
 }
 
-/** Last segment, without a folder's trailing slash. */
 export function baseName(key: string): string {
   const trimmed = key.endsWith("/") ? key.slice(0, -1) : key;
   return trimmed.slice(trimmed.lastIndexOf("/") + 1);
 }
 
-/** Each folder on the way down to `prefix`, the root excluded. */
 export function crumbs(prefix: string): { name: string; prefix: string }[] {
   const out: { name: string; prefix: string }[] = [];
   let acc = "";
@@ -77,10 +63,6 @@ export function crumbs(prefix: string): { name: string; prefix: string }[] {
   return out;
 }
 
-/**
- * Going from `from` up to its ancestor `to`, the child of `to` that was passed
- * through — so stepping out of a folder leaves that folder selected.
- */
 export function childOnPath(from: string, to: string): string | null {
   if (from === to || !from.startsWith(to)) return null;
   const rest = from.slice(to.length);
@@ -124,14 +106,8 @@ export function listingEntries(
   return [...folders, ...files];
 }
 
-/** A file manager's order: case-blind, and 2 before 10. */
 const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 
-/**
- * Folders first whatever the order. Name runs A→Z, size largest first, date
- * newest first; `reverse` flips the chosen order but not the folder grouping.
- * Unknown sizes and dates sort last either way.
- */
 export function sortEntries(entries: readonly Entry[], sort: SortKey, reverse = false): Entry[] {
   const flip = reverse ? -1 : 1;
   const byName = (a: Entry, b: Entry) => collator.compare(a.name, b.name) || collator.compare(a.key, b.key);
@@ -153,7 +129,6 @@ export function nextSort(sort: SortKey): SortKey {
   return SORT_KEYS[(SORT_KEYS.indexOf(sort) + 1) % SORT_KEYS.length];
 }
 
-/** Every file whose full key contains the query, case-blind. Empty below SEARCH_MIN. */
 export function searchTree(tree: R2Tree, query: string): Entry[] {
   const needle = query.trim().toLowerCase();
   if (needle.length < SEARCH_MIN) return [];
@@ -167,7 +142,6 @@ export function searchTree(tree: R2Tree, query: string): Entry[] {
   return out;
 }
 
-/** Where the query falls in `text`, for highlighting; null when it does not. */
 export function matchRange(text: string, query: string): [start: number, end: number] | null {
   const needle = query.trim().toLowerCase();
   if (!needle) return null;
@@ -175,15 +149,10 @@ export function matchRange(text: string, query: string): [start: number, end: nu
   return at < 0 ? null : [at, at + needle.length];
 }
 
-/** Deep link for a folder (prefix) or a file (key). Segments are encoded, slashes kept. */
 export function hashFor(path: string): string {
   return path ? `#${path.split("/").map(encodeURIComponent).join("/")}` : "";
 }
 
-/**
- * Reads a deep link back. A folder is opened; a file opens its folder with
- * the file selected. Anything that could walk out of the bucket is the root.
- */
 export function parseHash(hash: string): { prefix: string; file: string | null } {
   const raw = hash.replace(/^#/, "");
   if (!raw) return { prefix: "", file: null };
@@ -205,7 +174,6 @@ export type FileKind = ReturnType<typeof fileKind>;
 
 export type KindTotal = { kind: FileKind; objects: number; bytes: number };
 
-/** Objects and bytes per kind of file across the bucket, largest share first. */
 export function kindTotals(tree: R2Tree): KindTotal[] {
   const totals = new Map<FileKind, KindTotal>();
   for (const listing of Object.values(tree)) {
@@ -224,12 +192,9 @@ const DAY = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
   month: "short",
   year: "numeric",
-  // Pinned: the island renders on the Worker and hydrates in the reader's
-  // zone, and a date that moves between the two is a hydration mismatch.
   timeZone: "UTC",
 });
 
-/** An upload time (epoch seconds) as a day, the same on server and client. */
 export function formatDay(epochSeconds: number): string {
   return DAY.format(new Date(epochSeconds * 1000));
 }

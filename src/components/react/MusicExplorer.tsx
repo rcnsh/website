@@ -13,8 +13,6 @@ type Props = {
   initialRange: TimeRange;
   initialTracks: Track[];
   initialArtists: Artist[];
-  // Without this a warehouse outage arrives as two empty arrays, and the
-  // island reports an empty listening history about an upstream being down.
   initialFailed?: boolean;
 };
 
@@ -29,7 +27,6 @@ export default function MusicExplorer({
   const [range, setRange] = useState<TimeRange>(initialRange);
   const [view, setView] = useState<"tracks" | "artists">("tracks");
   const [loading, setLoading] = useState(false);
-  // Ranges already fetched are kept so toggling back is instant.
   const [cache, setCache] = useState<Partial<Record<TimeRange, Bucket>>>({
     [initialRange]: {
       tracks: initialTracks,
@@ -39,9 +36,6 @@ export default function MusicExplorer({
   });
 
   useEffect(() => {
-    // Reset here too: the fetch's `finally` is guarded on `alive`, so
-    // switching mid-flight to an already-cached range would skip it and leave
-    // the spinner up over data that is sitting right there.
     if (cache[range]) {
       setLoading(false);
       return;
@@ -79,8 +73,6 @@ export default function MusicExplorer({
 
   const bucket = cache[range];
 
-  // Keeping the last resolved range on screen dims rather than flashing the
-  // empty state for the round trip.
   const lastResolved = useRef<Bucket>({
     tracks: initialTracks,
     artists: initialArtists,
@@ -105,8 +97,6 @@ export default function MusicExplorer({
         )}
       </div>
 
-      {/* Between-group gap has to clearly beat the gap inside each group,
-          or the five buttons read as one undifferentiated run. */}
       <div className="mb-[18px] flex flex-wrap items-baseline gap-x-6 gap-y-3 font-mono text-xs">
         <div className="flex gap-4">
           {(["tracks", "artists"] as const).map((option) => (
@@ -116,8 +106,6 @@ export default function MusicExplorer({
           ))}
         </div>
 
-        {/* The row wraps below sm, and a separator stranded at the end of the
-            first line reads as a stray character. */}
         <span aria-hidden="true" className="hidden text-line-strong sm:inline">/</span>
 
         <div className="flex gap-4">
@@ -131,7 +119,6 @@ export default function MusicExplorer({
         {loading && <span className="text-ink-faint">loading…</span>}
       </div>
 
-      {/* Pointer events off while stale, so you can't click a row about to be replaced. */}
       <div
         className={cn(
           "transition-opacity duration-200",
@@ -231,7 +218,6 @@ export default function MusicExplorer({
   );
 }
 
-/** An underlined text switch, rather than a filled segmented pill. */
 function Switch({
   pressed,
   onClick,
@@ -247,9 +233,6 @@ function Switch({
       aria-pressed={pressed}
       onClick={onClick}
       className={cn(
-        // `pb-0.5` sets the gap to the underline, so padding cannot grow the
-        // hit area without moving the border; the pseudo-element extends the
-        // clickable box instead.
         "relative border-b pb-0.5 transition-colors after:absolute after:inset-x-0 after:-inset-y-[0.625rem] after:content-['']",
         pressed
           ? "border-brand text-ink"

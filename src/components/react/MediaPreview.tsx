@@ -26,10 +26,6 @@ import { formatClock } from "@/lib/clock";
 import { dock, play, toggle as togglePlayback } from "@/lib/player";
 import type { PlayerTrack } from "@/lib/player-state";
 
-/**
- * A visitor's browser downloads the whole file to draw a waveform, so past
- * this it plays without one. The owner backfill has no such cap.
- */
 const VISITOR_WAVEFORM_MAX_BYTES = 64 * 1024 * 1024;
 
 type Supported = Extract<MediaMeta, { supported: true }> & { thumbs?: ThumbSet; uploaded?: number };
@@ -41,18 +37,10 @@ export function previewKind(name: string): PreviewKind | null {
   return kind === "video" || kind === "audio" ? kind : null;
 }
 
-/** The first rejection that is not us tearing the panel down. */
 function isTeardown(error: unknown): boolean {
   return error instanceof Error && error.name === "InputDisposedError";
 }
 
-/**
- * A ref that shows the site-wide player's element in its node while this
- * file is the one playing. A ref, not an effect: React runs a ref's cleanup
- * in the same commit that removes the node (whatever removes it: a switch to
- * Fallback, another file), and a media element out of the document at the
- * next stable state is paused.
- */
 function useDock(fileKey: string, current: boolean) {
   return useCallback(
     (node: HTMLElement | null) => (node && current ? dock(node, fileKey) : undefined),
@@ -60,7 +48,6 @@ function useDock(fileKey: string, current: boolean) {
   );
 }
 
-/** What the player shows for a file: its title tag, else its name. */
 function trackFor(key: string, url: string, meta: Supported, kind: PlayerTrack["kind"], poster?: string | null): PlayerTrack {
   return {
     key,
@@ -72,7 +59,6 @@ function trackFor(key: string, url: string, meta: Supported, kind: PlayerTrack["
   };
 }
 
-/** Set by the open preview so the browser's space key can play and pause it. */
 export type PlaybackControl = RefObject<(() => void) | null>;
 
 type Props = {
@@ -87,7 +73,6 @@ export default function MediaPreview({ fileKey, kind, size, bucketBase, control 
   const url = publicUrl(bucketBase, fileKey);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [metaFailed, setMetaFailed] = useState(false);
-  // Bumped after a backfill, so the thumbs flags are read again.
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
@@ -135,8 +120,6 @@ export default function MediaPreview({ fileKey, kind, size, bucketBase, control 
   );
 }
 
-/* -------------------------------------------------------------------------- */
-
 export function Fallback({
   url,
   name,
@@ -152,7 +135,6 @@ export function Fallback({
   uploaded?: number;
   message: string;
   meta?: Supported;
-  /** Offered when playback failed, which may have been the network. */
   onRetry?: () => void;
 }) {
   const codecs = [meta?.video?.codec, meta?.audio?.codec].filter(Boolean).join(" and ");
@@ -224,7 +206,6 @@ export function DetailList({ rows }: { rows: [string, string][] }) {
   );
 }
 
-/** Whether what is on screen came from stored thumbs or this browser's decoder. */
 function ThumbsNote({ kind, thumbs, base }: { kind: PreviewKind; thumbs?: ThumbSet; base: string }) {
   const owner = useIsOwner();
   if (!base || !owner) return null;
@@ -243,14 +224,10 @@ function ThumbsNote({ kind, thumbs, base }: { kind: PreviewKind; thumbs?: ThumbS
   );
 }
 
-/* -------------------------------------------------------------------------- */
-
 type StripView = { src: string; layout: SpriteLayout; timestamps: number[] };
 
-/** Tallest the video stage gets, in CSS pixels. */
 const STAGE_MAX_HEIGHT = 320;
 
-/** Cells in the filmstrip under the stage, sampled from however many the sheet has. */
 const STRIP_CELLS = 8;
 
 type VideoState = "loading" | "ready" | "undecodable";
@@ -285,14 +262,12 @@ function VideoPreview({
   const [poster, setPoster] = useState<string | null>(null);
   const [strip, setStrip] = useState<StripView | null>(null);
   const [scrub, setScrub] = useState<number | null>(null);
-  // Not usePlayer(): the stage needs no clock, so it skips the 4 Hz timeupdates.
   const playing = usePlayerValue((snapshot) => snapshot.track?.key === fileKey);
   const failed = usePlayerValue((snapshot) => snapshot.track?.key === fileKey && snapshot.failed);
   const host = useDock(fileKey, playing);
 
   const video = meta.video;
   const aspect = video && video.width > 0 && video.height > 0 ? video.width / video.height : 16 / 9;
-  // Full width for landscape; a portrait video is held to STAGE_MAX_HEIGHT.
   const stageStyle = {
     aspectRatio: String(aspect),
     width: `min(100%, ${Math.round(STAGE_MAX_HEIGHT * aspect)}px)`,
@@ -325,12 +300,9 @@ function VideoPreview({
             haveStrip = true;
           }
         } catch {
-          // Unreadable sidecar: draw a strip here instead.
         }
       }
 
-      // With both thumbs there is nothing to decode. Playback is the only
-      // remaining check, and <video> reports that itself.
       if (posterUrl && haveStrip) {
         if (live) setState("ready");
         return;
@@ -365,7 +337,6 @@ function VideoPreview({
     })().catch((error) => {
       if (!live || isTeardown(error)) return;
       console.error("[files] video preview failed", error);
-      // A failed preview still leaves playback, which may well work.
       setState("ready");
     });
 
@@ -390,7 +361,6 @@ function VideoPreview({
   if (state === "undecodable" || failed) {
     return (
       <>
-        {/* Still docked, so the box does not repeat the failure over this page. */}
         {failed && <span ref={host} hidden />}
         <Fallback
           url={url}
@@ -425,7 +395,6 @@ function VideoPreview({
   return (
     <>
       {playing ? (
-        // The site-wide player's <video> is moved in here; see useDock.
         <div ref={host} className="fb-stage" style={stageStyle} />
       ) : (
         <button
@@ -478,8 +447,6 @@ function VideoPreview({
   );
 }
 
-/* -------------------------------------------------------------------------- */
-
 type AudioState = "loading" | "ready" | "undecodable";
 
 function AudioPreview({
@@ -501,7 +468,6 @@ function AudioPreview({
   const [cover, setCover] = useState<ImageBitmap | null>(null);
   const [peaks, setPeaks] = useState<{ values: Float32Array; done: number } | null>(null);
   const [skipped, setSkipped] = useState(false);
-  // Selected, so another file's playback does not re-render this one.
   const current = usePlayerValue((snapshot) => snapshot.track?.key === fileKey);
   const position = usePlayerValue((snapshot) => (snapshot.track?.key === fileKey ? snapshot.time : 0));
   const paused = usePlayerValue((snapshot) => (snapshot.track?.key === fileKey ? snapshot.paused : true));
@@ -524,7 +490,6 @@ function AudioPreview({
             havePeaks = true;
           }
         } catch {
-          // Draw it here instead.
         }
       }
 
@@ -562,7 +527,6 @@ function AudioPreview({
 
       const timing = await preview.trackTiming(track, meta.duration);
       await preview.computePeaks(track, timing, (values, done) => {
-        // A copy: the generator keeps writing into its own array.
         if (live) setPeaks({ values: values.slice(), done });
       });
     })().catch((error) => {
@@ -577,7 +541,6 @@ function AudioPreview({
     };
   }, [fileKey, url, base, meta, size]);
 
-  // ImageBitmaps hold decoded pixels until closed.
   useEffect(() => () => cover?.close(), [cover]);
 
   const track = trackFor(fileKey, url, meta, "audio");
@@ -608,7 +571,6 @@ function AudioPreview({
   if (state === "undecodable" || failed) {
     return (
       <>
-        {/* Still docked, so the box does not repeat the failure over this page. */}
         {failed && <span ref={host} hidden />}
         <Fallback
           url={url}
@@ -671,7 +633,6 @@ function AudioPreview({
             {formatClock(position)} / {formatClock(duration)}
           </span>
         </div>
-        {/* Holds the site-wide player's element while this file plays; see useDock. */}
         <span ref={host} hidden />
       </div>
     </div>
@@ -690,7 +651,6 @@ function Cover({ bitmap }: { bitmap: ImageBitmap }) {
   return <canvas ref={canvas} role="img" aria-label="Cover art" />;
 }
 
-/** Bar width plus gap, in CSS pixels. */
 const BAR_PITCH = 3;
 
 export function Waveform({
@@ -701,11 +661,8 @@ export function Waveform({
   height = 64,
 }: {
   peaks: Float32Array;
-  /** How much of the file has been decoded so far, 0..1. */
   done: number;
-  /** Playback position, 0..1. */
   progress: number;
-  /** Absent for a decorative waveform, which is then not a slider. */
   onSeek?: (fraction: number) => void;
   height?: number;
 }) {
@@ -735,8 +692,6 @@ export function Waveform({
     const played = styles.getPropertyValue("--color-brand-alt").trim() || "#9aa2dd";
     const rest = styles.getPropertyValue("--color-line").trim() || "#3f3d3a";
 
-    // Scaled to the loudest peak, so a quiet recording still shows its shape.
-    // The floor keeps near-silence from being blown up into noise.
     let loudest = 0;
     for (const p of peaks) if (p > loudest) loudest = p;
     const scale = 1 / Math.max(loudest, 0.05);
@@ -777,7 +732,6 @@ export function Waveform({
         if (e.key === "ArrowRight") onSeek(Math.min(1, progress + 0.05));
         else if (e.key === "ArrowLeft") onSeek(Math.max(0, progress - 0.05));
         else return;
-        // The browser around this would otherwise read the arrow as navigation.
         e.preventDefault();
         e.stopPropagation();
       }}
@@ -787,13 +741,6 @@ export function Waveform({
   );
 }
 
-/* -------------------------------------------------------------------------- */
-
-/**
- * Settled once per visit to /files: whether this reader is the owner. A
- * visitor gets a 200 saying no, so a failed probe (throttled, down) is not
- * an answer and is asked again next time.
- */
 let ownerCheck: Promise<boolean> | null = null;
 
 function checkOwner(): Promise<boolean> {
@@ -805,7 +752,6 @@ function checkOwner(): Promise<boolean> {
     })
     .then((body) => body.owner === true)
     .catch(() => {
-      // Only this probe's own slot: a later visit may have started another.
       if (ownerCheck === probe) ownerCheck = null;
       return false;
     });
@@ -813,12 +759,10 @@ function checkOwner(): Promise<boolean> {
   return probe;
 }
 
-/** Leaving /files: the next visit asks again. */
 export function forgetOwnerCheck(): void {
   ownerCheck = null;
 }
 
-/** False until the probe says otherwise, so visitors never see owner-only UI. */
 function useIsOwner(): boolean {
   const [owner, setOwner] = useState(false);
   useEffect(() => {
@@ -833,7 +777,6 @@ function useIsOwner(): boolean {
 
 type FolderThumbs = Record<string, { uploaded: number; kinds: ThumbKind[] }>;
 
-/** Waits out a 429 as the server asks, a few times, then gives up. */
 async function postWithRetry(form: FormData): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
     const response = await fetch("/api/files/thumbs", { method: "POST", body: form });
@@ -853,7 +796,6 @@ function complete(entry: FolderThumbs[string] | undefined, uploaded: number, kin
 
 type Progress = { done: number; total: number; current: string | null; stored: number; skipped: number; failed: number };
 
-/** Owner only: stores previews for every media file directly in `folder`. */
 export function Backfill({ folder, base, onDone }: { folder: string; base: string; onDone?: () => void }) {
   const owner = useIsOwner();
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -872,8 +814,6 @@ export function Backfill({ folder, base, onDone }: { folder: string; base: strin
   const run = async () => {
     cancelled.current = false;
     setError(null);
-    // Safari hands back a PNG when asked for WebP; refuse here rather than
-    // failing every file in turn.
     const probe = document.createElement("canvas");
     probe.width = probe.height = 1;
     if (!probe.toDataURL("image/webp").startsWith("data:image/webp")) {

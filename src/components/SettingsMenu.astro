@@ -1,9 +1,6 @@
 ---
 import Icon from "./Icon.astro";
 
-/** The cog in the header and the popover it opens. */
-
-/** `key` is both the lib/prefs.ts storage name and the hook the script binds by. */
 const settings = [
   {
     key: "live",
@@ -26,7 +23,6 @@ const settings = [
     aria-expanded="false"
     class="relative -m-2.5 flex items-center p-2.5 text-ink-faint transition-colors hover:text-ink-dim"
   >
-    {/* 14px to sit level with the ⌘K label; padding grows the hit target. */}
     <Icon name="settings" class="h-3.5 w-3.5" />
   </button>
 
@@ -54,7 +50,6 @@ const settings = [
               </p>
             </div>
 
-            {/* role="switch", not a checkbox: no form, and it applies at once. */}
             <button
               type="button"
               id={`setting-${setting.key}`}
@@ -73,7 +68,6 @@ const settings = [
 </div>
 
 <style>
-  /* Grows out of the cog it hangs from. Closing stays instant. */
   [data-settings-panel] {
     transform-origin: top right;
     transition:
@@ -88,7 +82,6 @@ const settings = [
     }
   }
 
-  /* Until the script is up, the cog does nothing — so it is not there. */
   [data-settings]:not([data-settings-ready]) {
     display: none;
   }
@@ -129,7 +122,6 @@ const settings = [
     background: var(--color-ink);
   }
 
-  /* The attribute, not the media query — the switch has to obey the switch. */
   :root[data-motion="reduce"] .switch,
   :root[data-motion="reduce"] .switch-knob {
     transition: none;
@@ -163,7 +155,6 @@ const settings = [
     if (!trigger || !panel || !live || !motion) return;
 
     const setOpen = (open: boolean) => {
-      // Takes the command palette down with it — see lib/overlays.
       if (open) overlayOpened("settings");
       panel.hidden = !open;
       trigger.setAttribute("aria-expanded", String(open));
@@ -171,7 +162,6 @@ const settings = [
 
     closeOnOtherOverlay("settings", () => setOpen(false), signal);
 
-    /** Switches that are nothing but a stored boolean; consumers listen to lib/prefs. */
     const bindPlain = (
       button: HTMLButtonElement,
       read: () => boolean,
@@ -193,7 +183,6 @@ const settings = [
     bindPlain(live, liveUpdates, setLiveUpdates);
     bindPlain(motion, motionReduced, setMotionReduced);
 
-    // Untouched, the switch reports the OS setting, so it must move with it.
     matchMedia(REDUCED_MOTION_QUERY).addEventListener(
       "change",
       () => {

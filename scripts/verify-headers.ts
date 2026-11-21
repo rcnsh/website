@@ -1,6 +1,3 @@
-// dist/client/_headers is the only source of security headers for prerendered
-// pages, and it is generated, gitignored, and silent when it goes missing.
-// This runs after astro build and refuses to let a headerless build pass.
 import { readFile } from "node:fs/promises";
 import { securityHeaders } from "../shared/security.ts";
 

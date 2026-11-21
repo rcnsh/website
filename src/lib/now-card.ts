@@ -1,8 +1,3 @@
-/**
- * The one-line listening card the GitHub profile README embeds as /now.svg.
- * Pure, so it can be tested without the Workers runtime.
- */
-
 export type Theme = "light" | "dark";
 
 export type NowLine =
@@ -10,11 +5,6 @@ export type NowLine =
   | { state: "repeat"; title: string; artists: string | null }
   | { state: "none" };
 
-/**
- * What /now.svg stores: the live track with when it ends, and the line to fall
- * back to. A stale snapshot is served without waiting, so `endsAt` is what
- * keeps an old one from claiming a finished song is still playing.
- */
 export type NowSnapshot = {
   live: { title: string; artists: string; endsAt: number } | null;
   fallback: NowLine;
@@ -27,7 +17,6 @@ export function pickLine(snapshot: NowSnapshot, now: number): NowLine {
     : fallback;
 }
 
-// GitHub's own text colours, so the line reads as part of the README.
 const COLOURS: Record<Theme, { fg: string; muted: string }> = {
   light: { fg: "#1f2328", muted: "#59636e" },
   dark: { fg: "#f0f6fc", muted: "#9198a1" },
@@ -36,7 +25,6 @@ const COLOURS: Record<Theme, { fg: string; muted: string }> = {
 const SPOTIFY_GREEN = "#1db954";
 const FONT_SIZE = 14;
 const HEIGHT = 22;
-/** Wider than the average glyph at 14px, so the box over-fits rather than clips. */
 const CHAR_WIDTH = 8;
 const MAX_FIELD = 48;
 
@@ -49,7 +37,6 @@ const escapeXml = (s: string) =>
 
 const clip = (s: string) => (s.length > MAX_FIELD ? `${s.slice(0, MAX_FIELD - 1)}…` : s);
 
-/** Label, then the parts after it, the emphasised ones in the foreground colour. */
 function segments(line: NowLine): { text: string; strong?: boolean }[] {
   switch (line.state) {
     case "playing":

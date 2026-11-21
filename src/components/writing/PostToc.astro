@@ -5,7 +5,6 @@ interface Props {
   headings: MarkdownHeading[];
 }
 
-// h1 is the post title; below h4 the list stops being a map.
 const headings = Astro.props.headings.filter((h) => h.depth >= 2 && h.depth <= 4);
 const indent: Record<number, string> = { 2: "pl-3.5", 3: "pl-[26px] text-[0.8125rem]", 4: "pl-[38px] text-[0.8125rem]" };
 ---
@@ -74,8 +73,6 @@ const indent: Record<number, string> = { 2: "pl-3.5", 3: "pl-[26px] text-[0.8125
     let frame = 0;
     const update = () => {
       frame = 0;
-      // The same offset the headings' scroll-margin clears, so a heading
-      // jumped to from here is the one marked current.
       const header = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--header-h")) || 0;
       const rect = body.getBoundingClientRect();
       const progress = readingProgress(rect.top - header, rect.height, window.innerHeight - header);

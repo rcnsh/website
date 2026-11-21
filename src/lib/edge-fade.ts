@@ -1,12 +1,5 @@
-/** Which edges of a horizontal scroller are cutting content off. */
 export type EdgeFade = { left: number; right: number };
 
-/**
- * `size` is how far the fade extends, in pixels.
- *
- * 1px of tolerance: at a device pixel ratio other than 1, fractional layout
- * widths mean `scrollLeft` never lands exactly on the end of the travel.
- */
 export function edgeFade(
   scrollLeft: number,
   scrollWidth: number,

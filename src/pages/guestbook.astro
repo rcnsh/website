@@ -7,9 +7,6 @@ import GuestbookMapIsland from "@/components/widgets/GuestbookMapIsland.astro";
 import GuestbookTotals from "@/components/widgets/GuestbookTotals.astro";
 import { pageOgHref, pages, site } from "@/lib/site";
 
-// Prerendered, so the router keeps the player going into and out of it. What
-// is live comes in after load: the totals and signatures as server islands,
-// and who is reading from /api/guestbook/signer, which GuestbookSign asks.
 const page = pages.guestbook;
 const MAX_LENGTH = page.maxMessageLength;
 ---
@@ -39,7 +36,6 @@ const MAX_LENGTH = page.maxMessageLength;
         {page.title}
       </h1>
       <GuestbookTotals server:defer>
-        <!-- One fact's height, as GuestbookTotals renders it. -->
         <div slot="fallback" aria-hidden="true" class="mt-auto pt-5 sm:pt-[26px]">
           <div class="flex flex-col-reverse gap-[5px]">
             <div class="placeholder-block h-[15px] w-16 rounded-xs"></div>
@@ -70,11 +66,6 @@ const MAX_LENGTH = page.maxMessageLength;
           Signed from
         </h2>
       </div>
-      {/*
-        Its own island so the 118 KB of world outline stays out of the page
-        and caches apart from the live totals. The fallback reserves the map's
-        820x400 aspect and the caption line, so nothing jumps.
-      */}
       <GuestbookMapIsland server:defer>
         <figure slot="fallback" aria-hidden="true" class="m-0 flex flex-1 flex-col justify-between gap-1">
           <div class="placeholder-block aspect-[820/400] w-full rounded-card" />
@@ -90,9 +81,6 @@ const MAX_LENGTH = page.maxMessageLength;
       aria-labelledby="gb-countries-title"
     >
       <GuestbookCountries server:defer>
-        {/* GuestbookCountries' rows. Two, one row of the grid on a phone:
-            the guestbook is signed from a country or two so far, and a phone
-            is where the tile stands alone. Beside the map it stretches. */}
         <div slot="fallback" aria-hidden="true">
           <div class="mb-4 flex items-center gap-2.5">
             <span id="gb-countries-title" class="label">By country</span>
@@ -117,10 +105,6 @@ const MAX_LENGTH = page.maxMessageLength;
       aria-labelledby="gb-list-title"
     >
       <GuestbookEntries server:defer>
-        {/* GuestbookList's cards, each with a one-line message, the commoner
-            length. The first page holds up to 25 and the count can't be known
-            here: twelve is near today's and fills whole rows at two and three
-            columns. This is the last tile, so a miss moves only the footer. */}
         <div slot="fallback" aria-hidden="true">
           <div class="mb-4 flex items-center gap-2.5">
             <span id="gb-list-title" class="label">Signatures</span>
@@ -150,8 +134,6 @@ const MAX_LENGTH = page.maxMessageLength;
 <script>
   import { onPage } from "@/lib/page-lifecycle";
 
-  // Rows and map shapes meet on the ISO code. Both arrive in server islands,
-  // after this runs and in either order, so everything is delegated.
   const IDLE_TIP = "";
 
   const setTip = (text: string) => {

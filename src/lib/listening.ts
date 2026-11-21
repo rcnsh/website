@@ -1,9 +1,3 @@
-/**
- * Figures for the music page's stats tile, derived from the recent-plays
- * window and nothing else. Dependency-free so it can be tested under node.
- */
-
-/** How many recent plays the music page reads. The stats and the list share it. */
 export const RECENT_WINDOW = 50;
 
 type Play = {
@@ -11,7 +5,6 @@ type Play = {
   artists: string;
   url: string | null;
   playedAt: string;
-  /** Credited artists in credit order; the first is the lead. */
   credits: { id: string | null; name: string }[];
 };
 
@@ -20,7 +13,6 @@ export type ListeningSummary = {
   tracks: number;
   artists: number;
   top: { name: string; plays: number } | null;
-  /** ISO time of the oldest play in the window. */
   since: string | null;
 };
 
@@ -35,7 +27,6 @@ export function summarise(plays: Play[]): ListeningSummary {
 
     const lead = play.credits[0];
     if (!lead) continue;
-    // Export-only artists have no id; their name is the next best key.
     const key = lead.id ?? `name:${lead.name.toLowerCase()}`;
     const entry = byLead.get(key);
     if (entry) entry.plays += 1;

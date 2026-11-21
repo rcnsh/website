@@ -15,8 +15,6 @@ test("publicFor orders max-age, s-maxage, then stale-while-revalidate", () => {
   assert.equal(publicFor(0, { edge: 600 }), "public, max-age=0, s-maxage=600");
 });
 
-// Each of these is a header some response carries today; a change here is a
-// change to what browsers and the edge are told.
 test("the named policies", () => {
   assert.equal(noStore, "no-store");
   assert.equal(uncachedError, "no-store");

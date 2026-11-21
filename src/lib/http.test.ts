@@ -4,8 +4,6 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { islandPolicy, json, LIVE_ISLANDS, policies, privateJson } from "./http.ts";
 
-// Every public route's Cache-Control. A change here changes what a route tells
-// browsers and the edge, so it should show up in review as a change to this.
 test("each route's policy", () => {
   assert.deepEqual(
     {
@@ -57,8 +55,6 @@ test("the guestbook's live islands are never cached; the rest share one policy",
   assert.equal(islandPolicy("/_server-islands/GuestbookCountries"), "no-store");
 });
 
-// Astro names an island after the page's import, so a rename there would
-// quietly cache a live island.
 test("each live island is a deferred import of the guestbook under that name", async () => {
   const page = await readFile(join(import.meta.dirname, "..", "pages", "guestbook.astro"), "utf8");
   for (const name of LIVE_ISLANDS) {

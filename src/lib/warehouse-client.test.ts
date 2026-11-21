@@ -10,7 +10,6 @@ const ENV = {
   MUSIC_WAREHOUSE_CONTROL_TOKEN: "control-token",
 };
 
-/** A client over a fake transport that answers `body` and records every request. */
 function fake(body: unknown, { env = ENV, status = 200 } = {}) {
   const requests: { url: string; init: RequestInit }[] = [];
   const cacheKeys: string[] = [];

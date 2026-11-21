@@ -13,7 +13,6 @@ describe("projected corner", () => {
   });
 
   test("the box's centre decides, not its top-left", () => {
-    // Top-left is left of centre, but most of the box is right of it.
     assert.equal(projectedCorner({ x: 500, y: 600 }, { x: 0, y: 0 }, box, viewport), "bottom-right");
   });
 

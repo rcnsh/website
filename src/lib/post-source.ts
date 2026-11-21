@@ -1,23 +1,14 @@
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 
-/**
- * A post's Markdown source, as the on-site editor reads and writes it. The
- * frontmatter schema lives here so the editor refuses exactly what the build
- * would: a commit that fails it would fail the deploy it triggers.
- */
-
 export const postSchema = z.object({
   title: z.string().min(1),
-  /** Used on the index, in <meta name="description">, and in both feeds. */
   description: z.string().min(1),
   pubDate: z.coerce.date(),
   updatedDate: z.coerce.date().optional(),
-  /** Visible in `astro dev`, dropped from the production build. */
   draft: z.boolean().default(false),
 });
 
-/** Dates as the editor's `<input type="date">` holds them. */
 export type PostFields = {
   title: string;
   description: string;
@@ -44,10 +35,6 @@ export type PostInput = z.infer<typeof postInput>;
 
 const toDay = (date: Date) => (Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10));
 
-/**
- * JSON strings are YAML double-quoted scalars, except that YAML reads the two
- * Unicode line separators as line breaks, which JSON leaves raw.
- */
 const quote = (value: string) =>
   JSON.stringify(value).replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
 
@@ -66,7 +53,6 @@ export function serialisePost({ body, ...fields }: PostFields & { body: string }
 
 const FRONTMATTER = /^\s*---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
 
-/** Throws on a file the build would refuse too. */
 export function parsePost(source: string): PostFields & { body: string } {
   const match = FRONTMATTER.exec(source);
   if (!match) throw new Error("No frontmatter");

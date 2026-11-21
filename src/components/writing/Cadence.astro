@@ -33,7 +33,6 @@ const bars = months.map((m) => {
   };
 });
 
-// First month, last month, and each January far enough from both to fit.
 const last = months.length - 1;
 const ticks = months.flatMap((m, i) => {
   if (i === 0) return [{ i, text: MONTH_YEAR.format(at(m)) }];

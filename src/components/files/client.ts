@@ -1,18 +1,12 @@
 import type { MediaMeta } from "@/lib/media-meta";
 import { publicUrl, thumbKey, type ThumbKind, type ThumbSet } from "@/lib/thumbs";
 
-// Browser-side helpers shared by the navigator's preview pane and its grid
-// cards, so both read one copy of each file's metadata.
-
 export type Meta = MediaMeta & { size?: number; uploaded?: number; thumbs?: ThumbSet };
 
-/** Mediabunny and the generators, fetched the first time anything needs them. */
 export const loadPreview = () => import("@/lib/media-preview");
 
-/** Per visit to /files: metadata is immutable for an upload, and the API caches it too. */
 const metaCache = new Map<string, Promise<Meta>>();
 
-/** Leaving /files: a file re-uploaded meanwhile must not show stale details. */
 export function forgetMeta(): void {
   metaCache.clear();
 }
@@ -27,7 +21,6 @@ export function fetchMeta(key: string, reload = false): Promise<Meta> {
     return (await response.json()) as Meta;
   });
   metaCache.set(key, request);
-  // A failure is not kept: the next panel to open retries.
   request.catch(() => {
     if (metaCache.get(key) === request) metaCache.delete(key);
   });
@@ -41,17 +34,11 @@ export async function fetchJson(url: string): Promise<unknown> {
 }
 
 export function thumbUrl(base: string, key: string, kind: ThumbKind): string | null {
-  // Without a public domain thumbs are unreachable: the download route
-  // refuses hidden keys. The browser draws its own instead.
   const target = base ? thumbKey(key, kind) : null;
   return target ? publicUrl(base, target) : null;
 }
 
 
-/**
- * Runs at most `limit` tasks at once, in the order asked. A grid of cards
- * would otherwise start every metadata request and decode at the same time.
- */
 export function queue(limit: number) {
   let running = 0;
   const waiting: (() => void)[] = [];

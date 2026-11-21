@@ -1,12 +1,4 @@
 ---
-/**
- * One figure in the ledger's "Here & now" row: a label, the figure, a line
- * under it. Without a `value` it is its own skeleton: the figure pulses in a
- * line of its own type, and so does the detail unless it is fixed text, so
- * it is the same height when it lands. With `href` the whole figure is the
- * link, marked by an arrow beside the label; a pending one is a link too, so
- * an island that never lands still leaves the way in.
- */
 interface Props {
   label: string;
   value?: string;

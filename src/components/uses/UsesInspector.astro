@@ -7,13 +7,6 @@ import {
 } from "@/lib/uses";
 import UsesArt from "./UsesArt.astro";
 
-/**
- * Shows the daily driver until a reader points at or focuses a thing on the
- * page, then that thing. The server renders the default so it reads without
- * script; the script swaps in a clone of the hovered cell's own drawing rather
- * than shipping the art twice.
- */
-
 interface Props {
   groups: UsesGroup[];
   class?: string;
@@ -131,7 +124,6 @@ const irl = groups[0];
       const svg = el.querySelector("svg");
       if (svg) art.replaceChildren(svg.cloneNode(true));
 
-      // Only the first of a sweep animates; restarting on every cell flickers.
       const now = performance.now();
       if (now - swapped > 300) {
         body.classList.remove("swap");
@@ -182,7 +174,6 @@ const irl = groups[0];
       const next = e.relatedTarget as Element | null;
       if (!next?.closest("[data-uses-item], [data-in-href]")) later();
     });
-    // Reaching for the link in the foot must not let the tile revert under the pointer.
     root.addEventListener("pointerover", () => clearTimeout(revert));
     root.addEventListener("pointerleave", () => {
       if (showing !== fallback) later();

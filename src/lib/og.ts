@@ -3,14 +3,6 @@ import path from "node:path";
 import satori from "satori";
 import sharp from "sharp";
 
-/**
- * Share cards, drawn ahead of the build by scripts/generate-og.ts. satori and
- * sharp are both Node-only, so this is a prebuild step rather than an endpoint.
- *
- * No `@/` imports, so plain `node scripts/…` can load it; the palette repeats
- * styles/global.css, since satori resolves no custom properties.
- */
-
 const COLOR = {
   base: "#0d0d0c",
   line: "#262420",
@@ -23,8 +15,6 @@ const COLOR = {
 const WIDTH = 1200;
 const HEIGHT = 630;
 
-/** Vendored as TrueType: the Fontsource packages ship woff2, which satori
- * cannot parse. */
 const FONT_FILES = {
   sans: "Geist-Regular.ttf",
   mono: "GeistMono-Regular.ttf",
@@ -38,10 +28,8 @@ export type Font = {
   style: "normal";
 };
 
-// Read once per build rather than once per card.
 let fontsPromise: Promise<Font[]> | null = null;
 
-/** Exported for lib/badge.ts, which draws with the same two faces. */
 export function loadFonts(): Promise<Font[]> {
   fontsPromise ??= (async () => {
     const dir = path.join(process.cwd(), "src/assets/fonts");
@@ -61,10 +49,6 @@ export function loadFonts(): Promise<Font[]> {
   return fontsPromise;
 }
 
-/**
- * satori has no line clamp, so long strings are cut here instead. The limits
- * are per-card maxima that keep the block inside its box at the sizes below.
- */
 function truncate(text: string, limit: number): string {
   const clean = text.trim().replace(/\s+/g, " ");
   if (clean.length <= limit) return clean;
@@ -74,8 +58,6 @@ function truncate(text: string, limit: number): string {
   return `${(lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
 }
 
-// satori reads only `type`, `props.style` and `props.children`, so plain
-// objects do and this module needs no React.
 type Node = {
   type: string;
   props: { style?: Record<string, unknown>; children?: unknown };
@@ -90,7 +72,6 @@ const el = (
 export type OgCard = {
   title: string;
   description?: string;
-  /** The metadata line along the bottom, e.g. date and reading time. */
   meta?: string[];
 };
 
@@ -111,7 +92,6 @@ export async function renderOgImage(card: OgCard): Promise<ArrayBuffer> {
         fontFamily: "Geist",
       },
       [
-        // The wordmark over the header's active-tab underline.
         el("div", { display: "flex" }, [
           el(
             "div",
@@ -146,7 +126,6 @@ export async function renderOgImage(card: OgCard): Promise<ArrayBuffer> {
               {
                 fontFamily: "Geist Mono",
                 fontWeight: 700,
-                // Long titles step down a size rather than overflowing.
                 fontSize: title.length > 48 ? 54 : 68,
                 letterSpacing: "-0.04em",
                 lineHeight: 1.08,
@@ -183,7 +162,6 @@ export async function renderOgImage(card: OgCard): Promise<ArrayBuffer> {
             letterSpacing: "0.02em",
             color: COLOR.inkFaint,
           },
-          // Interleaved with the separator the rest of the site uses.
           (card.meta ?? []).flatMap((part, index) =>
             index === 0
               ? [el("span", {}, part)]
@@ -197,11 +175,6 @@ export async function renderOgImage(card: OgCard): Promise<ArrayBuffer> {
 
   const png = await sharp(Buffer.from(svg)).png().toBuffer();
 
-  /*
-    Node hands back a Buffer, which is a view onto a pooled ArrayBuffer that
-    other allocations share — handing that pool to Response would send far
-    more than this image. Copy out the slice the PNG actually occupies.
-  */
   return png.buffer.slice(
     png.byteOffset,
     png.byteOffset + png.byteLength,

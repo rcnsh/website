@@ -5,13 +5,9 @@ on:
     branches: [main]
   pull_request:
 
-# Nothing here writes to the repository — it checks out, generates derived
-# files, and runs the linter, the tests and the typechecker. Saying so keeps
-# the job's token read-only regardless of what the repository default becomes.
 permissions:
   contents: read
 
-# A second push to the same branch makes the first run irrelevant.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -22,7 +18,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # 22.18+ runs TypeScript directly, which is what `npm test` relies on.
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -30,16 +25,9 @@ jobs:
 
       - run: npm ci
 
-      # worker-configuration.d.ts is generated, not committed, and tsconfig
-      # pulls it in — so `astro check` needs this first. Reads wrangler.jsonc
-      # locally; no Cloudflare credentials involved.
       - name: Generate Worker types
         run: npx wrangler types
 
-      # Share cards, the 88x31 button and public/_headers are derived files the
-      # build writes and git does not carry. Running the generators here is the
-      # only thing that would notice one of them breaking, since the build
-      # itself cannot run in CI.
       - name: Generate derived files
         run: npm run generate
 
@@ -47,12 +35,5 @@ jobs:
 
       - run: npm test
 
-      # Covers the .astro files, which Biome cannot parse past the frontmatter.
       - name: Typecheck
         run: npx astro check
-
-# Note: `astro build` is deliberately absent from this workflow. Prerendering
-# opens a remote connection for the `remote: true` R2 binding and reads
-# .dev.vars, so it needs a CLOUDFLARE_API_TOKEN and the Spotify/GitHub secrets
-# — which a pull request from a fork cannot be given. build.yml covers it on a
-# schedule, where the secrets are available.

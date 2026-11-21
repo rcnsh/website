@@ -1,13 +1,7 @@
 ---
-/**
- * The slice of Markdown used in site.json: `[text](url)` links, nothing else.
- * Everything outside a link is emitted as plain text, so config copy can't
- * inject markup.
- */
 interface Props {
   text: string;
   class?: string;
-  /** Applied to links; defaults to the underlined inline-link treatment. */
   linkClass?: string;
 }
 
@@ -23,7 +17,6 @@ type Segment =
 
 const LINK = /\[([^\]]+)\]\(([^)\s]+)\)/g;
 
-/** Only http(s), mailto and site-relative hrefs — no `javascript:` etc. */
 function safeHref(href: string): string | null {
   if (href.startsWith("/") || href.startsWith("#")) return href;
   try {
@@ -54,7 +47,6 @@ for (const match of text.matchAll(LINK)) {
       external: /^https?:/.test(url),
     });
   } else {
-    // Unsafe href — keep the label, drop the link.
     segments.push({ kind: "text", value: label! });
   }
 

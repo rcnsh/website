@@ -3,12 +3,9 @@ import type { HiddenTotals } from "@/lib/bucket-totals";
 import type { KindTotal } from "@/lib/files-nav";
 import UsageBar from "./UsageBar";
 
-/** Share of the bucket's bytes by kind of file. No `kinds` draws the placeholder. */
 interface Props {
   kinds?: KindTotal[];
-  /** What visitors are not shown, as one private share of the bar. */
   hidden?: HiddenTotals | null;
-  /** How many keys the owner's view has; see UsageBar. */
   ownerSlots?: number;
 }
 
@@ -31,8 +28,6 @@ const { kinds, hidden, ownerSlots } = Astro.props;
       <div aria-hidden="true" class="flex flex-1 flex-col">
         <div class="placeholder-block mt-1 h-3 rounded-[3px]" />
         <div class="mt-auto grid grid-cols-2 gap-x-4.5 gap-y-3.5 pt-5.5 min-[641px]:grid-cols-3 min-[1021px]:grid-cols-4">
-          {/* UsageBar's legend, one entry per kind of file: eight is how many the
-              bucket holds, so the count is the one guess here. */}
           {Array.from({ length: 8 }).map(() => (
             <div class="flex flex-col gap-1 font-mono text-[11px]">
               <b class="flex items-center gap-1.75 text-[15px] font-semibold">

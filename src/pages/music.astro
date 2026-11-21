@@ -16,8 +16,6 @@ const profileUrl = `https://open.spotify.com/user/${site.spotifyUser}`;
   description={page.description}
   image={pageOgHref("music")}
 >
-  <!-- Hero first in source, so the h1 leads on phones and in reading order;
-       the grid moves now playing ahead of it from sm up. -->
   <div class="bento max-sm:gap-2.5">
     <section data-lattice="cover"
       class="page-band animate-rise"
@@ -63,8 +61,6 @@ const profileUrl = `https://open.spotify.com/user/${site.spotifyUser}`;
       class="tile col-span-12 flex animate-rise flex-col [animation-delay:60ms] max-sm:p-[18px]"
     >
       <ListeningStats server:defer>
-        <!-- Head row and one row of three facts, in ListeningStats' own
-             lines, so the tile is its loaded height. -->
         <Fragment slot="fallback">
           <div class="mb-4 flex min-h-4 items-center gap-2.5" aria-hidden="true">
             <span class="label"><span class="placeholder-text w-24" /></span>
@@ -90,8 +86,6 @@ const profileUrl = `https://open.spotify.com/user/${site.spotifyUser}`;
       class="tile col-span-12 animate-rise [animation-delay:90ms] max-sm:p-[18px] min-[1021px]:col-span-8"
     >
       <TopMusic server:defer>
-        <!-- Mirrors MusicExplorer's head, controls and twelve rows, so the
-             tile doesn't jump when it lands. -->
         <div slot="fallback" aria-hidden="true">
           <div class="mb-4 flex min-h-4 items-center">
             <span class="label">Top</span>
@@ -139,7 +133,6 @@ const profileUrl = `https://open.spotify.com/user/${site.spotifyUser}`;
         <h2 id="recent-title" class="label">Recently played</h2>
       </div>
       <RecentTracks server:defer>
-        <!-- Row for row with RecentTracks.astro's fifteen. -->
         <ol slot="fallback" aria-hidden="true" class="divide-y divide-line-soft border-t border-line-soft">
           {
             Array.from({ length: 15 }).map(() => (

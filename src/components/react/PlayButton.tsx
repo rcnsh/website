@@ -1,7 +1,6 @@
 import { PLAY_ICON } from "@/components/icons";
 import { PLAY_CLASS, playButtonAttributes } from "@/lib/track-play";
 
-/** PlayButton.astro's counterpart: shown to the owner only, played by PlayOnSpotify. */
 export function PlayButton({ trackId, title }: { trackId: string | null | undefined; title: string }) {
   if (!trackId) return null;
   return (

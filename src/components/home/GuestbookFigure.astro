@@ -2,8 +2,6 @@
 import Figure from "./Figure.astro";
 import { getPage, getStats } from "@/lib/guestbook";
 
-// Server island. Reads the cached first page and totals — the same public
-// data /guestbook shows anyone signed out — and never the session.
 let value = "—";
 let detail = "Sign with GitHub";
 let faces: { src: string; name: string }[] = [];

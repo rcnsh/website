@@ -2,15 +2,6 @@
 import GuestbookMap from "./GuestbookMap.astro";
 import { getStats } from "@/lib/guestbook";
 
-/**
- * The map, as a deferred island — for cacheability, not latency. GuestbookMap
- * inlines the whole world outline, which this keeps out of the page and cached
- * apart from the guestbook's live islands. It reads no session.
- *
- * It takes no props on purpose: island props ride the encrypted `?e=` query
- * parameter, so passing the counts in would defeat the caching. See CLAUDE.md
- * § Maintenance › Caching.
- */
 let counts: Record<string, number> = {};
 let unplaced = 0;
 let failed = false;

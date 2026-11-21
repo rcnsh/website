@@ -11,13 +11,7 @@ import { pageOgHref, pages, site } from "@/lib/site";
 import { statsYears, WEEKDAYS } from "@/lib/music-stats-view";
 
 const page = pages.musicStats;
-// Fixed at build. A new year appears in the switch on the next deploy; until
-// then its panels exist but nothing selects them.
 const years = statsYears(new Date());
-// The fallbacks draw the year view as well as all time, tagged with the
-// choices that show each shape (`data-skel-years`, matched by the script
-// below). The year being built in is still running, so its streaks read like
-// all time's.
 const allYears = years.join(" ");
 const liveYears = ["all", years.at(-1)].join(" ");
 const pastYears = years.slice(0, -1).join(" ");
@@ -58,13 +52,6 @@ const pastYears = years.slice(0, -1).join(" ");
       </fieldset>
     </section>
 
-    {/*
-      Each fallback mirrors its island's markup: the same containers, row
-      counts and type classes, with `placeholder-text` in single lines and
-      ghost text (transparent, of a typical length) where a line wraps, so the
-      tile keeps its height when the data lands. Row counts and wrapping are
-      the common case; the data can still move them a line or two.
-    */}
     <section
       class="tile col-span-12 animate-rise [animation-delay:30ms] max-sm:p-[18px]"
       aria-labelledby="streaks-title"
@@ -433,10 +420,6 @@ const pastYears = years.slice(0, -1).join(" ");
 </Layout>
 
 <style is:global>
-  /* The year switch. Islands render a panel for every year (data-year) and
-     the script below marks the ones matching the chosen year. Static rules,
-     so the built page's hashed style-src allows them. With no year chosen,
-     or no script, all time shows. */
   html:not([data-stats-year]) [data-year]:not([data-year="all"]),
   html:not([data-stats-year]) [data-year-note],
   html[data-stats-year] [data-year]:not([data-year-match]),
@@ -457,15 +440,6 @@ const pastYears = years.slice(0, -1).join(" ");
 <script>
   import { onPage } from "@/lib/page-lifecycle";
 
-  // One delegated listener for every chart's readout. Island markup lands
-  // after this runs, so nothing binds per element. The readout repeats what
-  // the chart's text summary and table already say, hence aria-hidden there:
-  // this is a pointer convenience, not the way to reach a value.
-  // The year switch sets data-stats-year on <html> and marks every element
-  // tagged with a year that matches it; the page's global styles do the
-  // rest. Islands land after this runs, so new markup is marked as it
-  // arrives (observer callbacks run before the next paint, so nothing
-  // flashes).
   onPage((signal) => {
     const switcher = document.querySelector<HTMLFieldSetElement>("[data-year-switch]");
     if (!switcher) return;
@@ -473,7 +447,6 @@ const pastYears = years.slice(0, -1).join(" ");
     let chosen = "all";
 
     const markOne = (el: HTMLElement) => {
-      // A fallback's shape answers to every year it stands in for.
       if (el.dataset.skelYears !== undefined) {
         el.toggleAttribute("data-year-match", el.dataset.skelYears.split(" ").includes(chosen));
         return;

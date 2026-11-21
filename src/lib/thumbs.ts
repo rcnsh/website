@@ -1,15 +1,7 @@
-// The `.thumbs/` layout, shared by the Worker routes and the browser.
-// Dependency-free so `node --test` can load it.
-
 import { isHiddenKey, objectKey, THUMBS_PREFIX } from "../../shared/bucket-keys.ts";
 
-/** The owner-only route private files are read through. */
 export const DOWNLOAD_PATH = "/api/files/download";
 
-/**
- * The public URL for a key: on the bucket's own domain when it has one,
- * otherwise through /api/files/download.
- */
 export function publicUrl(base: string, key: string): string {
   const encoded = key.split("/").map(encodeURIComponent).join("/");
   return base
@@ -17,17 +9,8 @@ export function publicUrl(base: string, key: string): string {
     : `${DOWNLOAD_PATH}?key=${encodeURIComponent(key)}`;
 }
 
-/**
- * R2 caps keys at 1024 bytes; this leaves room for the prefix and the longest
- * suffix, so a source key that passes can always be thumbed.
- */
 const MAX_SOURCE_KEY_BYTES = 1024 - THUMBS_PREFIX.length - ".strip.webp".length - 8;
 
-/**
- * A key that names a visible object and nothing else: stricter than
- * `objectKey`, adding no empty or hidden segments, no leading slash, no
- * control characters, and room for the thumb suffix.
- */
 export function isVisibleKey(key: string): boolean {
   if (objectKey(key) === null || key.startsWith("/")) return false;
   if (new TextEncoder().encode(key).byteLength > MAX_SOURCE_KEY_BYTES) return false;
@@ -38,7 +21,6 @@ export function isVisibleKey(key: string): boolean {
   return !isHiddenKey(key);
 }
 
-/** Every file a preview can have, with what the upload route will accept. */
 export const THUMB_KINDS = {
   "poster.webp": { type: "image/webp", maxBytes: 512 * 1024 },
   "strip.webp": { type: "image/webp", maxBytes: 2 * 1024 * 1024 },
@@ -52,30 +34,21 @@ export function isThumbKind(name: string): name is ThumbKind {
   return Object.hasOwn(THUMB_KINDS, name);
 }
 
-/** Largest body the upload route reads: every kind at its cap, plus form overhead. */
 export const MAX_THUMBS_REQUEST_BYTES =
   Object.values(THUMB_KINDS).reduce((sum, { maxBytes }) => sum + maxBytes, 0) +
   64 * 1024;
 
-/** `.thumbs/<key>.<kind>`, or null when the source key is not one to thumb. */
 export function thumbKey(sourceKey: string, kind: ThumbKind): string | null {
   if (!isVisibleKey(sourceKey)) return null;
   return `${THUMBS_PREFIX}${sourceKey}.${kind}`;
 }
 
-/**
- * The custom-metadata field recording which upload of the source a thumb was
- * made from, in whole seconds as the listings carry it. A thumb whose value
- * does not match the source's current upload time describes an older file.
- */
 export const SOURCE_UPLOADED_FIELD = "source-uploaded";
 
-/** Which previews exist for one source object. */
 export type ThumbSet = { poster: boolean; strip: boolean; peaks: boolean };
 
 export const NO_THUMBS: ThumbSet = { poster: false, strip: false, peaks: false };
 
-/** A strip is only usable with its sidecar, so both halves must be present. */
 export function thumbSet(kinds: Iterable<string>): ThumbSet {
   const have = new Set(kinds);
   return {
@@ -91,11 +64,6 @@ function isWebp(bytes: Uint8Array): boolean {
   return bytes.byteLength >= 12 && ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP";
 }
 
-/**
- * Why one uploaded part is refused, or null when it is acceptable. Checks the
- * declared type, the size, and the bytes themselves: a client-declared type is
- * only a claim.
- */
 export function thumbPartProblem(
   kind: ThumbKind,
   declaredType: string,
@@ -122,18 +90,15 @@ export function thumbPartProblem(
   }
 }
 
-/** `.thumbs/<key>.strip.json`: how to cut up the sheet beside it. */
 export type StripSidecar = {
   version: 1;
   frames: number;
   columns: number;
   tileWidth: number;
   tileHeight: number;
-  /** Seconds into the media, one per frame. */
   timestamps: number[];
 };
 
-/** `.thumbs/<key>.peaks.json`: 0..255 amplitudes, evenly spaced over `duration`. */
 export type PeaksSidecar = {
   version: 1;
   duration: number;
@@ -143,7 +108,6 @@ export type PeaksSidecar = {
 const isCount = (v: unknown, max: number): v is number =>
   Number.isInteger(v) && (v as number) > 0 && (v as number) <= max;
 
-/** A strip sidecar, or null when it is not one this code can draw. */
 export function parseStripSidecar(value: unknown): StripSidecar | null {
   if (typeof value !== "object" || value === null) return null;
   const v = value as Partial<StripSidecar>;

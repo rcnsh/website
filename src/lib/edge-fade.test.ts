@@ -2,10 +2,9 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { edgeFade } from "./edge-fade.ts";
 
-// The contribution graph's real numbers at 375: 715px of content in a 335px box.
 const WIDE = 715;
 const NARROW = 335;
-const OVERFLOW = WIDE - NARROW; // 380
+const OVERFLOW = WIDE - NARROW;
 
 describe("edge fade", () => {
   test("nothing overflows, nothing fades", () => {
@@ -17,11 +16,6 @@ describe("edge fade", () => {
     assert.deepEqual(edgeFade(0, WIDE, NARROW), { left: 0, right: 32 });
   });
 
-  /*
-    The one that caught the original mistake. The graph scrolls itself to the
-    newest week on mount, so this is the state a reader actually starts in —
-    and the hidden content is behind them, on the left.
-  */
   test("at the right edge, only the left is cut", () => {
     assert.deepEqual(edgeFade(OVERFLOW, WIDE, NARROW), { left: 32, right: 0 });
   });

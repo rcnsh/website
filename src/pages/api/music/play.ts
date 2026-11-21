@@ -7,11 +7,6 @@ import { WarehouseNotConfigured, warehouse } from "@/lib/warehouse";
 
 export const prerender = false;
 
-/**
- * Starts `{ track_id }` on the owner's active Spotify device. Any answer but
- * 200 tells the page to open the link instead, so failures are passed through
- * rather than retried.
- */
 export const POST: APIRoute = async ({ request, cookies, url, locals }) => {
   const refused = await requireOwner({ request, cookies, url, locals }, { refuse: "forbidden", sameOrigin: true });
   if (refused) return refused;

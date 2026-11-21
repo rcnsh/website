@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { containsProfanity } from "./profanity.ts";
 
-/** Ordinary messages someone might actually leave in the guestbook. */
 const ALLOWED = [
   "",
   "Nice work, love the site!",
@@ -25,7 +24,6 @@ const ALLOWED = [
   "the rapper is good",
   "Basque country trip",
   "compass and map",
-  // Ordinary words a term plus a suffix happens to spell.
   "this curry is spicy",
   "add cumin and spices",
   "he cocked his head",
@@ -35,7 +33,6 @@ const ALLOWED = [
   "a prickle of hedgehogs",
 ];
 
-/** Things the filter exists to stop. */
 const BLOCKED = [
   "this is shit",
   "what the fuck",
@@ -92,7 +89,6 @@ test("sees through padded-out spellings", () => {
 });
 
 test("padding never glues separate words together", () => {
-  // The failure mode of the previous implementation: real words, adjacent.
   assert.equal(containsProfanity("it happen is weird"), false);
   assert.equal(containsProfanity("epic until now"), false);
   assert.equal(containsProfanity("music until later"), false);
@@ -103,12 +99,6 @@ test("ignores accents and case", () => {
   assert.equal(containsProfanity("shít"), true);
 });
 
-/**
- * Known and deliberate: a few terms are also ordinary English words, and
- * nothing at word level can separate the two senses. A public guestbook is
- * better off blocking the slur and losing the idiom, so this is pinned as
- * intended behaviour rather than left as a surprise.
- */
 test("prefers blocking a slur over allowing its innocent homograph", () => {
   assert.equal(containsProfanity("a chink in the armour"), true);
 });

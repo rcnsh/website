@@ -4,7 +4,6 @@ import { slugify } from "@/lib/post-slug";
 
 type Post = {
   slug: string;
-  /** Null for a post not yet on GitHub. */
   sha: string | null;
   title: string;
   description: string;
@@ -45,7 +44,6 @@ export default function PostEditor({ initial }: { initial: Post }) {
   const [view, setView] = useState<View>("split");
   const [render, setRender] = useState<Render | null>(null);
   const [renderFailed, setRenderFailed] = useState(false);
-  // Typing stays responsive on a long post; the preview catches up.
   const deferredBody = useDeferredValue(post.body);
   const previewHtml = useMemo(() => render?.(deferredBody) ?? "", [render, deferredBody]);
   const showsPreview = view !== "write";
@@ -116,9 +114,6 @@ export default function PostEditor({ initial }: { initial: Post }) {
     }
   }
 
-  // The fields join the form by id rather than sitting inside it, so the
-  // preview is not a descendant: HTML parsed into a <form> joins it, and a
-  // <button> pasted into a post would save, and so commit, when clicked there.
   return (
     <>
       <form
@@ -233,7 +228,6 @@ export default function PostEditor({ initial }: { initial: Post }) {
             </fieldset>
           </div>
 
-          {/* Split puts the panes side by side when there is room, stacked otherwise. */}
           <div className={cn("grid gap-4", view === "split" && "min-[1021px]:grid-cols-2")}>
             <textarea
               id="pe-body"
@@ -269,10 +263,7 @@ export default function PostEditor({ initial }: { initial: Post }) {
                   ) : render ? (
                     <div
                       className="prose max-w-[68ch]"
-                      // The owner's own Markdown, raw HTML included as the build
-                      // does, through DOMPurify first (renderSafePreview) and the
-                      // route's hashed script-src second.
-                      // biome-ignore lint/security/noDangerouslySetInnerHtml: see above
+                      // biome-ignore lint/security/noDangerouslySetInnerHtml: previewHtml comes from renderSafePreview (DOMPurify)
                       dangerouslySetInnerHTML={{ __html: previewHtml }}
                     />
                   ) : (

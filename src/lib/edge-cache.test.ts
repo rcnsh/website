@@ -5,7 +5,6 @@ import { createEdgeCache, type EdgeCache } from "./edge-cache.ts";
 const URL_ = "https://rcn.sh/api/thing?q=x";
 const POLICY = "public, max-age=60";
 
-/** One colo's caches over Maps, storing what a real cache would: an immutable copy. */
 function harness() {
   const stores = new Map<string, Map<string, Response>>();
   const background: Promise<unknown>[] = [];
@@ -17,7 +16,6 @@ function harness() {
       async match(key) {
         const stored = entries.get(key.url);
         if (!stored) return undefined;
-        // What the Cache API hands back: headers that throw when written.
         const hit = stored.clone();
         Object.defineProperty(hit, "headers", { value: new Headers(stored.headers) });
         for (const method of ["set", "append", "delete"] as const) {

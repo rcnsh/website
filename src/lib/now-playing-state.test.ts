@@ -8,13 +8,11 @@ import { WarehouseShapeError } from "./warehouse-client.ts";
 
 const ORIGIN = "https://rcn.sh";
 
-// The payload carries what the widget shows; the track id stays server-side.
 const shown = { title: "Song", artists: "Band", album: "LP", image: null, url: "https://open.spotify.com/track/x" };
 const track = { ...shown, trackId: "x" };
 const playing = { isPlaying: true as const, ...track, progressMs: 60_000, durationMs: 200_000 };
 const recent: RecentTrack = { ...track, durationMs: 200_000, playedAt: "2026-10-30T10:00:00.000Z" };
 
-/** A colo cache over a Map, a clock the test moves, and recorded timers. */
 function harness(reads: Partial<NowPlayingReads> = {}) {
   let clock = 1_000_000;
   const entries = new Map<string, Response>();
@@ -66,7 +64,6 @@ function harness(reads: Partial<NowPlayingReads> = {}) {
     advance(ms: number) {
       clock += ms;
     },
-    /** Fires the pending timers, moving the clock past them first. */
     async elapse() {
       for (const { ms, wake } of sleeps.splice(0)) {
         clock += ms;
@@ -74,7 +71,6 @@ function harness(reads: Partial<NowPlayingReads> = {}) {
       }
       await Promise.all(background.splice(0));
     },
-    /** One request, with its cache write finished; earlier timers stay pending. */
     async get() {
       const before = background.length;
       const response = await state.respond(ORIGIN);
@@ -156,7 +152,6 @@ describe("now-playing invalidateAfterPlay", () => {
     assert.equal(h.entries.size, 0);
     assert.equal(h.deletes.length, 1);
 
-    // A poll inside the settle window caches what Spotify still reports.
     await h.get();
     assert.equal(h.entries.size, 1);
     assert.deepEqual(h.sleeps.map((s) => s.ms), [PLAY_SETTLE_MS]);

@@ -3,8 +3,6 @@
   import { hasOwnerHint } from "@/lib/owner-hint";
   import { isTrackId, PLAY_SELECTOR, PLAY_STATE_ATTR, PLAY_TITLE, PLAY_TRACK_ATTR } from "@/lib/track-play";
 
-  // Marks the document so the owner's play buttons show (global.css), and
-  // plays from any of them, islands and live widgets included.
   if (hasOwnerHint()) {
     document.documentElement.dataset.owner = "";
     document.addEventListener("click", async (event) => {

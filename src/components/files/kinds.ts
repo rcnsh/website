@@ -1,10 +1,5 @@
 import type { FileKind } from "@/lib/files-nav";
 
-/**
- * One colour per kind of file, shared by the usage bar and the browser's
- * icons so the two read as one key. Decoration on top of a label, never the
- * only signal.
- */
 export const KIND_COLOUR: Record<FileKind, string> = {
   image: "#5fb98a",
   video: "#b58ce6",
@@ -16,7 +11,6 @@ export const KIND_COLOUR: Record<FileKind, string> = {
   file: "var(--color-line-strong)",
 };
 
-/** Hidden folders' share of the bar for visitors: grey, striped so it never reads as a kind. */
 export const PRIVATE_COLOUR =
   "repeating-linear-gradient(135deg, var(--color-line-strong) 0 3px, var(--color-line) 3px 6px)";
 

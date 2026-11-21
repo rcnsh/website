@@ -7,8 +7,6 @@ import { invalidate } from "@/lib/guestbook";
 
 export const prerender = false;
 
-// POST-only, same as logout; the explicit origin check covers what
-// `security.checkOrigin` exempts — see lib/csrf.
 export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
   if (!sameOrigin(request, url.origin)) return forbidden();
 
@@ -24,7 +22,6 @@ export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
 
   const db = getDb();
 
-  // Scoped to the signer's own githubId, not the row id alone.
   const [removed] = await db
     .delete(schema.guestbook)
     .where(
@@ -35,9 +32,6 @@ export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
     )
     .returning({ id: schema.guestbook.id, createdAt: schema.guestbook.createdAt });
 
-  // Conditional: a delete that removed nothing cannot have made anything
-  // stale, and invalidating unconditionally would let a signed-in caller drop
-  // the two keys guarding getStats()'s full scan as fast as they like.
   if (removed) {
     await invalidate(url.origin, {
       createdAt: Math.floor(removed.createdAt.getTime() / 1000),
@@ -48,6 +42,4 @@ export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
   return redirect("/guestbook", 302);
 };
 
-// Where the router lands a refused post (a 429 or 403 is not HTML, so it
-// retries the action as a GET).
 export const GET: APIRoute = ({ redirect }) => redirect("/guestbook", 302);

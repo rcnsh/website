@@ -4,10 +4,8 @@ import { rulesLoader, type Visibility, type VisibilityRules } from "../../shared
 
 const rules = rulesLoader(() => getDb().select().from(schema.fileVisibility));
 
-/** The folder rules from D1, memoised per isolate. Throws when D1 cannot be read. */
 export const loadRules: () => Promise<VisibilityRules> = rules.load;
 
-/** Sets a folder's own visibility, or clears it (null) so it inherits again. */
 export async function setRule(prefix: string, visibility: Visibility | null): Promise<void> {
   const db = getDb();
   if (visibility === null) {

@@ -1,10 +1,6 @@
 import { sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-/**
- * One row per message, keyed to a GitHub user id — it survives a rename.
- * Append-only and not unique per signer; `canPostAt` is what bounds the list.
- */
 export const guestbook = sqliteTable(
   "guestbook",
   {
@@ -14,10 +10,6 @@ export const guestbook = sqliteTable(
     displayName: text("display_name"),
     avatarUrl: text("avatar_url"),
     message: text("message").notNull(),
-    /**
-     * ISO 3166-1 alpha-2, from `request.cf.country`. Nullable: imported rows
-     * predate it, Workers sometimes omits it, and Tor reports `T1`.
-     */
     country: text("country"),
     createdAt: integer("created_at", { mode: "timestamp" })
       .notNull()
@@ -25,10 +17,7 @@ export const guestbook = sqliteTable(
   },
   (table) => [
     index("guestbook_created_at_idx").on(table.createdAt),
-    // Covers the rate-limit lookup: newest message for one signer.
     index("guestbook_github_id_created_at_idx").on(table.githubId, table.createdAt),
-    // Lets getStats()'s GROUP BY run covering instead of SCAN + temp b-tree,
-    // which D1 bills at 2x the row count. See migrations/0005.
     index("guestbook_country_idx").on(table.country),
   ],
 );
@@ -46,13 +35,7 @@ export const sessions = sqliteTable(
   (table) => [index("sessions_expires_at_idx").on(table.expiresAt)],
 );
 
-/**
- * A folder's own visibility in the file bucket; folders without a row inherit
- * (shared/visibility.ts). The upload.rcn.sh Worker reads this table too, by
- * raw SQL, so renaming a column breaks it as well.
- */
 export const fileVisibility = sqliteTable("file_visibility", {
-  /** "" for the bucket root, otherwise a folder prefix ending in "/". */
   prefix: text("prefix").primaryKey(),
   visibility: text("visibility", { enum: ["listed", "unlisted", "private"] }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" })

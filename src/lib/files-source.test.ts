@@ -19,7 +19,6 @@ const RULES = { "": "listed", "secret/": "private" } as const;
 
 type Route = (url: string, init?: RequestInit) => Response | Promise<Response>;
 
-/** A fetch that answers by path and records every call. */
 function fakeFetch(routes: Record<string, Route>) {
   const calls: string[] = [];
   const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {

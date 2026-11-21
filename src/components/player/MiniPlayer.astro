@@ -1,7 +1,4 @@
 ---
-// The floating player: what is playing, while no /files preview of it is on
-// screen. `transition:persist` keeps this node, and the media element inside
-// it, through every soft navigation. src/lib/player.ts owns the playback.
 ---
 
 <aside
@@ -47,7 +44,6 @@
     position: fixed;
     left: 0;
     top: 0;
-    /* Under the command palette (z-100), over the sticky header (z-50). */
     z-index: 90;
     width: min(320px, calc(100vw - 32px));
     display: flex;
@@ -168,11 +164,7 @@
   import { formatClock } from "@/lib/clock";
   import type { PlayerTrack } from "@/lib/player-state";
 
-  // Runs once per document: the box is persisted, so a soft navigation keeps
-  // both it and this script's bindings.
-
   const CORNER_KEY = "rcn:player-corner";
-  /** Under this, a press is a tap (play/pause on the video), not a drag. */
   const DRAG_THRESHOLD_PX = 4;
   const EDGE_PX = 16;
 
@@ -238,7 +230,6 @@
         return;
       }
 
-      // Only the clock and seek bar move at every timeupdate.
       if (track !== drawnTrack || paused !== drawnPaused || failed !== drawnFailed) {
         drawnTrack = track;
         drawnPaused = paused;
@@ -267,7 +258,6 @@
       }
     };
 
-    // The element goes in a shadow root; src/lib/player.ts says why.
     startPlayer(stage.attachShadow({ mode: "open" }));
     subscribe(render);
     render();
@@ -289,8 +279,6 @@
     seekBar.addEventListener("change", () => {
       scrubbing = false;
     });
-
-    /* ---- Dragging ---- */
 
     root.addEventListener("pointerdown", (event) => {
       const target = event.target as Element;
@@ -347,7 +335,6 @@
       const stored = localStorage.getItem(CORNER_KEY);
       if (isCorner(stored)) return stored;
     } catch {
-      // Storage walled off.
     }
     return "bottom-right";
   }
@@ -356,7 +343,6 @@
     try {
       localStorage.setItem(CORNER_KEY, corner);
     } catch {
-      // Storage walled off: the corner lasts this document.
     }
   }
 </script>

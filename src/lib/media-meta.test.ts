@@ -8,7 +8,6 @@ import {
   type ReadStats,
 } from "./media-meta.ts";
 
-/** A mono 16-bit PCM WAV of `seconds` of silence, built by hand. */
 function wav(seconds: number, sampleRate = 8000): Uint8Array {
   const dataBytes = seconds * sampleRate * 2;
   const bytes = new Uint8Array(44 + dataBytes);
@@ -21,8 +20,8 @@ function wav(seconds: number, sampleRate = 8000): Uint8Array {
   ascii(8, "WAVE");
   ascii(12, "fmt ");
   view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, 1, true); // mono
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
   view.setUint32(24, sampleRate, true);
   view.setUint32(28, sampleRate * 2, true);
   view.setUint16(32, 2, true);
@@ -34,7 +33,6 @@ function wav(seconds: number, sampleRate = 8000): Uint8Array {
 
 type Call = { key: string; offset: number; length: number };
 
-/** R2's ranged `get`, over an in-memory object, recording every call. */
 function fakeBucket(objects: Record<string, Uint8Array>) {
   const calls: Call[] = [];
   const bucket: RangeBucket = {
@@ -99,8 +97,6 @@ describe("the R2 range-read adapter", () => {
     );
   });
 
-  // The rule behind "loaders must throw": anything that looks like a result
-  // gets cached for the life of the entry.
   test("a failing bucket rejects instead of resolving to unsupported", async () => {
     const bucket: RangeBucket = {
       get: async () => {

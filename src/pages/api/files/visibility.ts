@@ -8,12 +8,7 @@ import { isVisibility } from "../../../../shared/visibility.ts";
 
 export const prerender = false;
 
-/**
- * For the owner: every folder's own setting, and the whole bucket tree the
- * public island leaves out. Anyone else learns only `{ owner: false }`.
- */
 export const GET: APIRoute = async ({ request, url, cookies, locals }) => {
-  // Refusing drops a stale hint, so it costs the page a single held load.
   const refused = await requireOwner({ request, cookies, url, locals }, { refuse: "visitor" });
   if (refused) return refused;
 
@@ -26,10 +21,6 @@ export const GET: APIRoute = async ({ request, url, cookies, locals }) => {
   }
 };
 
-/**
- * Sets one folder's visibility: `{ prefix, visibility }`, where a null
- * visibility removes the folder's own setting so it inherits again.
- */
 export const POST: APIRoute = async ({ request, cookies, url, locals }) => {
   const refused = await requireOwner({ request, cookies, url, locals }, { refuse: "forbidden", sameOrigin: true });
   if (refused) return refused;

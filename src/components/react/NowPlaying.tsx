@@ -6,38 +6,24 @@ import { liveUpdates, onPrefChange } from "@/lib/prefs";
 import { cn, formatDuration, relativeTime } from "@/lib/utils";
 import "@/components/music/now-playing.css";
 
-// The bar is interpolated locally between polls, so the cadence only decides
-// how fast a *track change* is noticed — and the end of a track is handled
-// directly below.
 const POLL_MS = 30_000;
 
-// A poll must not outlive its own interval, or requests stack.
 const REQUEST_TIMEOUT_MS = 8_000;
 
-// A frozen bar under a "Now playing" label is a worse lie than saying nothing.
 const STALE_AFTER_FAILURES = 3;
 
 export default function NowPlaying({
   layout = "home",
 }: {
-  // "home" is the home page tile's body; "page" the music page's larger one.
-  // Either way this renders the whole inside of a tile, head row included.
   layout?: "home" | "page";
 }) {
   const [data, setData] = useState<Payload | null>(null);
-  // Interpolated between polls so the bar moves every second, not every 20.
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
-  // A channel between two effects, not something the render reads.
   const refreshRef = useRef<(() => void) | null>(null);
-  // Keyed, not a boolean: Spotify briefly keeps reporting the finished track,
-  // and a boolean reset per payload would re-fire every second.
   const endRequestedRef = useRef<{ key: string; at: number; tries: number } | null>(null);
-  // Consecutive failed polls. Reset by any success.
   const [failures, setFailures] = useState(0);
 
-  // Read lazily so someone who turned it off never gets the mount poll.
-  // lib/prefs answers `true` on the server, so hydration matches the markup.
   const [live, setLive] = useState(liveUpdates);
 
   useEffect(() => {
@@ -53,7 +39,6 @@ export default function NowPlaying({
     let inFlight: AbortController | undefined;
 
     const load = async () => {
-      // Two open requests can land out of order, and the bar jumps backwards.
       inFlight?.abort();
       const controller = new AbortController();
       inFlight = controller;
@@ -64,7 +49,6 @@ export default function NowPlaying({
       ]);
 
       try {
-        // no-store: the browser's copy would carry an un-advanced progressMs.
         const response = await fetch("/api/spotify/now-playing", {
           signal,
           cache: "no-store",
@@ -80,21 +64,17 @@ export default function NowPlaying({
           setProgress(json.progressMs);
         }
       } catch {
-        // A cancelled request is not a failure — it is us, replacing it.
         if (!alive || controller.signal.aborted) return;
         setFailures((n) => n + 1);
         setData((prev) => prev ?? { state: "error" });
       }
     };
 
-    // Re-armed from the end of each attempt, not on a fixed interval, so a
-    // poll can never be scheduled while the previous one is still open.
     const cycle = async () => {
       await load();
       if (alive && live && !document.hidden) timer = setTimeout(cycle, POLL_MS);
     };
 
-    // One request either way; the switch buys everything after it.
     if (!live) {
       void load();
       return () => {
@@ -105,8 +85,6 @@ export default function NowPlaying({
 
     void cycle();
 
-    // Cancel what was queued, so an immediate refresh does not also leave the
-    // old timer to fire seconds later.
     const restart = () => {
       if (timer) clearTimeout(timer);
       void cycle();
@@ -114,7 +92,6 @@ export default function NowPlaying({
 
     refreshRef.current = restart;
 
-    // Nothing polls while the tab is hidden; re-sync as soon as it is seen.
     const onVisible = () => {
       if (document.visibilityState === "visible") {
         restart();
@@ -126,9 +103,6 @@ export default function NowPlaying({
     };
     document.addEventListener("visibilitychange", onVisible);
 
-    // The owner started a track from the site (PlayOnSpotify). Asked once the
-    // server has fetched Spotify's new answer, not sooner, or the poll would
-    // only get the old track back.
     const onPlayed = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(restart, PLAYED_REFRESH_MS);
@@ -146,15 +120,10 @@ export default function NowPlaying({
   }, [live]);
 
   useEffect(() => {
-    // Interpolating forward on a reading that is no longer being refreshed is
-    // inventing progress.
     if (!live || data?.state !== "playing" || failures >= STALE_AFTER_FAILURES) return;
 
-    // Identity, not object equality: every poll makes a new payload. A track
-    // repeated back to back is picked up by the ordinary poll instead.
     const trackKey = `${data.title}|${data.durationMs}`;
 
-    // Wall-clock, not +1000 a tick: a throttled timer would otherwise lag.
     let last = performance.now();
     let tick: ReturnType<typeof setInterval> | undefined;
 
@@ -164,8 +133,6 @@ export default function NowPlaying({
       last = now;
       setProgress(progressRef.current);
 
-      // The one case where the poll cadence would be visible, so ask now, and
-      // keep asking briefly while the finished track is still being reported.
       if (progressRef.current < data.durationMs) return;
       const asked = endRequestedRef.current;
       const fresh = asked?.key !== trackKey;
@@ -201,10 +168,8 @@ export default function NowPlaying({
     };
   }, [data, live, failures]);
 
-  // The lattice field redraws whatever cover this card is showing.
   const cover = data && "image" in data ? data.image : null;
   const coverLabel = data && "title" in data ? `${data.title}, ${data.artists}` : "";
-  // As the card says: a dead endpoint's last track is not playing now.
   const coverLive = data?.state === "playing" && failures < STALE_AFTER_FAILURES;
   useEffect(() => {
     if (!data) return;
@@ -212,9 +177,6 @@ export default function NowPlaying({
   }, [data, cover, coverLabel, coverLive]);
 
   if (!data) {
-    // Each bar sits in a line with the loaded line's own type classes, so the
-    // line heights match and real data doesn't move anything (one-line title,
-    // the commoner case).
     const size = SIZES[layout];
     return (
       <Frame layout={layout} label={layout === "page" ? "Right now" : "Now playing"}>
@@ -265,8 +227,6 @@ export default function NowPlaying({
     );
   }
 
-  // Keeps the last good track — still the best thing known — but stops
-  // asserting it is current, so a dead endpoint cannot read as a paused one.
   const disconnected = failures >= STALE_AFTER_FAILURES;
   const playing = data.state === "playing" && !disconnected;
   const pct = playing ? Math.min((progress / Math.max(data.durationMs, 1)) * 100, 100) : 0;
@@ -313,8 +273,6 @@ export default function NowPlaying({
             <p className={cn("truncate font-mono text-ink-faint", size.album)}>{data.album}</p>
           )}
 
-          {/* Always present so "playing" and "recently played" are the same
-              height — progress when playing, when it was played otherwise. */}
           <div className={cn("flex h-4 items-center gap-2.5", size.slot)}>
             {playing ? (
               <>
@@ -330,7 +288,6 @@ export default function NowPlaying({
                   aria-valuetext={`${formatDuration(progress)} of ${formatDuration(data.durationMs)}`}
                   className="h-0.5 flex-1 overflow-hidden rounded-full bg-line-soft"
                 >
-                  {/* Keyed so a new track remounts at its start rather than sweeping back. */}
                   <div
                     key={`${data.title}|${data.durationMs}`}
                     className="bg-brand-gradient h-full origin-left transition-transform duration-1000 ease-linear"
@@ -376,7 +333,6 @@ const SIZES = {
 
 type Layout = keyof typeof SIZES;
 
-/** The tile's head row and a column that fills whatever height the tile has. */
 function Frame({
   layout,
   label,
@@ -394,9 +350,6 @@ function Frame({
 }) {
   return (
     <div className="flex h-full flex-1 flex-col">
-      {/* The page's "Open in Spotify" comes and goes with the track, so its
-          row always holds the link's height (a line of 11px plus rule-link's
-          padding); home's "Music →" is always there. */}
       <div
         className={cn(
           "mb-4 flex items-center gap-2.5",
@@ -474,10 +427,6 @@ function LiveLine({ live, trouble }: { live: boolean; trouble: boolean }) {
   );
 }
 
-/**
- * Cross-fades between covers. The outgoing frame stays mounted underneath so
- * the tile never flashes empty; the first frame does not animate.
- */
 function Artwork({
   image,
   title,
@@ -488,8 +437,6 @@ function Artwork({
   className: string;
 }) {
   const id = image ?? title;
-  // Either [current], or [outgoing, incoming] while a fade is in flight. The
-  // first cover keeps the skeleton's pulse until it has loaded.
   const [frames, setFrames] = useState([{ id, image, ready: !image }]);
 
   useEffect(() => {
@@ -501,13 +448,11 @@ function Artwork({
     });
   }, [id, image]);
 
-  // The fade waits for the cover to load, or it would fade in nothing.
   const ready = (frameId: string) =>
     setFrames((prev) =>
       prev.map((frame) => (frame.id === frameId ? { ...frame, ready: true } : frame)),
     );
 
-  // Drop the outgoing layer once the incoming one has finished arriving.
   const settle = () =>
     setFrames((prev) => (prev.length > 1 ? prev.slice(-1) : prev));
 
@@ -546,7 +491,6 @@ function Artwork({
           )}
         </div>
       ))}
-      {/* A hairline inside the cover's edge, so a dark sleeve still has one. */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-card shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]" />
     </div>
   );

@@ -1,22 +1,10 @@
 import { z } from "zod";
 import { warehouse } from "./warehouse";
 
-/**
- * Aggregate listening stats for /music/stats, from the warehouse's
- * /api/stats/* routes. Those hold only counts, shares, names and months — no
- * play rows — and are themselves snapshotted for hours, so these KV windows
- * mostly keep warehouse round trips off the island's critical path.
- *
- * Schemas describe the fields rendered, and a mismatch throws, so a shape
- * change never gets cached as an empty page (CLAUDE.md § Maintenance › Data).
- */
-
 const share = z.number().min(0).max(1);
 const month = z.string().regex(/^\d{4}-\d{2}$/);
 
 const streakSchema = z.object({
-  // Null while the streak is still running: the warehouse gives those in
-  // whole weeks only.
   days: z.number().int().nullable(),
   weeks: z.number().int(),
   from: month,
@@ -48,7 +36,6 @@ const rhythmSchema = z.object({
   range: z.object({ from: month, to: month }),
   streaks: z.array(streakSetSchema),
   eras: z.array(eraRhythmSchema),
-  // Every figure above again, per local calendar year, for the page's year switch.
   years: z.array(
     z.object({
       year: z.string(),
@@ -109,7 +96,6 @@ const periodSchema = z.object({
   artists: z.array(z.object({ name: z.string(), plays: z.number().int(), share })),
   tracks: z.array(
     z.object({
-      // The song's most-played edition in the period.
       track_id: z.string().nullish(),
       name: z.string(),
       artist: z.string(),
@@ -173,9 +159,6 @@ const load = <T>(name: string, schema: z.ZodType<T>, freshForSeconds: number, ma
 const HOUR = 60 * 60;
 const DAY = 24 * HOUR;
 
-// Fresh for half the warehouse's own snapshot window or less, so a refresh
-// there shows up here within the same window. Stale is capped where old data
-// reads as wrong: "on repeat" a week late is a different list.
 export const getRhythm = () => load("rhythm", rhythmSchema, HOUR, 14 * DAY);
 export const getOnRepeat = () => load("on-repeat", repeatSchema, 30 * 60, DAY);
 export const getTopAlbums = () => load("albums", albumsSchema, 6 * HOUR, 14 * DAY);

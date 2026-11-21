@@ -1,6 +1,3 @@
-// The /files browser's keyboard model, as a pure mapping from a key press to
-// an action. The component decides whether the press is its to take at all.
-
 export type KeyAction =
   | { type: "move"; by: number }
   | { type: "first" }
@@ -24,15 +21,9 @@ export type KeyPress = {
 
 export type KeyContext = {
   view: "list" | "grid";
-  /** Cards per row in the grid, so j/k move a whole row. */
   columns: number;
 };
 
-/**
- * The action for a key press, or null to leave it alone. Modified presses are
- * never taken: ⌘K belongs to the palette, and the browser's own shortcuts stay
- * the browser's.
- */
 export function keyAction(press: KeyPress, context: KeyContext): KeyAction | null {
   if (press.metaKey || press.ctrlKey || press.altKey) return null;
   const grid = context.view === "grid";
@@ -80,7 +71,6 @@ export function keyAction(press: KeyPress, context: KeyContext): KeyAction | nul
   }
 }
 
-/** A selection index kept inside a list of `length`, or -1 when it is empty. */
 export function clampIndex(index: number, length: number): number {
   if (length <= 0) return -1;
   return Math.max(0, Math.min(length - 1, index));

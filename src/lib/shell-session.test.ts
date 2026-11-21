@@ -8,7 +8,6 @@ const root = dir("", [
   dir("blog", [file("first.md", "one", "/blog/first"), file("fun.md", "two")], "/blog"),
 ]);
 
-/** Everything written, with colour sequences and cursor moves removed. */
 const plain = (data: string) =>
   // biome-ignore lint/suspicious/noControlCharactersInRegex: matching escape sequences is the point.
   data.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").replace(/\r/g, "");

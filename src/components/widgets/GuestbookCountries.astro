@@ -3,9 +3,6 @@ import { getStats } from "@/lib/guestbook";
 import { rankCountries } from "@/lib/country-ranking";
 import { WORLD_SHAPES } from "@/lib/world";
 
-// Server island, never cached (`islandPolicy` in lib/http): it agrees with
-// the totals beside it on the page a post redirects to. The map may lag by
-// its 60s; it is the same counts, but a heavy fragment.
 let ranking: ReturnType<typeof rankCountries> = { top: [], rest: [] };
 let unplaced = 0;
 let failed = false;
@@ -66,8 +63,6 @@ const nameOf = (code: string) => countryNames.get(code) ?? code;
     </p>
   )
 }
-{/* getStats() folds small countries into `unplaced`; say why, since the
-    map's caption counts them as having no location. */}
 {
   unplaced > 0 && (
     <p class="mt-auto pt-5 text-[0.75rem] leading-[1.55] text-ink-faint">

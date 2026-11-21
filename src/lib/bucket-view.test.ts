@@ -21,7 +21,6 @@ const RULES: VisibilityRules = {
   "ShareX/": "private",
 };
 
-/** R2's list over a fixed set of keys, delimiter included, in one page. */
 function fakeList(keys: string[]): BucketDeps["list"] {
   return async ({ prefix = "", delimiter }) => {
     const objects: BucketPage["objects"] = [];
@@ -44,7 +43,6 @@ function bucket({
   rules = async () => RULES,
   inline = true,
 }: { keys?: string[]; rules?: BucketDeps["rules"]; inline?: boolean } = {}) {
-  // `inline: false` stands in for a bucket past the tree cap.
   return createBucket({
     list: fakeList(keys),
     cacheTree: async (load): Promise<R2Tree | null> => (inline ? load() : null),

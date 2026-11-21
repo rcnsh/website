@@ -3,15 +3,11 @@ import { getContributions } from "@/lib/github";
 import { summarise } from "@/lib/contrib-summary";
 
 interface Props {
-  /** Render the island's own fallback: the same grid, with nothing in it yet. */
   pending?: boolean;
 }
 
 const { pending = false } = Astro.props;
 
-// A server island, so a slow GitHub response never blocks the page. The loader
-// throws, so `data === null` means one thing — no GITHUB_TOKEN — and `failed`
-// means the request itself did not work.
 let data: Awaited<ReturnType<typeof getContributions>> = null;
 let failed = false;
 if (!pending) {
@@ -25,7 +21,6 @@ if (!pending) {
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-// Month labels sit above the first week that starts a new month.
 const monthStarts: { index: number; label: string }[] = [];
 if (data) {
   let previous = -1;
@@ -40,9 +35,6 @@ if (data) {
   });
 }
 
-// The year starts mid-month, so the leading month may own one column and its
-// label would run into the next. Three columns clear a three-letter label at
-// the narrowest a column gets.
 const monthLabels = monthStarts.filter((start, position) => {
   const next = monthStarts[position + 1];
   return !next || next.index - start.index >= 3;
@@ -51,8 +43,6 @@ const monthLabels = monthStarts.filter((start, position) => {
 const summary = data ? summarise(data.weeks) : null;
 const DAY = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 const weekCount = data?.weeks.length ?? 53;
-// The skeleton draws a year of empty days, since the cells are square and
-// their size follows the column's width.
 const weeks = data?.weeks ?? (pending ? Array.from({ length: weekCount }, () => []) : []);
 const facts = [
   { label: "contributions", value: data && data.total.toLocaleString("en-GB") },
@@ -87,12 +77,10 @@ const facts = [
             pending && "animate-[pulse-dim_1.8s_ease-in-out_infinite]",
           ]}
         >
-          {/* Columns stretch to the column and stop shrinking at 8px, where the scroller takes over. */}
           <div
             class="grid min-w-full gap-[3px]"
             style={`grid-template-columns: 22px repeat(${weekCount}, minmax(8px, 1fr))`}
           >
-            {/* Holds the month row's height when no month is labelled yet. */}
             <span class="h-3" />
             {monthLabels.map(({ index, label }) => (
               <span
@@ -110,8 +98,6 @@ const facts = [
             </div>
 
             {weeks.map((week, weekIndex) => {
-              // Placed by weekday, not position, so a short week at either
-              // end still lines up with the Mon/Wed/Fri labels.
               const byWeekday = new Map(
                 week.map((day) => [new Date(day.date).getUTCDay(), day]),
               );
@@ -179,8 +165,6 @@ const facts = [
     background: var(--color-brand);
   }
 
-  /* Each day is a triangle, alternating like the lattice the field behind
-     the page is drawn on: the same five levels, the same grid. */
   [data-point="up"] {
     clip-path: polygon(50% 0, 100% 100%, 0 100%);
   }
@@ -188,7 +172,6 @@ const facts = [
     clip-path: polygon(0 0, 100% 0, 50% 100%);
   }
 
-  /* A clip-path would cut an outline off, so the day lights up instead. */
   [data-contrib-day]:hover {
     background: var(--color-ink);
   }
@@ -198,12 +181,6 @@ const facts = [
   import { edgeFade } from "@/lib/edge-fade";
   import { onPage } from "@/lib/page-lifecycle";
 
-  // The graph is wider than the scroller on phones with the scrollbar
-  // suppressed, so fade whichever edge is cutting content off and start
-  // scrolled to the recent end. `edgeFade` holds that decision so it can be
-  // unit-tested — see CLAUDE.md § Maintenance › Gotchas.
-  //
-  // Island markup arrives after this script has run, hence the observer below.
   function initScroller(scroller: HTMLElement, signal: AbortSignal) {
     if (scroller.hasAttribute("data-contrib-ready")) return;
     scroller.setAttribute("data-contrib-ready", "");
@@ -219,15 +196,12 @@ const facts = [
     };
 
     const overflow = scroller.scrollWidth - scroller.clientWidth;
-    // `instant`: not motion a reader has to sit through.
     if (overflow > 0) scroller.scrollTo({ left: overflow, behavior: "instant" });
 
     sync();
     scroller.addEventListener("scroll", sync, { passive: true });
     window.addEventListener("resize", sync, { passive: true, signal });
 
-    // The footer echoes the hovered day; the title attribute covers touch and
-    // assistive tech, so this is pointer-only.
     const tip = scroller.parentElement?.querySelector<HTMLElement>("[data-contrib-tip]");
     if (tip) {
       const resting = tip.textContent;
@@ -249,9 +223,7 @@ const facts = [
 
   onPage((signal) => {
     if (setupContributions(signal)) return;
-    // Not this page's widget, or not one still on its way.
     if (!document.querySelector("[data-contrib-pending]")) return;
-    // Disconnects as soon as the island lands, so this is not a standing cost.
     const observer = new MutationObserver(() => {
       if (setupContributions(signal)) observer.disconnect();
     });

@@ -9,8 +9,6 @@ const page = pages.notFound;
 const posts = (await getPosts()).length;
 const things = uses.groups.reduce((sum, group) => sum + group.items.length, 0);
 
-// The second line of each page tile: a real figure where one is free at
-// build time, otherwise where it lives.
 const subtitles: Record<string, string> = {
   "/": site.name,
   "/blog": `${posts} post${posts === 1 ? "" : "s"}`,
@@ -20,8 +18,6 @@ const subtitles: Record<string, string> = {
 
 <Layout title="404" description={page.description}>
   <div class="bento pb-6 min-[1021px]:min-h-[55vh] min-[1021px]:content-center">
-    {/* The field spells the status out in triangles; the label covers a
-        browser with no WebGL. */}
     <section
       data-lattice="text:404"
       class="tile page-hero col-span-12 min-h-[420px] px-9 py-8 max-sm:min-h-[340px] max-sm:px-[22px] max-sm:py-[26px] min-[1021px]:col-span-6 min-[1021px]:row-span-3"
@@ -129,7 +125,6 @@ const subtitles: Record<string, string> = {
 <script>
   import { onPage } from "@/lib/page-lifecycle";
 
-  // Prerendered, so only the browser knows what was asked for.
   onPage(() => {
     const line = document.querySelector<HTMLElement>("[data-nf-path]");
     const path = line?.querySelector("code");
@@ -138,7 +133,6 @@ const subtitles: Record<string, string> = {
     try {
       shown = decodeURIComponent(shown);
     } catch {
-      // Malformed escapes: show the path as requested.
     }
     path.textContent = shown;
     line.hidden = false;

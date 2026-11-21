@@ -1,16 +1,9 @@
 ---
-/**
- * One entry in the home page's ledger: a numbered gutter holding the heading
- * and its corner link, and the content beside it. On a phone, and on a wide
- * screen where entries pair up (`col`), the gutter folds into one row above
- * the content.
- */
 interface Props {
   n: number;
   label: string;
   id: string;
   link?: { href: string; text: string; external?: boolean };
-  /** Which half of a pair this is from 1280px up; unset spans the row. */
   col?: "start" | "end";
 }
 
@@ -52,9 +45,6 @@ const { n, label, id, link, col } = Astro.props;
     border-top: 1px solid var(--color-line-soft);
   }
 
-  /* The first row hangs from the full rule (its pair too, from 1280px), and
-     its first entry from the mark's slanted tab, the way a tile does; the
-     rest are divided by the soft one. */
   .ledger-section:first-child {
     border-top-color: var(--color-line);
   }
@@ -85,15 +75,11 @@ const { n, label, id, link, col } = Astro.props;
       align-items: baseline;
       gap: 0.75rem;
     }
-    /* Its padding is the underline's room; kept out of the row's height so
-       the heading sits level with a neighbour's that has no link. */
     .ledger-link {
       margin: -0.3rem 0 -0.3rem auto;
     }
   }
 
-  /* Paired so the ledger fits a screen under the header: scrolled to the
-     bottom, the hero's rule meets the header's (see index.astro). */
   @media (min-width: 1280px) {
     .ledger-section {
       grid-column: 1 / -1;

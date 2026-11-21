@@ -7,11 +7,6 @@ import { bucketTotals } from "@/lib/bucket-totals";
 import { kindTotals } from "@/lib/files-nav";
 import { publicBucketBase } from "@/lib/r2";
 
-// Server island, and the whole page below the top bar: the title tile's
-// figures, the usage tile and the browser all come from one read of the tree.
-// It ships the whole directory tree with the page, or just the root once the
-// bucket outgrows that. Listed folders only, for everyone: the edge caches
-// this island for all readers, so the owner's full view loads client-side.
 interface Props {
   title: string;
 }
@@ -20,7 +15,6 @@ const { title } = Astro.props;
 
 let summary: PublicSummary = { tree: null, root: null, hidden: null, ownerSlots: 0 };
 try {
-  // Sizes only, never names: the bar shows visitors how much is private.
   summary = await bucket.publicSummary();
 } catch (error) {
   console.error("[files] listing failed", error);
@@ -31,7 +25,6 @@ const totals = tree ? bucketTotals(tree) : null;
 const kinds = tree ? kindTotals(tree) : null;
 ---
 
-{/* The fallback already rose in these places; see `data-risen` in global.css. */}
 <div class="bento" data-risen>
   <FilesHero title={title} totals={totals} />
   {kinds && kinds.length > 0 && <FilesUsage kinds={kinds} hidden={hidden} ownerSlots={ownerSlots} />}

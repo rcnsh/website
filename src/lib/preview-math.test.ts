@@ -83,13 +83,11 @@ describe("sprite layout", () => {
 });
 
 describe("peaks downsampler", () => {
-  /** One chunk of a constant-amplitude square wave. */
   const chunk = (frames: number, amplitude: number) =>
     Float32Array.from({ length: frames }, (_, i) => (i % 2 ? -amplitude : amplitude));
 
   test("a whole signal in one chunk lands in the right bins", () => {
     const peaks = new Float32Array(4);
-    // 4 seconds at 10 Hz: first half loud, second half quiet.
     const signal = new Float32Array(40);
     signal.set(chunk(20, 0.8), 0);
     signal.set(chunk(20, 0.2), 20);
@@ -108,7 +106,7 @@ describe("peaks downsampler", () => {
     accumulatePeaks(once, [whole], 0, sampleRate, duration);
 
     const chunked = new Float32Array(1000);
-    const size = 1152; // an MP3 frame, which does not divide a bin evenly
+    const size = 1152;
     const starts = [];
     for (let at = 0; at < whole.length; at += size) starts.push(at);
     for (const at of starts.reverse()) {

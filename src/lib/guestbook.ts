@@ -12,15 +12,8 @@ import {
 
 export { type Cursor, decodeCursor, encodeCursor } from "./guestbook-cache.ts";
 
-/**
- * Reading the guestbook. The first page is cached because D1 bills rows read
- * against a daily allowance shared with sessions.
- */
-
-/** Rows per page. Roughly two screens on a phone. */
 export const PAGE_SIZE = 25;
 
-/** One entry. `createdAt` is epoch seconds, since a Date survives neither KV nor fetch. */
 export type GuestbookEntry = {
   id: number;
   githubId: number;
@@ -33,16 +26,12 @@ export type GuestbookEntry = {
 
 export type GuestbookPage = {
   entries: GuestbookEntry[];
-  /** Where the next page starts, or null when this was the last one. */
   next: Cursor | null;
 };
 
-/** Signature totals, for the map and the heading above the list. */
 export type GuestbookStats = {
   total: number;
-  /** ISO 3166-1 alpha-2 to signature count. */
   counts: Record<string, number>;
-  /** Signatures with no usable country — imported, or Workers didn't say. */
   unplaced: number;
 };
 
@@ -58,12 +47,10 @@ function toEntry(row: typeof schema.guestbook.$inferSelect): GuestbookEntry {
   };
 }
 
-/** Reads one page straight from D1. */
 async function readPage(after: Cursor | null): Promise<GuestbookPage> {
   const db = getDb();
   const at = after ? new Date(after.createdAt * 1000) : null;
 
-  // One row over the page, so "is there another" needs no second COUNT.
   const rows = await db
     .select()
     .from(schema.guestbook)
@@ -93,22 +80,13 @@ async function readPage(after: Cursor | null): Promise<GuestbookPage> {
   };
 }
 
-/**
- * A page of entries. Only the first goes through KV — every visitor lands on
- * it, and caching deeper ones would mean a KV entry per caller-chosen cursor.
- */
 export async function getPage(after: Cursor | null = null): Promise<GuestbookPage> {
   if (after) return readPage(after);
   return cached(FIRST_PAGE_KEY, FRESH_SECONDS, () => readPage(null));
 }
 
-/**
- * Below this, a country folds into `unplaced`. The histogram is public and the
- * signer list is short, so a bucket of one identifies a named person.
- */
 const MIN_COUNTRY_COUNT = 3;
 
-/** Totals for the map and the heading, in one grouped pass. */
 export async function getStats(): Promise<GuestbookStats> {
   return cached(STATS_KEY, FRESH_SECONDS, async () => {
     const rows = await getDb()
@@ -121,7 +99,6 @@ export async function getStats(): Promise<GuestbookStats> {
 
     for (const row of rows) {
       stats.total += row.n;
-      // `T1` is Tor's placeholder; imported rows have no country. Both unplaced.
       if (row.country && row.country !== "T1" && /^[A-Z]{2}$/.test(row.country)) {
         placed[row.country] = (placed[row.country] ?? 0) + row.n;
       } else {
@@ -129,8 +106,6 @@ export async function getStats(): Promise<GuestbookStats> {
       }
     }
 
-    // Second pass, because the threshold applies to the country's whole count,
-    // not to whichever row happened to be read first.
     for (const [country, n] of Object.entries(placed)) {
       if (n >= MIN_COUNTRY_COUNT) {
         stats.counts[country] = n;
@@ -145,11 +120,6 @@ export async function getStats(): Promise<GuestbookStats> {
 
 const drop = guestbookInvalidation({ kv: invalidateCache, edge: invalidateEdge });
 
-/**
- * The cursor `/api/guestbook/list` was asked with for the page that holds
- * `entry`, or null for page 1. Rows newer than it keep their positions after
- * it is deleted, so this still answers once it is gone.
- */
 async function pageHolding(entry: Cursor): Promise<Cursor | null> {
   const db = getDb();
   const at = new Date(entry.createdAt * 1000);
@@ -176,13 +146,6 @@ async function pageHolding(entry: Cursor): Promise<Cursor | null> {
   return row ? { createdAt: Math.floor(row.createdAt.getTime() / 1000), id: row.id } : null;
 }
 
-/**
- * Drops the cached first page and totals, so a writer sees their own change on
- * the redirect, and this colo's edge copy of every page the change touched:
- * page 1 for a new entry, and the page `removed` sat on. Later pages need
- * nothing, since their cursors moved with the rows. Failures are swallowed:
- * the write is already committed.
- */
 export async function invalidate(origin: string, removed?: Cursor): Promise<void> {
   const page = removed
     ? await pageHolding(removed).catch((error) => {
@@ -193,7 +156,6 @@ export async function invalidate(origin: string, removed?: Cursor): Promise<void
   await drop(origin, page);
 }
 
-/** When this signer last posted, for the rate limit. Indexed; reads one row. */
 export async function lastPostedAt(githubId: number): Promise<Date | null> {
   const [row] = await getDb()
     .select({ createdAt: schema.guestbook.createdAt })
