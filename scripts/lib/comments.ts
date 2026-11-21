@@ -267,15 +267,18 @@ function astroRanges(source: string): Range[] {
       return;
     }
     for (const attr of node.attributes ?? []) {
-      if (attr.kind === "quoted" && attr.name) {
+      if (attr.kind === "quoted" && attr.name && /^["']/.test(attr.raw ?? "")) {
         const name = attr.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const open = new RegExp(`${name}\\s*=\\s*(["'])`, "g");
+        const open = new RegExp(`(?<![\\w:@.-])${name}\\s*=\\s*(["'])`, "gi");
         open.lastIndex = cursor;
         const found = open.exec(source);
         if (found) {
           const close = source.indexOf(found[1], found.index + found[0].length);
           if (close !== -1) cursor = close + 1;
         }
+      } else if (attr.kind === "quoted" && attr.raw) {
+        const at = source.indexOf(attr.raw, cursor);
+        if (at !== -1) cursor = at + attr.raw.length;
       }
       if (attr.kind === "expression" && attr.value) code(attr.value, true);
       if ((attr.kind === "spread" || attr.kind === "shorthand") && attr.name) code(attr.name, true);
