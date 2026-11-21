@@ -144,6 +144,7 @@ test("Astro: frontmatter with templates, regexes, JSX and dashed comments", () =
   assert.deepEqual(texts('<p class=x>a</p><!-- c --><i class="y">b</i>', "astro"), ["<!-- c -->"]);
   assert.deepEqual(texts('<p a=x>a</p><!-- c --><i data="y">b</i>', "astro"), ["<!-- c -->"]);
   assert.deepEqual(texts('<p id=x>a</p><!-- c -->\n<p>id="q"</p>', "astro"), ["<!-- c -->"]);
+  assert.deepEqual(texts("<p a=&amp;b>x</p><!-- c --><p>&a</p><!-- d -->", "astro"), ["<!-- c -->", "<!-- d -->"]);
   assert.deepEqual(texts("<p>a</p><!-- unclosed {/* c */} more", "astro"), ["<!-- unclosed {/* c */} more"]);
   assert.deepEqual(texts("<p>a</p><svg><title>x <!-- y</title></svg>", "astro"), ["<!-- y</title></svg>"]);
   assert.deepEqual(texts("<p>a</p><iframe>x <!-- y</iframe>", "astro"), []);
