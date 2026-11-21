@@ -37,6 +37,13 @@ function fakeEnv({ rows = ROWS, failRules = false } = {}) {
 const get = (env: Env, path: string, method = "GET") =>
   createHandler().fetch(new Request(`https://upload.rcn.sh${path}`, { method }), env);
 
+test("answers a path that names no key with the shared bad-request refusal", async () => {
+  const { env, reads } = fakeEnv();
+  const response = await get(env, "/%E0");
+  assert.equal(response.status, 400);
+  assert.equal(reads.length, 0);
+});
+
 test("serves a public key", async () => {
   const { env } = fakeEnv();
   const response = await get(env, "/misc/notes.txt");

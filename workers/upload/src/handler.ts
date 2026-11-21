@@ -8,7 +8,7 @@ import {
   unsatisfiable,
 } from "../../../shared/bucket-http.ts";
 import { uncachedError } from "../../../shared/cache-policy.ts";
-import { decideRead, type RuleRow, rulesLoader } from "../../../shared/visibility.ts";
+import { decideRead, REFUSALS, type RuleRow, rulesLoader } from "../../../shared/visibility.ts";
 
 export interface Env {
   BUCKET: R2Bucket;
@@ -47,7 +47,7 @@ export function createHandler() {
       }
 
       const key = keyFromPath(new URL(request.url).pathname);
-      if (!key) return text("Not found", 404, headers);
+      if (!key) return text(REFUSALS["bad-request"].message, REFUSALS["bad-request"].status, headers);
 
       rules ??= rulesLoader(async () => {
         const { results } = await env.DB.prepare("SELECT prefix, visibility FROM file_visibility").all<RuleRow>();
@@ -57,9 +57,9 @@ export function createHandler() {
       const decision = await decideRead(key, rules.load, async () => false);
       if (!decision.ok) {
         headers.set("cache-control", uncachedError);
-        if (decision.refusal !== "unavailable") return text("Not found", 404, headers);
-        console.error("[upload] rules unavailable", decision.error);
-        return text("Unavailable", 503, headers);
+        if (decision.refusal === "unavailable") console.error("[upload] rules unavailable", decision.error);
+        const refusal = REFUSALS[decision.refusal];
+        return text(refusal.message, refusal.status, headers);
       }
 
       if (request.method === "HEAD") {

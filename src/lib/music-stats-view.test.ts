@@ -15,6 +15,7 @@ import {
   percent,
   quarterLabel,
   newYears,
+  skeletonMatches,
   statsYears,
   shareBetween,
   spotifyUrl,
@@ -90,6 +91,15 @@ describe("year switch", () => {
   test("adds nothing for years already offered or values that are not years", () => {
     const offered = statsYears(new Date("2026-10-11T00:00:00Z"));
     assert.deepEqual(newYears(offered, ["all", "2024", "2026", "", "2027-Q1", "27", "2019"]), []);
+  });
+
+  test("a year newer than the build matches the skeletons built for the latest year", () => {
+    const live = ["2020", "2021", "2026"];
+    const past = ["2020", "2025"];
+    assert.equal(skeletonMatches(live, "2027", "2026"), true);
+    assert.equal(skeletonMatches(past, "2027", "2026"), false);
+    assert.equal(skeletonMatches(past, "2025", "2026"), true);
+    assert.equal(skeletonMatches(["all"], "2027", "2026"), false);
   });
 
 });

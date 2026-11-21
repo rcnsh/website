@@ -108,6 +108,11 @@ export function statsYears(now: Date): string[] {
 }
 
 
+export function skeletonMatches(list: readonly string[], chosen: string, buildLatest: string): boolean {
+  if (list.includes(chosen)) return true;
+  return /^\d{4}$/.test(chosen) && Number(chosen) > Number(buildLatest) && list.includes(buildLatest);
+}
+
 export function newYears(offered: readonly string[], rendered: Iterable<string>): string[] {
   const latest = Math.max(FIRST_STATS_YEAR - 1, ...offered.map(Number).filter(Number.isInteger));
   const found = new Set<string>();

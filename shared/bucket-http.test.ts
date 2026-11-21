@@ -31,6 +31,11 @@ test("a range starting past the end is unsatisfiable; others are not", () => {
   assert.equal(unsatisfiable(null, 10), false);
 });
 
+test("span has no range to describe for an empty object or a zero-byte suffix", () => {
+  assert.equal(span({ size: 0, range: { offset: 0 } }), null);
+  assert.equal(span({ size: 10, range: { suffix: 0 } }), null);
+});
+
 test("span reads a suffix range as the last bytes of the object", () => {
   assert.deepEqual(span({ size: 1000, range: { offset: undefined, length: undefined, suffix: 100 } }), {
     offset: 900,

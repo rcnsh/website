@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
-import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-export const PALETTE_CSS = path.join(process.cwd(), "src/styles/global.css");
+export const PALETTE_CSS = fileURLToPath(new URL("../styles/global.css", import.meta.url));
 
 export function paletteFrom<K extends string>(
   css: string,

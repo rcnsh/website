@@ -45,10 +45,11 @@ export function span(object: { size: number; range?: ByteRange }): Span | null {
   if (!range) return null;
   if (typeof range.suffix === "number") {
     const length = Math.min(range.suffix, object.size);
-    return { offset: object.size - length, length };
+    return length > 0 ? { offset: object.size - length, length } : null;
   }
   const offset = range.offset ?? 0;
-  return { offset, length: Math.min(range.length ?? object.size - offset, object.size - offset) };
+  const length = Math.min(range.length ?? object.size - offset, object.size - offset);
+  return length > 0 ? { offset, length } : null;
 }
 
 export function contentRange({ offset, length }: Span, size: number): string {

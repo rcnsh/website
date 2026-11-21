@@ -439,17 +439,19 @@ const pastYears = years.slice(0, -1).join(" ");
 
 <script>
   import { onPage } from "@/lib/page-lifecycle";
-  import { newYears } from "@/lib/music-stats-view";
+  import { newYears, skeletonMatches } from "@/lib/music-stats-view";
 
   onPage((signal) => {
     const switcher = document.querySelector<HTMLFieldSetElement>("[data-year-switch]");
     if (!switcher) return;
     const TAGGED = "[data-year], [data-col-year], [data-card-year], [data-skel-years]";
     let chosen = "all";
+    const builtYears = [...switcher.querySelectorAll<HTMLInputElement>("input")].map((input) => input.value);
+    const buildLatest = builtYears.filter((year) => /^\d{4}$/.test(year)).sort().at(-1) ?? "";
 
     const markOne = (el: HTMLElement) => {
       if (el.dataset.skelYears !== undefined) {
-        el.toggleAttribute("data-year-match", el.dataset.skelYears.split(" ").includes(chosen));
+        el.toggleAttribute("data-year-match", skeletonMatches(el.dataset.skelYears.split(" "), chosen, buildLatest));
         return;
       }
       const year = el.dataset.year ?? el.dataset.colYear ?? el.dataset.cardYear;

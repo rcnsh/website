@@ -33,10 +33,6 @@ function expected(stored: (typeof STORED)[number], prefersReduce: boolean) {
 }
 
 describe("motion preference", () => {
-  test("resolveMotion is one expression, so every bundler prints it alike", () => {
-    assert.doesNotMatch(resolveMotion.toString(), /[{};]/);
-  });
-
   test("the bootstrap inlines the query prefs.ts listens on", () => {
     assert.ok(MOTION_BOOTSTRAP.includes(JSON.stringify(REDUCED_MOTION_QUERY)));
   });

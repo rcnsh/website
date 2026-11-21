@@ -139,6 +139,7 @@ describe("edgeCached", () => {
       await h.settle();
       assert.equal(response.status, 200);
       assert.equal(response.headers.get("cache-control"), sent);
+      assert.equal(response.headers.get("vary"), "cookie");
       assert.equal(h.stores.get("things")?.size, 0);
     });
   }

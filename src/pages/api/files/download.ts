@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { contentRange, span } from "../../../../shared/bucket-http.ts";
+import { contentRange, span, unsatisfiable } from "../../../../shared/bucket-http.ts";
 import { bucket } from "@/lib/bucket";
 import { policies, privateNoStore } from "@/lib/http";
 import { requireOwner } from "@/lib/owner";
@@ -46,12 +46,21 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   if (!r2) return new Response("Bucket not configured", { status: 503 });
 
   const range = request.headers.get("range");
-  const object = await r2.get(
-    decision.key,
-    range ? { range: request.headers } : undefined,
-  );
+  let object: R2ObjectBody | null;
+  try {
+    object = await r2.get(decision.key, range ? { range: request.headers } : undefined);
+  } catch (error) {
+    if (!range) throw error;
+    return new Response("Range not satisfiable", { status: 416 });
+  }
 
   if (!object) return new Response("Not found", { status: 404 });
+  if (unsatisfiable(range, object.size)) {
+    return new Response("Range not satisfiable", {
+      status: 416,
+      headers: { "content-range": `bytes */${object.size}` },
+    });
+  }
 
   const headers = new Headers();
   object.writeHttpMetadata(headers);
