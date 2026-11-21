@@ -555,7 +555,9 @@ top and bottom crop it, and its far edge sits on the page frame. The shader
 gives it its own dissolve (`BAND_GONE_X`, `BAND_SOLID_X`, on `uBand`), no
 fade at the foot, and nothing past its edge. A phone's band has room
 for the whole square instead (`square`): top corner, above the foot row of
-links or figures, only a sliver of its near edge thinned (`uWhole`). A phone's
+links or figures, only a sliver of its near edge thinned (`uWhole`). The foot
+row carries `data-lattice-foot` and is measured every drawn frame
+(`footDepth`), so a cover band without the mark keeps no room for it. A phone's
 home cover runs edge to edge a header's inset below the top and thins out
 over its lower quarter (`COVER_SOLID_Y`, `COVER_GONE_Y`); the hero's
 `padding-top` starts the name there, so change them together.

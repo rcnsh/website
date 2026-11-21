@@ -3,7 +3,7 @@ import { COVER_EVENT, coverCaption, currentCover } from "../lattice-source.ts";
 import { cssPixels } from "../css-length.ts";
 import { liveUpdates, motionReduced, onPrefChange } from "../prefs.ts";
 import { coverTone, drawCover } from "./cover.ts";
-import { type CoverLayout, coverTexels, placeCover, placeMark, type Rect } from "./geometry.ts";
+import { type CoverLayout, coverTexels, footDepth, placeCover, placeMark, type Rect } from "./geometry.ts";
 import { FRAGMENT, QUIET_MAX, VERTEX } from "./shader.ts";
 import type { ToneCurve } from "./tone.ts";
 
@@ -223,6 +223,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
   let pageFrame = Number.POSITIVE_INFINITY;
   let narrow = false;
   let fieldSize = { w: 0, h: 0 };
+  let foot = 0;
   const pointer = { x: 0, y: 0, strength: 0, target: 0, tx: 0, ty: 0, moved: Number.NEGATIVE_INFINITY };
 
   const still = () => motionReduced() || !liveUpdates();
@@ -243,7 +244,7 @@ export function startLattice(canvas: HTMLCanvasElement): void {
     const cell = cellSize();
     const frame = pageFrame * ratio;
     const inset = Math.max((fieldSize.w - frame) / 2, 0) + 22 * ratio;
-    if (key.startsWith("cover:")) return placeCover(fieldSize, coverLayout(), inset, 76 * ratio);
+    if (key.startsWith("cover:")) return placeCover(fieldSize, coverLayout(), inset, foot);
     if (key.startsWith("text:")) {
       const w = Math.min(fieldSize.w - 56 * ratio, 560 * ratio);
       return { x: 28 * ratio, y: 50 * ratio, w, h: (w * 420) / 1024 };
@@ -421,8 +422,10 @@ export function startLattice(canvas: HTMLCanvasElement): void {
 
     const box = host.getBoundingClientRect();
     const field = { x: box.left * ratio, y: box.top * ratio, w: box.width * ratio, h: box.height * ratio };
-    if (field.w !== fieldSize.w || field.h !== fieldSize.h) {
+    const footNow = footDepth(box, host.querySelector("[data-lattice-foot]")?.getBoundingClientRect() ?? null, ratio);
+    if (field.w !== fieldSize.w || field.h !== fieldSize.h || footNow !== foot) {
       fieldSize = { w: field.w, h: field.h };
+      foot = footNow;
       from = replace(from);
       to = replace(to);
     }

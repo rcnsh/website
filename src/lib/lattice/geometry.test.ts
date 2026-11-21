@@ -5,6 +5,7 @@ import {
   BAND_COVER_SHOWN,
   COVER_TEXELS_PER_SIDE,
   coverTexels,
+  footDepth,
   MARK_ROWS,
   MARK_SIDES,
   ROW,
@@ -65,6 +66,13 @@ test("a phone's title band shows the whole cover in its top corner, above the fo
   const short = placeCover({ w: 448, h: 260 }, "square", inset, foot);
   assert.equal(short.y + short.h, 260 - foot);
   assert.equal(short.x + short.w, 448 - inset);
+});
+
+test("a band's foot is measured from the top of its foot row to the band's bottom, in device pixels", () => {
+  assert.equal(footDepth({ bottom: 406 }, { top: 336 }, 1), 70);
+  assert.equal(footDepth({ bottom: 406 }, { top: 300 }, 1.5), 159);
+  assert.equal(footDepth({ bottom: 406 }, null, 1.5), 0);
+  assert.equal(footDepth({ bottom: 406 }, { top: 500 }, 1), 0);
 });
 
 test("a title band crops its cover to the middle strip, ending on the frame", () => {
