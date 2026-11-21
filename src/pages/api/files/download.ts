@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
+import { contentRange, span } from "../../../../shared/bucket-http.ts";
 import { bucket } from "@/lib/bucket";
 import { policies, privateNoStore } from "@/lib/http";
 import { requireOwner } from "@/lib/owner";
@@ -78,13 +79,10 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
     );
   }
 
-  if (object.range && "offset" in object.range) {
-    const offset = object.range.offset ?? 0;
-    const length = object.range.length ?? object.size - offset;
-    headers.set(
-      "content-range",
-      `bytes ${offset}-${offset + length - 1}/${object.size}`,
-    );
+  const served = range ? span(object) : null;
+  if (served) {
+    headers.set("content-range", contentRange(served, object.size));
+    headers.set("content-length", String(served.length));
     return new Response(object.body, { status: 206, headers });
   }
 

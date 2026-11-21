@@ -4,4 +4,4 @@
 
 R2 throws on a range it cannot satisfy, so a `get` error with a Range header answers 416, and without one it rethrows as a real failure. R2 returns an object without a body when a request condition fails, so that answers 304 if `if-none-match` or `if-modified-since` was sent, else 412. A 206 with `Content-Range` is sent only when the request carried a Range header, because `object.range` being set does not mean only part was asked for; this follows Cloudflare's own R2 Worker example.
 
-`span()` checks range fields with `typeof`, not `in`. R2 returns every range field, unset ones as undefined, so `in` is always true.
+`span()` (`shared/bucket-http.ts`) turns `object.range` into the bytes served, and `/api/files/download` uses it too, so both answer a suffix range (`bytes=-N`) with the last N bytes and a matching `Content-Range`. It checks range fields with `typeof`, not `in`. R2 returns every range field, unset ones as undefined, so `in` is always true, and a suffix range read as an offset would claim to start at byte 0.

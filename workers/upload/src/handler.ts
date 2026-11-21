@@ -1,8 +1,10 @@
 import {
   corsHeaders,
   keyFromPath,
+  contentRange,
   PREFLIGHT_HEADERS,
   parseOrigins,
+  span,
   unsatisfiable,
 } from "../../../shared/bucket-http.ts";
 import { uncachedError } from "../../../shared/cache-policy.ts";
@@ -24,17 +26,6 @@ function describe(object: R2Object, headers: Headers): void {
   headers.set("etag", object.httpEtag);
   headers.set("last-modified", object.uploaded.toUTCString());
   headers.set("accept-ranges", "bytes");
-}
-
-function span(object: R2ObjectBody): { offset: number; length: number } | null {
-  if (!object.range) return null;
-  const range = object.range as { offset?: number; length?: number; suffix?: number };
-  if (typeof range.suffix === "number") {
-    const length = Math.min(range.suffix, object.size);
-    return { offset: object.size - length, length };
-  }
-  const offset = range.offset ?? 0;
-  return { offset, length: Math.min(range.length ?? object.size - offset, object.size - offset) };
 }
 
 export function createHandler() {
@@ -102,7 +93,7 @@ export function createHandler() {
 
       const served = request.headers.has("range") ? span(object) : null;
       if (served) {
-        headers.set("content-range", `bytes ${served.offset}-${served.offset + served.length - 1}/${object.size}`);
+        headers.set("content-range", contentRange(served, object.size));
         headers.set("content-length", String(served.length));
         return new Response(object.body, { status: 206, headers });
       }

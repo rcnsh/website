@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { corsHeaders, keyFromPath, parseOrigins, unsatisfiable } from "./bucket-http.ts";
+import { contentRange, corsHeaders, keyFromPath, parseOrigins, span, unsatisfiable } from "./bucket-http.ts";
 
 test("keyFromPath decodes each segment the way publicUrl encodes it", () => {
   assert.equal(keyFromPath("/Jacob%20Wiltshire_0xD6C31FE5_public.asc"), "Jacob Wiltshire_0xD6C31FE5_public.asc");
@@ -29,4 +29,29 @@ test("a range starting past the end is unsatisfiable; others are not", () => {
   assert.equal(unsatisfiable("bytes=9-", 10), false);
   assert.equal(unsatisfiable("bytes=-3", 10), false);
   assert.equal(unsatisfiable(null, 10), false);
+});
+
+test("span reads a suffix range as the last bytes of the object", () => {
+  assert.deepEqual(span({ size: 1000, range: { offset: undefined, length: undefined, suffix: 100 } }), {
+    offset: 900,
+    length: 100,
+  });
+  assert.deepEqual(span({ size: 50, range: { suffix: 100 } }), { offset: 0, length: 50 });
+});
+
+test("span reads a closed range and an open-ended one", () => {
+  assert.deepEqual(span({ size: 1000, range: { offset: 10, length: 20, suffix: undefined } }), {
+    offset: 10,
+    length: 20,
+  });
+  assert.deepEqual(span({ size: 1000, range: { offset: 400 } }), { offset: 400, length: 600 });
+  assert.deepEqual(span({ size: 1000, range: { offset: 990, length: 50 } }), { offset: 990, length: 10 });
+});
+
+test("span is null without a range", () => {
+  assert.equal(span({ size: 1000 }), null);
+});
+
+test("contentRange names the inclusive byte span and the total", () => {
+  assert.equal(contentRange({ offset: 900, length: 100 }, 1000), "bytes 900-999/1000");
 });

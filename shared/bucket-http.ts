@@ -35,3 +35,22 @@ export function unsatisfiable(range: string | null, size: number): boolean {
   const match = range?.match(/^bytes=(\d+)-\d*$/);
   return match !== null && match !== undefined && Number(match[1]) >= size;
 }
+
+export type ByteRange = { offset?: number; length?: number; suffix?: number };
+
+export type Span = { offset: number; length: number };
+
+export function span(object: { size: number; range?: ByteRange }): Span | null {
+  const range = object.range;
+  if (!range) return null;
+  if (typeof range.suffix === "number") {
+    const length = Math.min(range.suffix, object.size);
+    return { offset: object.size - length, length };
+  }
+  const offset = range.offset ?? 0;
+  return { offset, length: Math.min(range.length ?? object.size - offset, object.size - offset) };
+}
+
+export function contentRange({ offset, length }: Span, size: number): string {
+  return `bytes ${offset}-${offset + length - 1}/${size}`;
+}
