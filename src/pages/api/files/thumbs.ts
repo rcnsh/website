@@ -16,10 +16,6 @@ import { folderPrefix } from "../../../../shared/bucket-keys.ts";
 
 export const prerender = false;
 
-/**
- * Whether the caller is the owner and, if so, which files in `prefix` already
- * have previews. Anyone else learns only `{ owner: false }`.
- */
 export const GET: APIRoute = async ({ request, url, cookies, locals }) => {
   const refused = await requireOwner({ request, cookies, url, locals }, { refuse: "visitor" });
   if (refused) return refused;
@@ -38,18 +34,10 @@ export const GET: APIRoute = async ({ request, url, cookies, locals }) => {
   }
 };
 
-/**
- * Stores previews the owner's browser generated. Multipart: `key` names the
- * source object, and each other part is named for its kind (`poster.webp`,
- * `strip.webp`, `strip.json`, `peaks.json`). Targets are derived here, never
- * taken from the client, so nothing can be written outside `.thumbs/`.
- */
 export const POST: APIRoute = async ({ request, cookies, url, locals }) => {
   const refused = await requireOwner({ request, cookies, url, locals }, { refuse: "forbidden", sameOrigin: true });
   if (refused) return refused;
 
-  // Checked before the body is read. A missing length is refused too: a
-  // chunked body could otherwise stream past the cap into formData().
   const length = Number(request.headers.get("content-length"));
   if (!Number.isFinite(length) || length <= 0) return privateJson({ error: "Length required" }, 411);
   if (length > MAX_THUMBS_REQUEST_BYTES) return privateJson({ error: "Too large" }, 413);
@@ -92,7 +80,6 @@ export const POST: APIRoute = async ({ request, cookies, url, locals }) => {
     return privateJson({ error: "strip.webp and strip.json go together" }, 400);
   }
 
-  // Only thumbs for an object that exists, stamped with that upload's time.
   const source = await bucket.head(key);
   if (!source) return privateJson({ error: "Source not found" }, 404);
   const uploaded = uploadedSeconds(source);
@@ -103,7 +90,6 @@ export const POST: APIRoute = async ({ request, cookies, url, locals }) => {
         bucket.put(target, bytes, {
           httpMetadata: {
             contentType: THUMB_KINDS[kind].type,
-            // Regenerating overwrites in place, so not immutable.
             cacheControl: policies.thumbObject,
           },
           customMetadata: { [SOURCE_UPLOADED_FIELD]: String(uploaded) },

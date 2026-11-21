@@ -4,7 +4,6 @@ import { getTop, type Artist, type TimeRange, type Track } from "@/lib/spotify";
 
 const initialRange: TimeRange = "long_term";
 
-// The first tab arrives rendered; the island fetches other ranges on demand.
 let tracks: Track[] = [];
 let artists: Artist[] = [];
 let failed = false;

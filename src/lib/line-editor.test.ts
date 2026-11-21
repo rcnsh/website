@@ -2,11 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { LineEditor, parseKeys, printable, toTerminal } from "./line-editor.ts";
 
-/**
- * Just enough of a terminal to replay what the editor writes: printing with
- * autowrap (deferred, as xterm does), CR, LF, cursor up/forward and erase
- * below. Colour sequences are skipped.
- */
 function screen(cols: number) {
   let rows: string[][] = [[]];
   let row = 0;

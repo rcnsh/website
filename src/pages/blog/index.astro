@@ -11,11 +11,8 @@ const page = pages.blog;
 const posts = await getPosts();
 const latest = posts[0];
 
-// Newest first already, so the years come out in order too.
 const years = [...new Set(posts.map((post) => post.data.pubDate.getFullYear()))];
 
-// The copy names the feed; the link is added here so the meta description,
-// which reads the same string, stays plain text.
 const description = page.description.replace("RSS feed", "[RSS feed](/rss.xml)");
 
 const minutes = posts.reduce((sum, post) => sum + readingTime(post.body), 0);
@@ -31,12 +28,8 @@ const facts = latest
     ]
   : [];
 
-// With a handful of posts the list is the whole page, and a "latest" card
-// above it only shows its first row twice.
 const featured = latest && posts.length >= 4;
 
-// A chart of one or two bars reads as a mistake, and it shares its row with
-// the feature card, so the two arrive together.
 const months = featured
   ? cadence(posts.map((p) => ({ date: p.data.pubDate, draft: p.data.draft })), new Date())
   : [];

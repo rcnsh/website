@@ -1,26 +1,15 @@
-/**
- * Figures the writing pages derive from post data. Plain inputs rather than
- * collection entries, so this runs under node --test without `astro:content`.
- */
-
-/** The same count readingTime() divides: code dropped, the rest as tokens. */
 export function wordCount(body = ""): number {
   const prose = body.replace(/```[\s\S]*?```/g, " ").replace(/`[^`]*`/g, " ");
   return prose.split(/\s+/).filter(Boolean).length;
 }
 
 export type CadenceMonth = {
-  /** UTC year and 0-based month, as pubDate is a UTC midnight. */
   year: number;
   month: number;
   published: number;
   drafts: number;
 };
 
-/**
- * Posts per month from the earliest post's month through `now`'s, capped to
- * the most recent `maxMonths`. Empty when there are no posts.
- */
 export function cadence(
   posts: readonly { date: Date; draft?: boolean }[],
   now: Date,

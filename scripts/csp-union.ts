@@ -1,8 +1,3 @@
-// Run by the `csp-union` integration in astro.config.ts once Astro has
-// written the prerendered pages, whatever command started the build. Rewrites
-// every page's meta CSP to the union of all of them, then refuses the build
-// if any page holds an inline script or style that policy would block.
-
 import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
@@ -28,7 +23,6 @@ function sha256(body: string): string {
   return `'sha256-${createHash("sha256").update(body).digest("base64")}'`;
 }
 
-/** Returns the policy every page now carries. */
 export async function unifyCsp(clientDir: string): Promise<string> {
   const files = await htmlFiles(clientDir);
   if (files.length === 0) throw new Error(`[csp-union] no prerendered pages in ${clientDir}`);
@@ -62,8 +56,6 @@ export async function unifyCsp(clientDir: string): Promise<string> {
     }
   }
   if (blocked.length > 0) {
-    // A script: an is:inline one missing from shared/inline-scripts.ts. A
-    // style: something Astro emits without hashing, like transition:animate.
     throw new Error(`[csp-union] inline code the CSP does not hash:\n  ${blocked.join("\n  ")}`);
   }
 

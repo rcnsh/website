@@ -104,7 +104,6 @@ test("decideRead refuses keys that name nothing as bad requests", async () => {
 test("decideRead lets the owner read private files and their thumbs", async () => {
   assert.equal(await refusal("ShareX/2026/05/backup.tar.gz", owner), "private");
   assert.equal(await refusal(".thumbs/ShareX/clip.mp4.poster.webp", owner), "private");
-  // Dot paths stay refused even for the owner: they answer to nothing.
   assert.equal(await refusal(".env", owner), "not-found");
 });
 

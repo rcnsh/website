@@ -1,0 +1,7 @@
+# 0076. Thumbs belong to one upload of their source, and only public files have them
+
+A thumb left from an earlier upload under the same key would show the old file's frames. Thumbs are stored under `.thumbs/<key>.<kind>`, and each thumb object stores custom metadata `source-uploaded` with its source's upload time in whole seconds (`src/lib/thumbs.ts`). `POST /api/files/thumbs` (`src/pages/api/files/thumbs.ts`) heads the source first, 404s if it is missing, and stamps each thumb with the source's upload time.
+
+In `src/lib/media.ts` only thumbs whose stamp matches the object's current upload time count; a thumb whose stamp does not match describes an older file. When a file's thumbs carry different stamps, the newest stamp's kinds win, because mixed stamps mean an earlier backfill run was half finished. Grid cards (`src/components/files/Previews.tsx`) trust `meta.thumbs.poster`, which `/api/files/meta` sets only for thumbs stamped with the source's current upload time, so a re-upload under the same key never shows the old file's poster.
+
+`thumbUrl` (`src/components/files/client.ts`) builds only public-domain URLs and returns `null` when there is no public base. A private file gets an empty base from `baseFor` (`src/lib/files-source.ts`), and the backfill runs only with a public bucket URL, so private files have no stored thumbs and their previews are generated in the browser. With a stored poster and strip, the video preview does no in-browser decode at all: playback is the only remaining check, and `<video>` reports that itself.

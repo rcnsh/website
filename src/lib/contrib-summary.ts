@@ -1,18 +1,11 @@
 import type { ContributionDay } from "./github";
 
 export type ContributionSummary = {
-  /** Longest run of consecutive days with at least one contribution. */
   longestStreak: number;
-  /** Contributions in the calendar's last (current, possibly partial) week. */
   thisWeek: number;
-  /** The single busiest day, or null for an empty year. */
   busiest: ContributionDay | null;
 };
 
-/**
- * Figures for the heading above the graph. Walks days in calendar order, so a
- * streak runs across week boundaries; GitHub's weeks are already in order.
- */
 export function summarise(weeks: ContributionDay[][]): ContributionSummary {
   let longestStreak = 0;
   let run = 0;

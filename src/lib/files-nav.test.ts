@@ -116,7 +116,6 @@ describe("sorting", () => {
 
   test("date is newest first; unknown dates sort last both ways", () => {
     const mixed = listingEntries("", TREE[""]).concat(listingEntries("ShareX/", TREE["ShareX/"]));
-    // Folders have no stats here, so their dates are unknown.
     assert.deepEqual(names(sortEntries(mixed, "date")), [
       "audio",
       "ShareX",
@@ -210,7 +209,6 @@ describe("deep links", () => {
 
 describe("formatDay", () => {
   test("is pinned to UTC, so the server and the browser agree", () => {
-    // 23:30 UTC on 4 June is already 5 June east of Greenwich.
     assert.equal(formatDay(Date.UTC(2024, 5, 4, 23, 30) / 1000), "4 Jun 2024");
   });
 });

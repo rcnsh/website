@@ -3,12 +3,6 @@ import { env } from "cloudflare:workers";
 import { cached } from "./cache";
 import { site } from "./site";
 
-/**
- * GitHub data. Everything here returns empty/null rather than throwing when
- * the token is missing, so the site still renders on a fresh clone with no
- * secrets configured.
- */
-
 const GITHUB_API = "https://api.github.com";
 
 function headers() {
@@ -25,12 +19,9 @@ function username() {
   return env.GITHUB_USERNAME || site.githubUser;
 }
 
-// --- Contribution calendar ---
-
 export type ContributionDay = {
   date: string;
   count: number;
-  /** 0–4, matching GitHub's own NONE→FOURTH_QUARTILE buckets. */
   level: number;
 };
 
@@ -63,8 +54,6 @@ const CONTRIBUTIONS_QUERY = `
 `;
 
 export async function getContributions(): Promise<Contributions | null> {
-  // The contribution calendar is only exposed over GraphQL, which always
-  // requires a token — unlike the REST endpoints below.
   if (!env.GITHUB_TOKEN) return null;
 
   return cached(
@@ -104,8 +93,6 @@ export async function getContributions(): Promise<Contributions | null> {
 
       const calendar =
         json.data?.user?.contributionsCollection?.contributionCalendar;
-      // A 200 with no calendar in it is a malformed answer, not an empty one —
-      // throwing keeps the last good copy rather than caching the absence.
       if (!calendar) throw new Error("GitHub GraphQL returned no contribution calendar");
 
       return {
@@ -119,13 +106,9 @@ export async function getContributions(): Promise<Contributions | null> {
         ),
       };
     },
-    // The calendar is anchored to today's date, so a month-old copy would
-    // render with a blank strip at the right-hand edge. Past a day, wait.
     { maxStaleSeconds: 60 * 60 * 24 },
   );
 }
-
-// --- Repositories ---
 
 export type Repo = {
   name: string;
@@ -168,7 +151,6 @@ export async function getRepos(): Promise<Repo[]> {
   });
 }
 
-/** Repos in `pinned` order, then the most recently updated, up to `limit`. */
 export async function getFeaturedRepos(
   pinned: readonly string[],
   limit = 6,

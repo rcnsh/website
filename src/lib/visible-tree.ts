@@ -1,11 +1,6 @@
 import type { R2Listing, R2Tree } from "./r2";
 import { visibilityOf, type VisibilityRules } from "../../shared/visibility.ts";
 
-/**
- * The bucket as a visitor sees it. A folder's own files show only when it is
- * listed; the folder itself shows when it is listed or leads to something that
- * is, so a listed folder under an unlisted one can still be reached.
- */
 export function listedTree(tree: R2Tree, rules: VisibilityRules): R2Tree {
   const out: R2Tree = {};
 
@@ -25,11 +20,6 @@ export function listedTree(tree: R2Tree, rules: VisibilityRules): R2Tree {
   return out;
 }
 
-/**
- * One directory without the tree behind it, for buckets too big to inline.
- * Subfolders can only be judged by their own setting here, so a listed folder
- * under an unlisted one is not reachable in this mode.
- */
 export function listedListing(prefix: string, listing: R2Listing, rules: VisibilityRules): R2Listing {
   const listed = visibilityOf(rules, prefix) === "listed";
   const out: R2Listing = {

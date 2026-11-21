@@ -1,7 +1,3 @@
-/* The /files navigator: parent, current and preview columns inside one tile.
-   Plain CSS rather than utilities — most of this is state selectors
-   (aria-selected, aria-pressed) and breakpoint-specific column templates. */
-
 .fb {
   --fb-mono: var(--font-mono);
   --fb-grad: linear-gradient(100deg, var(--color-brand-blue), var(--color-brand));
@@ -30,7 +26,6 @@
   background: var(--color-base);
 }
 
-/* ---- Toolbar ---- */
 .fb-tb {
   padding: 16px 20px 14px;
   border-bottom: 1px solid var(--color-line-soft);
@@ -182,7 +177,6 @@
   position: relative;
   transition: color 0.2s, border-color 0.2s;
 }
-/* A taller hit area than the underline suggests. */
 .fb-seg button::after {
   content: "";
   position: absolute;
@@ -245,7 +239,6 @@
   color: var(--color-ink);
 }
 
-/* ---- Columns ---- */
 .fb-cols {
   display: grid;
   grid-template-columns: minmax(170px, 0.62fr) minmax(0, 1.5fr) minmax(0, 1.4fr);
@@ -295,7 +288,6 @@
   white-space: nowrap;
 }
 
-/* ---- Rows ---- */
 .fb-rows {
   list-style: none;
   margin: 0;
@@ -311,7 +303,6 @@
   border-radius: 5px;
   cursor: pointer;
   user-select: none;
-  /* No transition: j/k moves the selection, and a fading highlight trails. */
 }
 .fb-row:hover {
   background: var(--color-raised);
@@ -350,8 +341,6 @@
   background: color-mix(in oklab, var(--color-brand) 14%, var(--color-raised));
   box-shadow: inset 2px 0 0 var(--color-brand);
 }
-/* The selected row's fill is lighter than a tile, where ink-faint falls
-   under 4.5:1. */
 .fb-row[aria-selected="true"] .m {
   color: var(--color-ink-dim);
 }
@@ -418,7 +407,6 @@
   text-decoration-color: var(--color-brand);
 }
 
-/* ---- Grid view ---- */
 .fb-grid {
   list-style: none;
   margin: 0;
@@ -509,7 +497,6 @@
   color: var(--color-ink-faint);
 }
 
-/* ---- Preview pane ---- */
 .fb-pv {
   padding: 14px 18px 20px;
 }
@@ -844,7 +831,6 @@
   color: var(--color-bad);
 }
 
-/* ---- Folder visibility (owner only) ---- */
 .fb-tag {
   margin-left: 8px;
   font-size: 10.5px;
@@ -875,7 +861,6 @@
   color: var(--color-bad);
 }
 
-/* ---- Footer strip ---- */
 .fb-foot {
   display: flex;
   align-items: center;
@@ -1013,7 +998,6 @@
   }
 }
 
-/* See startOwnerHold in owner-view.ts. Hidden, not removed: the space stays. */
 html[data-owner-hold] [data-owner-view="visitor"] {
   visibility: hidden;
 }

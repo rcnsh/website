@@ -7,7 +7,6 @@ import { nextAllowedAt } from "@/lib/rate-limit";
 
 export const prerender = false;
 
-/** Who is reading /guestbook, which is prerendered and so cannot say. */
 export const GET: APIRoute = async ({ cookies }) => {
   let session: SessionUser | null;
   try {
@@ -22,7 +21,6 @@ export const GET: APIRoute = async ({ cookies }) => {
   try {
     nextPostAt = nextAllowedAt(await lastPostedAt(session.githubId))?.getTime() ?? null;
   } catch (error) {
-    // Signing re-checks, so the limit still holds.
     console.error("[guestbook] rate-limit lookup failed", error);
   }
   const { githubId, username, avatarUrl } = session;

@@ -7,11 +7,6 @@ import { postInput, serialisePost } from "@/lib/post-source";
 
 export const prerender = false;
 
-/**
- * Commits one post: `{ slug, sha, ...fields, body }`. A null `sha` creates the
- * file and is refused if it already exists; otherwise `sha` must be the
- * revision the editor loaded.
- */
 export const POST: APIRoute = async ({ request, cookies, url, locals }) => {
   const refused = await requireOwner({ request, cookies, url, locals }, { refuse: "forbidden", sameOrigin: true });
   if (refused) return refused;

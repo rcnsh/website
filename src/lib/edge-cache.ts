@@ -1,11 +1,5 @@
 import { uncachedError, type CachePolicy } from "../../shared/cache-policy.ts";
 
-/**
- * Responses kept in this colo's Cache API, which Workers need because
- * Cloudflare does not CDN-cache a Worker's responses on `cache-control` alone.
- * Free of `cloudflare:workers`; `./edge` binds it to `caches` and `waitUntil`.
- */
-
 export type EdgeCache = {
   match(key: Request): Promise<Response | undefined>;
   put(key: Request, response: Response): Promise<void>;
@@ -18,24 +12,12 @@ export type EdgeCacheDeps = {
 };
 
 export type EdgeOptions = {
-  /** Stamped on every answer, hit or miss. */
   policy: CachePolicy;
-  /** Sent to the browser and never stored, e.g. a `vary` the edge has no use for. */
   headers?: Record<string, string>;
-  /**
-   * Turns a hit into the answer. Defaults to its body and headers as stored.
-   * Either way the result is a new Response, since a cached one has immutable
-   * headers and the middleware throws setting security headers on it.
-   */
   fromHit?: (hit: Response) => Promise<Response>;
 };
 
 export function createEdgeCache({ open, waitUntil }: EdgeCacheDeps) {
-  /**
-   * The cached answer for `url` in cache `name`, or `produce()`'s, stored in
-   * the background. A rejection propagates and a non-2xx answer is returned
-   * with `uncachedError`; neither is stored.
-   */
   async function edgeCached(
     name: string,
     url: string,
@@ -67,7 +49,6 @@ export function createEdgeCache({ open, waitUntil }: EdgeCacheDeps) {
     return withHeaders(response, headers);
   }
 
-  /** Drops one entry. Failures are swallowed: callers drop after a committed write. */
   async function invalidateEdge(name: string, url: string): Promise<boolean> {
     try {
       return await (await open(name)).delete(new Request(url));

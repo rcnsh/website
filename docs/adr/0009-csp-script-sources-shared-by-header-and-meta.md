@@ -1,0 +1,7 @@
+# 0009. Script sources come from one list shared by the header and the meta
+
+A script host named in only one of the two policies is blocked by their intersection. The Cloudflare Web Analytics beacon was blocked on every prerendered page that way: the header named it, the meta did not, and a test asserting on the header string stayed green.
+
+`SCRIPT_SOURCES` in `shared/security.ts` holds every script source, and both surfaces read it: `contentSecurityPolicy()` writes it into the header's `script-src`, and `astro.config.ts` passes it as `scriptDirective.resources` for the meta. A new script host goes in that list, never in one policy. The test in `shared/security.test.ts` asserts on `SCRIPT_SOURCES` rather than on the header string, because the header was never the broken half.
+
+The list is `'self'`, `https://static.cloudflareinsights.com` and `'wasm-unsafe-eval'`. `'self'` stays because Astro's `resources` replaces its default rather than extending it, so dropping it would take every same-origin script out of the meta policy. The beacon is allowed by host, not file, because the injected URL carries a version and a CSP path must match exactly. `'wasm-unsafe-eval'` lets the palette's wterm terminal compile its WASM core with `WebAssembly.compile`; it is in this list rather than the header alone because the meta binds `script-src`, and it is chosen over `'unsafe-eval'` because it admits only WebAssembly compilation, not `eval` or `new Function`.

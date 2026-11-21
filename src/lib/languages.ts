@@ -1,9 +1,3 @@
-/**
- * Dot colours for the languages the pinned repos are likely to report. Linguist's
- * own colours, except where one fails 3:1 against --color-surface (Python's blue,
- * TypeScript's), which are lifted along their hue. Unlisted languages get the
- * neutral dot rather than a guess.
- */
 const COLOURS: Record<string, string> = {
   TypeScript: "#6f9bd8",
   JavaScript: "#e3d36b",

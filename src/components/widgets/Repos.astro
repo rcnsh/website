@@ -5,15 +5,12 @@ import { pinnedRepos } from "@/lib/site";
 import { relativeTime } from "@/lib/utils";
 
 interface Props {
-  /** Render the island's own fallback: four rows, nothing in them yet. */
   pending?: boolean;
 }
 
 const { pending = false } = Astro.props;
 const SHOWN = 4;
 
-// The loader throws rather than caching an empty list, so an empty result and
-// a failed one stay distinguishable here.
 let repos: Awaited<ReturnType<typeof getFeaturedRepos>> = [];
 let failed = false;
 if (!pending) {
@@ -25,16 +22,12 @@ if (!pending) {
   }
 }
 
-// Below 1024px a third column squeezes the description to five lines or
-// more, so the meta goes under it there.
 const row = "grid gap-x-6 gap-y-1 py-3.5 md:grid-cols-[10.5rem_minmax(0,1fr)] md:items-baseline lg:grid-cols-[10.5rem_minmax(0,1fr)_auto]";
 const meta = "font-mono text-[12.5px] md:col-start-2 lg:col-start-auto";
 ---
 
 {
   pending ? (
-    // The sample is as long as a typical description (about 100 characters),
-    // so it wraps to the same lines at every width.
     <ul class="divide-y divide-line-soft" aria-hidden="true">
       {Array.from({ length: SHOWN }, () => (
         <li class="[&:first-child>div]:pt-0.5">

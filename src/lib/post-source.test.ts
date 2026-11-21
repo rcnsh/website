@@ -17,7 +17,6 @@ describe("post source", () => {
     assert.deepEqual(parsePost(serialisePost(post)), post);
   });
 
-  // Every post on disk, not pinned values: the editor rewrites these files.
   test("round-trips every existing post", () => {
     const dir = new URL("../content/blog/", import.meta.url);
     const files = readdirSync(dir).filter((name) => name.endsWith(".md"));

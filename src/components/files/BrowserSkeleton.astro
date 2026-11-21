@@ -1,15 +1,7 @@
 ---
-/**
- * FileBrowser's frame before the island lands: its toolbar, columns and
- * footer, with the same classes, so browser.css sizes both alike. Only a
- * phone's height depends on what is listed (its columns stack and grow
- * with their rows); the rows here are the bucket root's four folders and
- * the preview of the first.
- */
 const ROOT_ROWS = 4;
 const PREVIEW_ROWS = 3;
 
-// FileBrowser's Row: kind icon, name, size and (wide screens only) date.
 const rows = (count: number) => Array.from({ length: count });
 ---
 

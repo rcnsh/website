@@ -1,9 +1,3 @@
-// Dependency-free: the editor bundles this into the page.
-
-/**
- * The filename without `.md`, and so the URL. A leading underscore is a file
- * the glob loader skips. `edit` would be shadowed by the editor's own route.
- */
 const SLUG = /^_?[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const RESERVED = new Set(["edit"]);
 

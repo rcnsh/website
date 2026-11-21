@@ -5,7 +5,6 @@ import FilesHero from "@/components/files/FilesHero.astro";
 import FilesUsage from "@/components/files/FilesUsage.astro";
 import BrowserSkeleton from "@/components/files/BrowserSkeleton.astro";
 import { pageOgHref, pages } from "@/lib/site";
-// Imported here rather than by the island, so the stylesheet is the page's own.
 import "@/components/files/browser.css";
 
 const page = pages.files;
@@ -18,7 +17,6 @@ const page = pages.files;
 >
   <div class="pb-6" data-files-page>
     <FilesRoot server:defer title={page.title}>
-      {/* Sized to the island: same title tile, same tile heights. */}
       <div slot="fallback" class="bento">
         <FilesHero title={page.title} />
         <FilesUsage />

@@ -14,18 +14,13 @@ import {
 
 interface Props {
   eras: EraRhythm[];
-  /** The calendar year shown, or undefined for all time. */
   year?: string;
 }
 
 const { eras, year } = Astro.props;
 
-// Validated against the tile surface (#131311) with the dataviz palette
-// checker: distinct under every colour-vision deficiency, both >= 3:1.
-// Keyed by era, not position: a single year may hold only one of them.
 const ERA_STYLE: Record<string, { colour: string; dash?: string }> = {
   newcastle: { colour: "var(--color-brand)" },
-  // Dashed as well, so the eras never differ by colour alone.
   singapore: { colour: "#c08050", dash: "6 4" },
 };
 const W = 600;

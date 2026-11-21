@@ -4,14 +4,10 @@ import { bucketTotals } from "@/lib/bucket-totals";
 import { bucket } from "@/lib/bucket";
 import { formatBytes } from "@/lib/utils";
 
-// Server island: the totals change on every upload, the page around it does
-// not. Public data only — see CLAUDE.md § Maintenance › Caching.
 let value = "—";
 let detail = "public, on R2";
 try {
-  // Listed files only, or the totals would hint at what is hidden.
   const tree = await bucket.view(false).tree();
-  // No tree means the bucket outgrew inlining; the generic line stands.
   if (tree) {
     const { objects, bytes } = bucketTotals(tree);
     value = formatBytes(bytes);

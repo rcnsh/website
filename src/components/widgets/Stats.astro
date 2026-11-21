@@ -2,11 +2,6 @@
 import Figure from "@/components/home/Figure.astro";
 import { getProfile } from "@/lib/github";
 
-// Deferred island. Three figures and no wrapper, so each lands as a direct
-// child of the figure grid.
-//
-// The loader throws on failure rather than caching a null, so the catch is
-// here. The figures degrade to em dashes, and the failure is logged.
 let profile: Awaited<ReturnType<typeof getProfile>> = null;
 try {
   profile = await getProfile();

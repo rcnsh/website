@@ -7,9 +7,7 @@ import { subscribeOwnerTree } from "./owner-view";
 
 interface Props {
   kinds: KindTotal[];
-  /** Bytes visitors are not shown, drawn as one grey share. Absent for the owner. */
   hidden?: HiddenTotals | null;
-  /** Keys in the owner's view. Both views are padded to the larger count, so the tile is one height for either. */
   ownerSlots?: number;
 }
 
@@ -17,11 +15,6 @@ type Segment = { key: string; label: string; colour: string; objects: number; by
 
 const count = (n: number) => n.toLocaleString("en-GB");
 
-/**
- * The usage bar and its key. Visitors get the listed files by kind plus one
- * private share; once the browser has the owner's full tree, every file is
- * counted by its kind and the private share goes.
- */
 export default function UsageBar({ kinds: visitorKinds, hidden: visitorHidden, ownerSlots = 0 }: Props) {
   const [view, setView] = useState({ kinds: visitorKinds, hidden: visitorHidden, owner: false });
 
@@ -41,7 +34,6 @@ export default function UsageBar({ kinds: visitorKinds, hidden: visitorHidden, o
     segments.push({ key: "private", label: PRIVATE_LABEL, colour: PRIVATE_COLOUR, ...view.hidden });
   }
   const total = segments.reduce((sum, s) => sum + s.bytes, 0);
-  // Either view may have more keys than the other; both take the larger count.
   const visitorSlots = visitorKinds.length + (visitorHidden && visitorHidden.objects > 0 ? 1 : 0);
   const padding = Math.max(0, Math.max(ownerSlots, visitorSlots) - segments.length);
 

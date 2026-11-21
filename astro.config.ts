@@ -13,14 +13,11 @@ import { unifyCsp } from "./scripts/csp-union.ts";
 import { INLINE_SCRIPTS } from "./shared/inline-scripts.ts";
 import { SCRIPT_SOURCES } from "./shared/security.ts";
 
-// Astro never hashes an `is:inline` script, so hash them here from the same
-// strings the layout renders — see CLAUDE.md § Maintenance › CSP and the router.
 const inlineScriptHashes = INLINE_SCRIPTS.map(
   (source): `sha256-${string}` =>
     `sha256-${createHash("sha256").update(source).digest("base64")}`,
 );
 
-// https://astro.build/config
 export default defineConfig({
   site: "https://rcn.sh",
   trailingSlash: "never",
@@ -29,50 +26,30 @@ export default defineConfig({
     format: "file",
   },
 
-  // Static by default. Live data arrives via server islands, or routes that
-  // opt out with `export const prerender = false`.
   output: "static",
   adapter: cloudflare({
     imageService: "compile",
   }),
 
-  // Expressive Code does the highlighting and sets this itself, but only after
-  // Astro's CSP check has already warned about the default Shiki highlighter.
   markdown: {
     syntaxHighlight: false,
   },
 
-  // Hashed inline scripts, in a per-page <meta>. The csp-union integration
-  // below rewrites every prerendered page's to the union of them all, which is
-  // what lets <ClientRouter /> swap pages in. It is also why 'unsafe-inline'
-  // must stay in the _headers policy — see CLAUDE.md § Maintenance › CSP and
-  // the router.
   security: {
     csp: {
-      // Required: CSP hashes do not apply to style *attributes*, so without
-      // this every runtime `element.style.setProperty` is refused — the nav
-      // underline included. `kind: "attribute"` confines it to style-src-attr,
-      // leaving script-src hash-locked.
       styleDirective: {
         resources: [{ resource: "'unsafe-inline'", kind: "attribute" }],
       },
       scriptDirective: {
         hashes: inlineScriptHashes,
-        // A new script host goes in SCRIPT_SOURCES, which feeds this meta and
-        // the header both. Adding it to one alone does nothing.
         resources: SCRIPT_SOURCES,
       },
     },
   },
 
   integrations: [
-    // Must be registered before anything that consumes Markdown: it installs
-    // the syntax highlighter the pipeline uses. Overrides pass `var()` so
-    // global.css stays the one place colours live — which means every setting
-    // that would derive a colour needs an explicit value here instead.
     expressiveCode({
       themes: ["vitesse-dark"],
-      // The site is dark-only, so there's no second theme to switch to.
       useDarkModeMediaQuery: false,
       styleOverrides: {
         borderRadius: "var(--radius-card)",
@@ -90,7 +67,6 @@ export default defineConfig({
         uiFontFamily: "var(--font-mono)",
         uiFontSize: "0.6875rem",
         frames: {
-          // Flat — the page separates things with rules, not shadows.
           shadowColor: "transparent",
           frameBoxShadowCssValue: "none",
           editorBackground: "var(--color-surface)",
@@ -137,11 +113,6 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
     build: {
-      // Astro inlines a small, import-free page script as an inline module.
-      // Under <ClientRouter /> that costs a hash in every page's CSP, and the
-      // router waits for an inline module through a `data:` script the CSP
-      // refuses, so its first page-load could run ahead of the script. Every
-      // script ships as a file instead; other assets keep Vite's default.
       assetsInlineLimit: (file) => (file.endsWith(".js") ? false : undefined),
     },
   },

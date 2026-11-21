@@ -2,7 +2,6 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { coalesce, inFlightCount } from "./coalesce.ts";
 
-/** A promise plus the handles to settle it from the outside. */
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: unknown) => void;
@@ -25,12 +24,6 @@ describe("single-flight", () => {
     assert.equal(calls, 2);
   });
 
-  /*
-    The hazard the whole design turns on. If a rejected promise stayed in the
-    map, one upstream blip would be replayed to every later caller for the
-    lifetime of the isolate — a failure that outlives its own cause, and the
-    single worst way for a cache to break.
-  */
   test("a rejection does not poison the key", async () => {
     let calls = 0;
     const load = async () => {

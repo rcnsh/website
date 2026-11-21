@@ -8,7 +8,6 @@ import {
   SCRIPT_SOURCES,
 } from "./security.ts";
 
-// public/_headers and src/middleware.ts must not drift apart.
 describe("security headers", () => {
   test("the generated file carries every header the Worker sets", () => {
     const file = headersFile();
@@ -26,7 +25,6 @@ describe("security headers", () => {
     const rule = lines.indexOf("/*");
 
     assert.ok(rule !== -1, "no path pattern");
-    // Everything after the pattern is an indented header, or the trailing gap.
     for (const line of lines.slice(rule + 1)) {
       if (line === "") continue;
       assert.match(line, /^ {2}[\w-]+: .+$/, `not a header line: ${line}`);
@@ -37,8 +35,6 @@ describe("security headers", () => {
     assert.ok(!securityHeaders()["Content-Security-Policy"].includes("localhost"));
   });
 
-  // Asserts on SCRIPT_SOURCES, not on the header: the header was never the
-  // broken half. A host in only the header is in neither binding policy.
   test("the Web Analytics beacon is admitted by host", () => {
     assert.ok(
       SCRIPT_SOURCES.includes("https://static.cloudflareinsights.com"),
@@ -50,13 +46,10 @@ describe("security headers", () => {
     );
   });
 
-  // Astro's `resources` replaces its default rather than extending it.
   test("same-origin scripts survive the meta policy", () => {
     assert.ok(SCRIPT_SOURCES.includes("'self'"));
   });
 
-  // wterm compiles its core with WebAssembly.compile, which script-src must
-  // allow in the meta too; 'unsafe-eval' would allow far more.
   test("WebAssembly may compile, and eval may not", () => {
     assert.ok(SCRIPT_SOURCES.includes("'wasm-unsafe-eval'"));
     assert.ok(!SCRIPT_SOURCES.includes("'unsafe-eval'"));
@@ -70,8 +63,6 @@ describe("security headers", () => {
     }
   });
 
-  // Playback is media-src, Mediabunny's ranged reads are connect-src. Either
-  // one missing leaves the other half of a preview working, which hides it.
   test("file previews can play and range-read the bucket", () => {
     const policy = securityHeaders()["Content-Security-Policy"];
     const directive = (name: string) =>
@@ -81,7 +72,6 @@ describe("security headers", () => {
     for (const name of ["connect-src", "media-src", "img-src"]) {
       assert.ok(directive(name).split(" ").includes(BUCKET_ORIGIN), `${name} is missing the bucket`);
     }
-    // Same-origin playback is the /api/files/download fallback.
     assert.ok(directive("media-src").split(" ").includes("'self'"));
   });
 
@@ -90,9 +80,6 @@ describe("security headers", () => {
   });
 });
 
-// A route-varying policy would break under soft navigation and only there, so
-// nothing catches it by hand. harden() preserves a route-set CSP rather than
-// clobbering it, which makes the mistake easy to make.
 describe("the CSP is route-invariant", () => {
   test("securityHeaders() takes no required argument", () => {
     assert.equal(
@@ -110,7 +97,6 @@ describe("the CSP is route-invariant", () => {
   });
 });
 
-// Astro sends its own CSP header on prerender = false pages (/blog/edit).
 describe("completePolicy", () => {
   const astro =
     "script-src 'self' 'sha256-abc'; style-src 'self' 'sha256-def'; style-src-attr 'unsafe-inline';";

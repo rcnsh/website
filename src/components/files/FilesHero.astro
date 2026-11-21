@@ -2,11 +2,6 @@
 import type { BucketTotals } from "@/lib/bucket-totals";
 import { formatBytes, relativeTime } from "@/lib/utils";
 
-/**
- * The title tile. Drawn by the page as the island's fallback and again by the
- * island with figures, so the swap changes nothing but the facts row.
- * `totals` undefined is "still loading"; null is "not available".
- */
 interface Props {
   title: string;
   totals?: BucketTotals | null;
@@ -15,7 +10,6 @@ interface Props {
 const { title, totals } = Astro.props;
 
 const pending = totals === undefined;
-// While loading, the same row with each value pulsing in its own line.
 const facts =
   totals || pending
     ? [

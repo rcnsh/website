@@ -7,7 +7,6 @@ import { useSigner } from "./useSigner";
 
 type Props = { maxLength: number };
 
-/** What /api/guestbook/sign and the auth callback redirect back with. */
 function errorText(code: string, maxLength: number): string | null {
   switch (code) {
     case "state":
@@ -35,10 +34,6 @@ function errorText(code: string, maxLength: number): string | null {
 
 type Status = { error: string | null; posted: boolean };
 
-/**
- * The sign tile's body. The page is prerendered for everyone, so who is
- * reading, and the outcome of their last post, are both known only here.
- */
 export default function GuestbookSign({ maxLength }: Props) {
   const view = useSigner();
   const [status, setStatus] = useState<Status>({ error: null, posted: false });
@@ -83,11 +78,6 @@ export default function GuestbookSign({ maxLength }: Props) {
   );
 }
 
-/**
- * The sign-in prompt. As the placeholder (signed out is the commoner answer)
- * it is the same markup with the text hidden, so it wraps the same at every
- * width and the tile keeps its height when the answer lands.
- */
 function SignedOut({ placeholder = false }: { placeholder?: boolean }) {
   const button =
     "inline-flex items-center gap-2 self-start rounded-[6px] border px-3.5 py-2.5 text-[0.90625rem] leading-[1.3] font-medium sm:h-10 sm:px-4 sm:py-0";
@@ -105,7 +95,6 @@ function SignedOut({ placeholder = false }: { placeholder?: boolean }) {
       {placeholder ? (
         <span className={cn(button, "placeholder-block border-transparent text-transparent")}>{label}</span>
       ) : (
-        // Not prefetched: the route mints an OAuth state cookie on every GET.
         <a
           href="/api/auth/login"
           data-astro-prefetch="false"
@@ -166,8 +155,6 @@ function Body({
           <span className="h-[30px] w-[30px] shrink-0 rounded-full bg-raised" />
         )}
         <p className="min-w-0 truncate font-mono text-[12.5px] text-ink-dim">@{signer.username}</p>
-        {/* A full load, not the router's: signing out must reset everything
-            the document holds for the owner (the player, data-owner). */}
         <form method="POST" action="/api/auth/logout" data-astro-reload className="ml-auto">
           <button
             type="submit"

@@ -6,14 +6,6 @@ import { json, policies, uncachedError } from "@/lib/http";
 
 export const prerender = false;
 
-/**
- * The next page of signatures. Public, like the page it feeds; country is
- * deliberately not among the fields. A malformed cursor returns page 1.
- *
- * Cached at the edge because KV covers page 1 only, so every deep page is a
- * D1 read on an anonymous route. Its max-age is page 1's KV window, so both
- * layers expire together; a write drops both (`invalidate` in lib/guestbook).
- */
 export const GET: APIRoute = async ({ url, request }) => {
   const after = decodeCursor(url.searchParams.get("after"));
 

@@ -1,15 +1,9 @@
 export type RankedCountry = {
   code: string;
   count: number;
-  /** Relative to the busiest country, 0–1, for the bar. */
   share: number;
 };
 
-/**
- * The guestbook's per-country totals, busiest first, split into the rows the
- * ranking draws and the tail it folds into one line. Ties break on code so
- * the order is stable between renders.
- */
 export function rankCountries(
   counts: Record<string, number>,
   top = 10,

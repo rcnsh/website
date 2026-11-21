@@ -3,15 +3,6 @@ import { formatDate, getPosts, postHref } from "./blog";
 import { externalLinks, home, nav, site, uses } from "./site";
 import { homeStack } from "./uses";
 
-/**
- * Builds the filesystem the command palette's shell walks, from what the site
- * already says about itself. Server-only; the tree reaches the client as the
- * prerendered /shell-fs.json.
- *
- * To add an entry, put a file() or dir() in the array buildFs returns.
- */
-
-/** Strips the `[label](url)` config authors write, leaving the label. */
 const plain = (text: string) =>
   text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, "$1");
 
@@ -94,7 +85,6 @@ export async function buildFs(): Promise<VDir> {
       externalLinks.map((link) => `${link.label}\t${link.href}`).join("\n"),
     ),
 
-    // Every page the site has, so `ls /pages` and the nav agree by construction.
     dir(
       "pages",
       nav.map((entry) =>

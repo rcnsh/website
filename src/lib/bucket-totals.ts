@@ -2,10 +2,6 @@ import type { R2Tree } from "./r2";
 
 export type BucketTotals = { objects: number; bytes: number; lastUploaded: number | null };
 
-/**
- * Totals across every listing in the tree. Each file appears in exactly one
- * listing — its own directory's — so summing listings counts it once.
- */
 export function bucketTotals(tree: R2Tree): BucketTotals {
   let objects = 0;
   let bytes = 0;
@@ -24,7 +20,6 @@ export function bucketTotals(tree: R2Tree): BucketTotals {
 
 export type HiddenTotals = { objects: number; bytes: number };
 
-/** What the whole bucket holds beyond the tree visitors are shown. */
 export function hiddenTotals(full: R2Tree, visible: R2Tree): HiddenTotals {
   const all = bucketTotals(full);
   const seen = bucketTotals(visible);

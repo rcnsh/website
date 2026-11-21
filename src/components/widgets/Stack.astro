@@ -2,8 +2,6 @@
 import { uses } from "@/lib/site";
 import { homeStack } from "@/lib/uses";
 
-// Drawn from /uses so the two cannot drift. Primary tools are in full ink, so
-// they read as the day-to-day set and the rest as the supporting cast.
 const ordered = homeStack(uses.groups);
 ---
 
@@ -22,7 +20,6 @@ const ordered = homeStack(uses.groups);
         >
           {item.name}
         </a>
-        {/* After the item, so a wrapped line never opens on a separator. */}
         {index < ordered.length - 1 && (
           <span class="px-2.5 text-ink-faint" aria-hidden="true">
             ·

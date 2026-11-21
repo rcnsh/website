@@ -1,0 +1,5 @@
+# 0024. Failures are never cached in place of data
+
+A transient upstream fault must not outlive itself in any cache. `cached()` (`src/lib/swr.ts`) implements stale-while-revalidate by catching a loader's rejection and keeping the value it holds, which `src/lib/swr.test.ts` asserts. That depends on loaders throwing: a loader that swallows its error returns a success-looking value, which is written to KV and replaces good data for the freshness window. Upstream responses that are not ok throw in `src/lib/upstream.ts` with an error naming the upstream and status, which also makes the `[cache]` log line useful.
+
+At the edge, `edgeCached` (`src/lib/edge-cache.ts`) never stores a rejection or a non-2xx answer, and sends a non-2xx with `uncachedError`. Routes send their failures and fallbacks with `uncachedError` (`shared/cache-policy.ts`) so no cache downstream keeps them either. `edgeCached` decides by status, not by that header: a 2xx produced with `uncachedError` has its `cache-control` replaced by the route policy and is stored.

@@ -4,7 +4,6 @@ import { ownerViewForVisit } from "./owner-view";
 
 type Props = Pick<FilesSourceOptions, "tree" | "initial" | "bucketUrl">;
 
-/** The browser's listings, with the owner upgrade started on mount. */
 export function useFilesSource({ tree, initial, bucketUrl }: Props): [FilesView, FilesSource] {
   const [source] = useState(() =>
     createFilesSource({
@@ -16,8 +15,6 @@ export function useFilesSource({ tree, initial, bucketUrl }: Props): [FilesView,
     }),
   );
   const view = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
-  // No teardown: the store unsubscribes on unmount, and a remount (StrictMode,
-  // fast refresh) reuses this source, so disposing it would freeze the view.
   useEffect(() => {
     void source.checkAccess();
   }, [source]);

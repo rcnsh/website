@@ -1,0 +1,5 @@
+# 0216. App-icon drawings share a 52px tile, traced where no vector exists
+
+Helium, T3 Code and Rex are drawn in `src/components/uses/UsesArt.astro` as their app icons, in a shared 52px rounded tile so the three sit level. Each glyph is scaled to match the real icon's padding rather than the flat 2x of a sourced mark. Helium's mark is scaled to 65% and centred on the glyph. T3 Code uses the T3 mark from pingdotgg/t3code `apps/mobile/assets/widget/T3Mark.svg`, scaled so the glyph spans 34 of 52 and centred on the glyph's own bounds.
+
+Where a project publishes no vector, the mark is a potrace trace. Superlogical publishes none for Rex, so Rex's mascot is a trace of the app icon (the eye cut out, the mouth as the notch under the head, the neck cut flat where the icon's badge hides it), fitted to 40 of the 52px tile, which matches how tall the icon draws it. simple-icons has no Spicetify entry and Spicetify publishes only PNGs, so its mark is a trace of spicetify.app/images/spicetify.png (the flame with the Spotify bars cut out), sized like a sourced mark at half the grid, by height since the flame is tall.

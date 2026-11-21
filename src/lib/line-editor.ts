@@ -1,13 +1,3 @@
-/**
- * Readline for a terminal that hands us raw keystrokes: turns them into keys,
- * keeps the line being typed, and redraws it with escape sequences. No DOM and
- * no wterm import, so it tests under node.
- *
- * Every character counts as one column. Wide characters (CJK, emoji) in a
- * typed line would put the cursor off by one per character; nothing on the
- * site needs them typed.
- */
-
 export type Key =
   | { type: "text"; text: string }
   | {
@@ -32,7 +22,6 @@ export type Key =
         | "escape";
     };
 
-/** CSI sequences, keyed by their parameters and final byte. */
 const CSI: Record<string, Key["type"]> = {
   A: "up",
   B: "down",
@@ -45,14 +34,12 @@ const CSI: Record<string, Key["type"]> = {
   "4~": "end",
   "8~": "end",
   "3~": "delete",
-  // Ctrl or Alt with an arrow.
   "1;5C": "word-right",
   "1;5D": "word-left",
   "1;3C": "word-right",
   "1;3D": "word-left",
 };
 
-/** SS3 sequences: arrows and Home/End in application-cursor mode. */
 const SS3: Record<string, Key["type"]> = {
   A: "up",
   B: "down",
@@ -81,7 +68,6 @@ const CONTROL: Record<string, Key["type"]> = {
   "\x17": "kill-word",
 };
 
-/** Splits one chunk of terminal input into keys. Unknown sequences are dropped. */
 export function parseKeys(data: string): Key[] {
   const keys: Key[] = [];
   let text = "";
@@ -100,7 +86,6 @@ export function parseKeys(data: string): Key[] {
     if (char === "\x1b") {
       const next = data[i + 1];
       if (next === "[") {
-        // Parameters, then one final byte in @–~.
         let j = i + 2;
         while (j < data.length && !/[@-~]/.test(data[j]!)) j += 1;
         const body = data.slice(i + 2, j + 1);
@@ -120,7 +105,6 @@ export function parseKeys(data: string): Key[] {
       } else if (next === undefined) {
         push("escape");
       }
-      // Any other Alt+key is dropped along with its ESC.
       else i += 1;
       continue;
     }
@@ -133,7 +117,6 @@ export function parseKeys(data: string): Key[] {
       continue;
     }
 
-    // Remaining C0 controls and DEL say nothing a prompt can use.
     if (char < " ") continue;
     text += char;
   }
@@ -142,13 +125,11 @@ export function parseKeys(data: string): Key[] {
   return keys;
 }
 
-/** Removes everything a terminal would act on rather than print, keeping tabs and newlines. */
 export function printable(text: string): string {
   // biome-ignore lint/suspicious/noControlCharactersInRegex: matching control characters is the point.
   return text.replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, "");
 }
 
-/** Lines for the terminal: control characters stripped, CRLF between them. */
 export function toTerminal(lines: string[]): string {
   return lines
     .map((line) => printable(line))
@@ -156,18 +137,15 @@ export function toTerminal(lines: string[]): string {
     .replace(/\n/g, "\r\n");
 }
 
-/** One printed column per code point: no controls, and no tabs or newlines either. */
 const inline = (text: string) => printable(text).replace(/[\t\n]/g, " ");
 
 const isWordChar = (char: string) => /[\p{L}\p{N}_]/u.test(char);
 
 export class LineEditor {
-  /** The line, one entry per code point, so the cursor never splits a pair. Never holds a control character. */
   private chars: string[] = [];
   private cursor = 0;
   private prompt = "";
   private promptWidth = 0;
-  /** Which row of the drawn line the terminal's cursor is on, for the next redraw. */
   private row = 0;
 
   private readonly cols: () => number;
@@ -188,23 +166,15 @@ export class LineEditor {
     return this.chars.length === 0;
   }
 
-  /**
-   * Draws the prompt and whatever is typed, from the top row of the line drawn
-   * last, so a line left mid-edit is redrawn in place. After `leave()`,
-   * `commit()`, `abandon()` or `cleared()` that top row is the cursor's own.
-   * `width` is the prompt's printed width, since `prompt` may carry colour.
-   */
   begin(prompt: string, width: number): string {
     this.prompt = prompt;
     this.promptWidth = width;
     return this.draw();
   }
 
-  /** Steps below the drawn line, keeping what is typed, for output that belongs under it. */
   leave(): string {
     const caret = this.cursor;
     this.cursor = this.chars.length;
-    // A line that exactly fills its last row is already followed by a fresh one.
     const total = this.promptWidth + this.chars.length;
     const filled = total > 0 && total % Math.max(1, this.cols()) === 0;
     const out = filled ? this.draw() : `${this.draw()}\r\n`;
@@ -213,12 +183,10 @@ export class LineEditor {
     return out;
   }
 
-  /** The screen was cleared and the cursor sent home. */
   cleared(): void {
     this.row = 0;
   }
 
-  /** Replaces the line, caret at `caret` (a UTF-16 index, as completion reports it) or the end. */
   set(line: string, caret = line.length): string {
     this.chars = Array.from(inline(line));
     this.cursor = Array.from(inline(line.slice(0, caret))).length;
@@ -232,7 +200,6 @@ export class LineEditor {
     return this.draw();
   }
 
-  /** Applies an editing key; null when the key is not an edit. */
   edit(key: Key): string | null {
     switch (key.type) {
       case "text":
@@ -273,7 +240,6 @@ export class LineEditor {
     }
   }
 
-  /** Ends the line: the caret goes past it and the line is handed back, editor emptied. */
   commit(): { line: string; out: string } {
     const line = this.line;
     const out = this.leave();
@@ -282,7 +248,6 @@ export class LineEditor {
     return { line, out };
   }
 
-  /** The line as it stands, abandoned (Ctrl+C): left on screen, editor emptied. */
   abandon(): string {
     this.cursor = this.chars.length;
     const out = `${this.draw()}^C\r\n`;
@@ -314,18 +279,12 @@ export class LineEditor {
     return i;
   }
 
-  /**
-   * Redraws prompt and line from the top row of the drawn line, which may
-   * wrap, then puts the cursor back on the caret.
-   */
   private draw(): string {
     const cols = Math.max(1, this.cols());
     let out = this.row > 0 ? `\x1b[${this.row}A` : "";
     out += `\r\x1b[J${this.prompt}${this.line}`;
 
     const total = this.promptWidth + this.chars.length;
-    // A line that exactly fills its last row leaves the cursor parked on that
-    // row's last column; step onto the next row so the arithmetic below holds.
     if (total > 0 && total % cols === 0) out += "\r\n";
 
     const endRow = Math.floor(total / cols);

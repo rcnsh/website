@@ -2,7 +2,6 @@ import type { APIContext } from "astro";
 import { getPosts, postHref } from "@/lib/blog";
 import { pages, site } from "@/lib/site";
 
-/** https://jsonfeed.org/version/1.1 — the same summaries the RSS feed carries. */
 export async function GET(context: APIContext) {
   const posts = await getPosts();
   const base = (context.site?.toString() ?? site.url).replace(/\/+$/, "");

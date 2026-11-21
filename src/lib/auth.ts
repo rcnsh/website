@@ -15,8 +15,7 @@ export const OAUTH_RETURN_COOKIE = `${COOKIE_PREFIX}rcnsh_oauth_return`;
 
 const USER_AGENT = "rcn.sh";
 
-const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
-/** Sessions past halfway through their life get extended on use. */
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 const SESSION_REFRESH_MS = SESSION_TTL_MS / 2;
 
 export type SessionUser = {
@@ -25,8 +24,6 @@ export type SessionUser = {
   displayName: string | null;
   avatarUrl: string | null;
 };
-
-// --- GitHub OAuth ---
 
 const AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const TOKEN_URL = "https://github.com/login/oauth/access_token";
@@ -44,7 +41,6 @@ function credentials(): { clientId: string; clientSecret: string } {
   return { clientId, clientSecret };
 }
 
-/** Both legs of the flow must send the same redirect_uri or GitHub rejects it. */
 function callbackUrl(origin: string): string {
   return `${origin}/api/auth/callback`;
 }
@@ -57,15 +53,10 @@ export function createAuthorizationUrl(origin: string, state: string): string {
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", callbackUrl(origin));
   url.searchParams.set("state", state);
-  // No scopes: the default grant already reads the public profile.
 
   return url.toString();
 }
 
-/**
- * GitHub answers a spent or forged code with HTTP 200 and an `error` field, so
- * the status alone doesn't tell success from failure.
- */
 export async function exchangeCodeForToken(
   origin: string,
   code: string,
@@ -107,18 +98,11 @@ export async function exchangeCodeForToken(
   return payload.access_token;
 }
 
-// --- Session tokens ---
-
-/**
- * The raw token goes in the cookie; only its SHA-256 hash is stored. A leaked
- * database therefore can't be used to mint sessions.
- */
 function randomToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/** Same 256 bits of entropy, but it only ever lives in a short-lived cookie. */
 export function generateState(): string {
   return randomToken();
 }
@@ -133,12 +117,6 @@ async function hashToken(token: string): Promise<string> {
   ).join("");
 }
 
-/**
- * Expired rows hold profile data and D1 has no TTL, so something must delete
- * them. Sampled from `getSession` rather than run on login, which ties the
- * sweep to traffic. A Cron Trigger would be tidier but @astrojs/cloudflare's
- * generated entry has no hook for a `scheduled` export.
- */
 const SWEEP_SAMPLE_RATE = 50;
 
 async function sweepExpiredSessions(): Promise<void> {
@@ -191,15 +169,11 @@ export async function getSession(
       .set({ expiresAt })
       .where(eq(schema.sessions.id, id));
 
-    // Without this the browser still drops the cookie at its original expiry.
     writeSessionCookie(cookies, token, expiresAt, owner);
   } else if (owner && !cookies.has(OWNER_HINT_COOKIE)) {
-    // A hint cleared or lost while the session lives comes back on next use.
     writeOwnerHint(cookies, row.expiresAt);
   }
 
-  // Nobody waits on the sweep, and nothing depends on it having run: an
-  // unswept expired row is already rejected above.
   if (Math.floor(Math.random() * SWEEP_SAMPLE_RATE) === 0) {
     waitUntil(
       sweepExpiredSessions().catch((error) => {
@@ -216,10 +190,6 @@ export async function getSession(
   };
 }
 
-/**
- * The site owner, matched on GitHub's numeric user id from the OWNER_GITHUB_ID
- * var. Unset or malformed means nobody is the owner.
- */
 export function isOwner(user: SessionUser | null): boolean {
   const owner = Number(env.OWNER_GITHUB_ID);
   if (!user || !Number.isSafeInteger(owner) || owner <= 0) return false;
@@ -234,8 +204,6 @@ export async function destroySession(cookies: AstroCookies): Promise<void> {
   }
   deleteSessionCookie(cookies);
 }
-
-// --- GitHub profile ---
 
 export async function fetchGitHubUser(accessToken: string): Promise<SessionUser> {
   const response = await fetch("https://api.github.com/user", {

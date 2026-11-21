@@ -58,7 +58,6 @@ import {
 } from "@/components/files/icons";
 
 type Props = {
-  /** Whole bucket, keyed by prefix. Null once the bucket is too big to inline. */
   tree: R2Tree | null;
   initial: R2Listing | null;
   bucketUrl: string;
@@ -66,13 +65,10 @@ type Props = {
 
 type View = "list" | "grid";
 
-/** Rows drawn at first; a big folder grows the window as the selection walks down. */
 const WINDOW = 200;
 
-/** Children listed in a folder's preview. */
 const FOLDER_PEEK = 12;
 
-/** How long a folder must stay selected before its listing is fetched. */
 const PEEK_DELAY_MS = 250;
 
 const count = (n: number) => n.toLocaleString("en-GB");
@@ -84,7 +80,6 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   const tagFor = useCallback((entry: Entry) => files.tagFor(entry.key), [files]);
 
   const [cwd, setCwd] = useState("");
-  /** The selected key in each folder visited, so stepping back restores it. */
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [sort, setSort] = useState<SortKey>("name");
   const [reverse, setReverse] = useState(false);
@@ -95,7 +90,6 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   const [results, setResults] = useState<Entry[] | null>(null);
   const [resultPick, setResultPick] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
-  // Otherwise a search that never ran reads as "Nothing matches".
   const [searchFailed, setSearchFailed] = useState(false);
 
   const [copied, setCopied] = useState<string | null>(null);
@@ -107,8 +101,6 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   const parentCol = useRef<HTMLDivElement>(null);
   const playback = useRef<(() => void) | null>(null);
 
-  // The router keeps this document while the reader moves on, so caches that
-  // were "per page" would outlive the visit. Unmounting is leaving /files.
   useEffect(
     () => () => {
       forgetMeta();
@@ -117,16 +109,11 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
     [],
   );
 
-  // The current folder and its parent, whenever either is missing, and again
-  // once the owner's view replaces the visitors'. Failed ones wait for the
-  // retry button rather than looping.
   // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the folder and the viewer
   useEffect(() => {
     void source.load(cwd);
     if (cwd) void source.load(parentOf(cwd));
   }, [cwd, files.owner]);
-
-  /* ---- Search ---- */
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: searched again once the owner's view arrives
   useEffect(() => {
@@ -157,7 +144,6 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
         setSearching(false);
       },
       () => {
-        // An abort is us superseding the request, not a failure.
         if (controller.signal.aborted) return;
         setSearchFailed(true);
         setResults([]);
@@ -168,8 +154,6 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   }, [query, files.owner]);
 
   const searchActive = results !== null || searching || searchFailed;
-
-  /* ---- What is on screen ---- */
 
   const listing = files.listing(cwd);
   const items = useMemo(() => {
@@ -183,12 +167,9 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   const index = clampIndex(found < 0 ? 0 : found, items.length);
   const selected = index >= 0 ? items[index] : null;
 
-  // Reset the window whenever the list itself is replaced.
   // biome-ignore lint/correctness/useExhaustiveDependencies: deliberately keyed on the list's identity
   useEffect(() => setLimit(WINDOW), [cwd, results]);
   const shown = items.slice(0, Math.max(limit, index + 60));
-
-  /* ---- Moving ---- */
 
   const select = useCallback(
     (i: number) => {
@@ -264,13 +245,10 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
         window.clearTimeout(copyTimer.current);
         copyTimer.current = window.setTimeout(() => setCopied(null), 1500);
       } catch {
-        // Clipboard blocked — the link itself still works.
       }
     },
     [selected, linkFor],
   );
-
-  /* ---- Deep links ---- */
 
   const applyHash = useCallback(() => {
     const { prefix, file } = parseHash(window.location.hash);
@@ -280,22 +258,17 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
     if (target.file) setPicked((prev) => ({ ...prev, [target.prefix]: target.file as string }));
   }, [files]);
 
-  // The listener outlives the listings it was made with; the owner's arrive later.
   const applyHashRef = useRef(applyHash);
   applyHashRef.current = applyHash;
 
   const hashApplied = useRef(false);
-  /** Tells the hash listener what the browser now shows, so it skips repeats. */
   const shownHash = useRef<(hash: string) => void>(() => {});
-  // Layout effect so a deep link is in place before the first paint after
-  // hydration, not one frame after it.
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount only
   useLayoutEffect(() => {
     applyHash();
     const page = window.location.pathname;
     let applied = window.location.hash;
     const onHash = () => {
-      // A Back between two hashes fires both events; once is enough.
       if (window.location.pathname !== page || window.location.hash === applied) return;
       applied = window.location.hash;
       clearSearch();
@@ -304,8 +277,6 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
     shownHash.current = (hash) => {
       applied = hash;
     };
-    // The router moves to a same-page `#` link with pushState, which fires no
-    // hashchange, then dispatches a popstate of its own.
     window.addEventListener("hashchange", onHash);
     window.addEventListener("popstate", onHash);
     return () => {
@@ -314,9 +285,6 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
     };
   }, []);
 
-  // Until the owner check settles, a link into a folder visitors cannot see
-  // looks broken, and writing the selection back would erase it. The owner's
-  // tree lands in the same render as `accessChecked`, so the retry sees it.
   // biome-ignore lint/correctness/useExhaustiveDependencies: once, when the check settles
   useLayoutEffect(() => {
     if (!files.accessChecked) return;
@@ -324,20 +292,15 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
     hashApplied.current = true;
   }, [files.accessChecked]);
 
-  // Search results are a view, not a place, so they leave the link alone.
   const linkPath = results ? null : selected && !selected.dir ? selected.key : cwd;
   useEffect(() => {
     if (!hashApplied.current || linkPath === null) return;
     const hash = hashFor(linkPath);
     if (hash === window.location.hash || (!hash && !window.location.hash)) return;
-    // Replace, not push: walking a folder with j/k would bury the back button.
     history.replaceState(history.state, "", `${window.location.pathname}${window.location.search}${hash}`);
     shownHash.current(hash);
   }, [linkPath]);
 
-  /* ---- Keeping the selection in view ---- */
-
-  // scrollIntoView would scroll the page too; only the column should move.
   const scrollIn = (column: HTMLElement | null, element: HTMLElement | null | undefined) => {
     if (!column || !element) return;
     const top = element.offsetTop - 44;
@@ -356,18 +319,13 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
     scrollIn(parentCol.current, parentCol.current?.querySelector<HTMLElement>(".on"));
   }, [cwd, files]);
 
-  // A folder's preview lists its children, which may be a fetch, so it waits
-  // until the selection settles.
   const peek = selected?.dir ? selected.key : null;
-  // The owner upgrade drops lazy listings, so a folder already selected must load again.
   // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the folder and the viewer
   useEffect(() => {
     if (!peek || files.listing(peek)) return;
     const timer = setTimeout(() => void source.load(peek), PEEK_DELAY_MS);
     return () => clearTimeout(timer);
   }, [peek, files.owner]);
-
-  /* ---- Keys ---- */
 
   const gridColumns = () => {
     const cards = list.current?.querySelectorAll<HTMLElement>(".fb-card");
@@ -385,7 +343,6 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
     const target = event.target as HTMLElement;
     const done = () => {
       event.preventDefault();
-      // Stops "/" reaching the palette's window listener while in here.
       event.stopPropagation();
     };
 
@@ -401,7 +358,6 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
       }
       return;
     }
-    // Controls with keys of their own.
     if (target.closest("input, textarea, select, [contenteditable], video, audio, [role='slider']")) return;
     if (target.closest("button, a") && (event.key === "Enter" || event.key === " ")) return;
 
@@ -455,12 +411,9 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
 
   const onPick = (i: number) => {
     focusList();
-    // A second tap on a touch screen opens; a mouse double-clicks.
     if (i === index && window.matchMedia("(pointer: coarse)").matches) open();
     else select(i);
   };
-
-  /* ---- Render ---- */
 
   const needle = results ? query.trim() : "";
   const host = bucketUrl ? new URL(bucketUrl).host : "bucket";
@@ -846,8 +799,6 @@ export default function FileBrowser({ tree, initial, bucketUrl }: Props) {
   );
 }
 
-/* -------------------------------------------------------------------------- */
-
 function Highlight({ text, query }: { text: string; query: string }) {
   const range = query ? matchRange(text, query) : null;
   if (!range) return <>{text}</>;
@@ -885,13 +836,10 @@ function Row({
 }: {
   entry: Entry;
   id?: string;
-  /** Set in the current column, where rows are listbox options. */
   selected?: boolean;
-  /** Set in the parent column and folder previews, where rows are plain list items. */
   on?: boolean;
   query?: string;
   showFolder?: boolean;
-  /** Owner only: how a visitor would see this, when not plainly listed. */
   tag?: Visibility | null;
   onClick: () => void;
   onDoubleClick?: () => void;
@@ -931,8 +879,6 @@ function Row({
       </div>
     );
   }
-  // Parent column and folder previews: a pointer shortcut to what the
-  // keyboard reaches with h and l.
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: h and l are the keyboard path
     <li className={className} onClick={onClick}>
@@ -962,7 +908,6 @@ function ParentColumn({
   reverse: boolean;
   onGo: (prefix: string, focusKey?: string) => void;
   tagFor: (entry: Entry) => Visibility | null;
-  /** The bucket root's own visibility control, shown while at the root. */
   rootControl: ReactNode;
 }) {
   if (searching) {
@@ -1129,10 +1074,6 @@ const VISIBILITY_HINT: Record<Visibility, string> = {
   private: "Only you can open these files, through this site.",
 };
 
-/**
- * The owner's control over one folder's own setting. "inherit" clears it, so
- * the folder follows its nearest ancestor with a setting, or the default.
- */
 function VisibilityControl({
   prefix,
   rules,

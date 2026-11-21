@@ -16,7 +16,6 @@ import { wordCount } from "@/lib/writing";
 export async function getStaticPaths() {
   const posts = await getPosts();
 
-  // Sorted newest first, so the previous entry is the newer post.
   return posts.map((post, index) => ({
     params: { slug: post.id },
     props: {
@@ -160,7 +159,6 @@ const details = [
   {
     (newer || older) && (
       <nav class="bento mt-3 pb-6" aria-label="More posts">
-        {/* Older sits on the left so the pair reads oldest → newest. */}
         {older && (
           <a href={postHref(older)} class="tile tile-link group col-span-12 flex flex-col gap-2 sm:col-span-6">
             <span class="label">&larr; Older</span>
@@ -194,9 +192,6 @@ const details = [
 </script>
 
 <style>
-  /* Code frames sit a step darker than the tile they're in, as they would on
-     the page. Expressive Code declares these on :root, so redeclaring them
-     here wins for everything inside. */
   .post-body {
     --ec-codeBg: var(--color-base);
     --ec-frm-edBg: var(--color-base);
@@ -211,7 +206,6 @@ const details = [
     margin-top: 1.5em;
   }
 
-  /* GFM footnotes: collected under a rule at the end of the body. */
   .post-body :global(section.footnotes) {
     margin-top: 3em;
     padding-top: 1.5em;

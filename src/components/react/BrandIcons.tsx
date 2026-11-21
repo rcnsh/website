@@ -1,8 +1,3 @@
-/**
- * lucide v1 dropped brand icons, so the few we need live here as plain paths.
- * Both accept `className` and inherit `currentColor` like a lucide icon would.
- */
-
 type Props = { className?: string };
 
 export function GithubIcon({ className }: Props) {

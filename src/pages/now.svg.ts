@@ -9,15 +9,12 @@ import { warehouse } from "@/lib/warehouse";
 
 export const prerender = false;
 
-/** Shifts slowly, so an hour fresh is plenty. */
 const REPEAT_FRESHNESS = 60 * 60;
-/** Past this a view still gets the stored snapshot at once, and refreshes it behind. */
 const SNAPSHOT_FRESHNESS = 15;
 
 const localDay = (daysAgo: number) =>
   new Date(Date.now() - daysAgo * 86_400_000).toLocaleDateString("en-CA", { timeZone: clock.timeZone });
 
-/** The most played song of the last 7 days, or null for a quiet week. */
 async function onRepeat(): Promise<NowLine> {
   const query = new URLSearchParams({ from: localDay(6), to: localDay(0), tz: clock.timeZone, limit: "1" });
   return warehouse.read({
@@ -31,7 +28,6 @@ async function onRepeat(): Promise<NowLine> {
   });
 }
 
-/** Both lookups at once. Throws only when neither answered, so a stale snapshot is kept. */
 async function loadSnapshot(): Promise<NowSnapshot> {
   const [current, fallback] = await Promise.allSettled([getNowPlaying(), onRepeat()]);
   if (current.status === "rejected") console.error("[music] now.svg live lookup failed", current.reason);
@@ -48,11 +44,6 @@ async function loadSnapshot(): Promise<NowSnapshot> {
   };
 }
 
-/**
- * The live line for the GitHub profile README. A view never waits on the
- * warehouse once a snapshot exists: `cached()` serves it and refreshes behind.
- * GitHub's image proxy may keep it 30s, the same order as the snapshot's age.
- */
 export const GET: APIRoute = async ({ url }) => {
   const theme: Theme = url.searchParams.get("theme") === "dark" ? "dark" : "light";
 

@@ -4,9 +4,7 @@ import { monthRange, percent, plural } from "@/lib/music-stats-view";
 
 interface Props {
   sets: StreakSet[];
-  /** Whether the span runs up to now, so a streak can still be going. */
   live: boolean;
-  /** The calendar year shown, or undefined for all time. */
   year?: string;
 }
 
@@ -15,8 +13,6 @@ const daily = sets.find((set) => set.threshold === 1);
 const heavier = sets.filter((set) => set.threshold > 1);
 type Streak = NonNullable<StreakSet["longest"]>;
 
-// A running streak comes in whole weeks only (an exact count would date its
-// first day), so it is drawn at its floor and labelled "N wk+".
 const length = (streak: Streak) => streak.days ?? streak.weeks * 7;
 const best = (streak: Streak | null) =>
   !streak ? "none" : streak.days === null ? `${plural(streak.weeks, "week")}+` : plural(streak.days, "day");

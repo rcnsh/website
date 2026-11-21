@@ -2,9 +2,6 @@
 import { getPage, getStats } from "@/lib/guestbook";
 import { relativeTime } from "@/lib/utils";
 
-// Server island, never cached (`islandPolicy` in lib/http): a signer's own
-// signature must count on the page their post redirects to. Both reads are
-// the KV copies a write drops.
 let total = 0;
 let countries = 0;
 let latest: Date | null = null;

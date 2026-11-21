@@ -29,25 +29,12 @@ import {
   type SpriteLayout,
 } from "@/lib/preview-math";
 
-// Browser-side preview generation. Loaded with a dynamic import() from the
-// preview panel, so Mediabunny never lands in the page's main bundle; only
-// what is imported above is bundled.
-
-/**
- * What /files previews: ALL_FORMATS less HLS and MPEG-TS, whose demuxers are
- * most of the weight and which nobody drops in a file bucket to preview.
- */
 const FORMATS = [MP4, QTFF, WEBM, MATROSKA, MP3, WAVE, OGG, FLAC, ADTS];
 
-/** Ranged reads straight off the bucket's public URL. */
 export function openInput(url: string): Input {
   return new Input({
     source: new UrlSource(url, {
-      // A preview is a few ranged reads; the 64 MiB default would let one
-      // panel keep a whole video in memory.
       maxCacheSize: 16 * 1024 * 1024,
-      // A CORS refusal or a 404 will not fix itself. Mediabunny already gives
-      // up early on suspected CORS errors; this bounds everything else.
       getRetryDelay: (attempts) => (attempts < 2 ? 0.5 * (attempts + 1) : null),
     }),
     formats: FORMATS,
@@ -56,10 +43,6 @@ export function openInput(url: string): Input {
 
 export type Timing = { start: number; duration: number };
 
-/**
- * Where the track starts and how long it runs. The server's duration is
- * preferred; recomputing it here can mean reading the whole file.
- */
 export async function trackTiming(
   track: InputVideoTrack | InputAudioTrack,
   knownDuration: number | null,
@@ -74,7 +57,6 @@ export async function trackTiming(
 
 export const POSTER_MAX: Box = { width: 640, height: 480 };
 export const STRIP_FRAMES = 24;
-// Shown full-size while scrubbing, so larger than a tooltip thumbnail would be.
 export const STRIP_TILE_MAX: Box = { width: 240, height: 240 };
 
 async function displayBox(track: InputVideoTrack): Promise<Box> {
@@ -89,7 +71,6 @@ export async function renderPoster(
   timing: Timing,
 ): Promise<HTMLCanvasElement | OffscreenCanvas | null> {
   const box = fitBox(await displayBox(track), POSTER_MAX);
-  // No pool: the canvas is kept for as long as the panel shows it.
   const sink = new CanvasSink(track, { ...box, fit: "contain" });
   const frame =
     (await sink.getCanvas(posterTimestamp(timing.start, timing.duration))) ??
@@ -103,10 +84,6 @@ export type Strip = {
   timestamps: number[];
 };
 
-/**
- * A sprite sheet of evenly spaced frames. Each decoded frame is copied into
- * the sheet as it arrives, so a pool of two canvases is enough.
- */
 export async function renderStrip(track: InputVideoTrack, timing: Timing): Promise<Strip> {
   const tile = fitBox(await displayBox(track), STRIP_TILE_MAX);
   const layout = spriteLayout(STRIP_FRAMES, tile);
@@ -131,11 +108,6 @@ export async function renderStrip(track: InputVideoTrack, timing: Timing): Promi
   return { canvas, layout, timestamps };
 }
 
-/**
- * Waveform peaks, folded in chunk by chunk: each decoded AudioBuffer is
- * reduced into the bins and dropped, so memory stays flat however long the
- * file is. `onProgress` receives the running peaks and the fraction done.
- */
 export async function computePeaks(
   track: InputAudioTrack,
   timing: Timing,
@@ -162,7 +134,6 @@ export async function computePeaks(
   return peaks;
 }
 
-/** The front cover if tagged as one, else the first embedded image. */
 export async function coverArt(input: Input): Promise<ImageBitmap | null> {
   const { images = [] } = await input.getMetadataTags();
   const image = images.find((i) => i.kind === "coverFront") ?? images[0];
@@ -170,15 +141,10 @@ export async function coverArt(input: Input): Promise<ImageBitmap | null> {
   try {
     return await createImageBitmap(new Blob([image.data as BlobPart], { type: image.mimeType }));
   } catch {
-    // A tag can claim any type; an undecodable one is just no cover.
     return null;
   }
 }
 
-/**
- * WebP bytes from a canvas. Throws where the browser cannot encode WebP:
- * Safari hands back a PNG instead, which the upload route would refuse.
- */
 export async function encodeWebp(
   canvas: HTMLCanvasElement | OffscreenCanvas,
   quality = 0.8,
@@ -193,10 +159,6 @@ export async function encodeWebp(
   return blob;
 }
 
-/**
- * A canvas as a data: URL, for an <img> or a CSS background. In memory only,
- * and `img-src` already admits `data:`, so no `blob:` grant is needed.
- */
 export function toDataUrl(canvas: HTMLCanvasElement | OffscreenCanvas): string {
   let source = canvas;
   if (!("toDataURL" in source)) {
@@ -231,10 +193,6 @@ export type BuiltThumbs =
   | { ok: true; parts: Partial<Record<ThumbKind, Blob>> }
   | { ok: false; reason: "unreadable" | "undecodable" };
 
-/**
- * Everything the owner backfill uploads for one file: poster and strip for a
- * video, peaks for audio. No size cap here, unlike a visitor's waveform.
- */
 export async function buildThumbs(url: string): Promise<BuiltThumbs> {
   const input = openInput(url);
   try {

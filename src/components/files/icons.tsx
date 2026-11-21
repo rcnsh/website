@@ -1,9 +1,6 @@
 import type { ReactNode } from "react";
 import type { FileKind } from "@/lib/files-nav";
 
-// The navigator's icons, drawn as in the approved mockup on a 24×24 stroked
-// grid. Plain JSX, so no icon library ships with the island.
-
 type IconProps = { size?: number; strokeWidth?: number; className?: string };
 
 function Svg({

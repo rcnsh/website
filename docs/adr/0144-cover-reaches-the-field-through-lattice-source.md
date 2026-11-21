@@ -1,0 +1,7 @@
+# 0144. The cover reaches the field through lattice-source
+
+`NowPlaying.tsx` and `src/lib/lattice/field.ts` never import each other, so they need a shared channel. `src/lib/lattice-source.ts` is that channel: NowPlaying publishes the cover it shows with `publishCover`, which holds it in module state and dispatches a `lattice:cover` document event (`COVER_EVENT`); the field reads `currentCover()` and listens for the event. Holding the cover in module state means it survives a soft navigation, so the next page's field starts from it instead of waiting for the widget. The module is bundled with the now-playing island, so it stays dependency-free to keep that bundle small. It reads `import.meta.env?.DEV` with optional chaining because `lattice-source.test.ts` loads it under `node --test`, where `import.meta.env` is undefined and a plain `import.meta.env.DEV` throws on load.
+
+The field loads every image with `crossOrigin = "anonymous"`, because its pixels are uploaded into a WebGL texture and read back (the tone curve uses `getImageData`), and a tainted image is refused. A cover host must therefore answer with CORS headers as well as being in `img-src`. Spotify's CDN does; any new cover host must too.
+
+`coverCaption` puts its qualifier first ("what's playing now: …", "the last thing played: …", from the cover's `live` flag) and the track label last. The caption truncates at its end, so a long title is what gets cut, never the words saying whether it is live or the last thing played.

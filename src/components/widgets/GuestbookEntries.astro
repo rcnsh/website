@@ -2,9 +2,6 @@
 import GuestbookList from "@/components/react/GuestbookList";
 import { encodeCursor, getPage, getStats, type GuestbookEntry } from "@/lib/guestbook";
 
-// Server island, never cached (`islandPolicy` in lib/http): the page a post
-// or delete redirects to must show it. Both reads are the KV copies a write
-// drops.
 let total = 0;
 let entries: GuestbookEntry[] = [];
 let cursor: string | null = null;

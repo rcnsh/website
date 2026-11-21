@@ -1,5 +1,3 @@
-/* The equaliser beside "Now playing". Static heights are the resting state, so
-   reduced motion (which drops every animation) still shows three bars. */
 .np-eq {
   display: inline-flex;
   align-items: flex-end;

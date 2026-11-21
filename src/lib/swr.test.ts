@@ -4,7 +4,6 @@ import { createCache, STALE_GRACE_SECONDS, type CacheStore } from "./swr.ts";
 
 const SECOND = 1000;
 
-/** A KV stand-in over a Map, with a clock the test moves and switchable failures. */
 function harness() {
   let clock = 1_000_000;
   const data = new Map<string, string>();
@@ -44,12 +43,10 @@ function harness() {
     advance(seconds: number) {
       clock += seconds * SECOND;
     },
-    /** Lets the background refreshes handed to waitUntil finish. */
     settle: () => Promise.all(background.splice(0)),
   };
 }
 
-/** A loader that counts its calls and returns whatever `next` holds. */
 function counting<T>(first: T) {
   const state = {
     calls: 0,
@@ -176,7 +173,6 @@ describe("cached", () => {
   test("a loader rejection beyond the stored entry's lifetime throws", async () => {
     const c = harness();
     await c.cached("gone", 60, async () => "v1");
-    // KV evicts at expirationTtl; the fake does not, so evict by hand.
     c.advance(60 + STALE_GRACE_SECONDS);
     c.data.delete("gone");
 
@@ -186,7 +182,6 @@ describe("cached", () => {
     );
   });
 
-  // "Loaders must throw" (CLAUDE.md) depends on this.
   test("a loader rejection is never written to the store", async () => {
     const c = harness();
     const loader = counting("v1");
@@ -233,7 +228,6 @@ describe("cached", () => {
     };
 
     const pending = [c.cached("herd", 60, load), c.cached("herd", 60, load)];
-    // Both calls are past their KV read before the loader settles.
     await new Promise((resolve) => setImmediate(resolve));
     gate.resolve("v");
 

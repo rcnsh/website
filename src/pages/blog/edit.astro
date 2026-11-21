@@ -8,7 +8,6 @@ import { listPostSlugs, readPostFile } from "@/lib/blog-repo";
 import { isSlug } from "@/lib/post-slug";
 import { parsePost } from "@/lib/post-source";
 
-// Reads the session and the live repository, so never prerendered.
 export const prerender = false;
 
 let viewer: Viewer = { session: null, owner: false };
@@ -20,7 +19,6 @@ try {
 
 const { session, owner } = viewer;
 
-// Someone else's session learns nothing about the page existing.
 if (session && !owner) return refuse(Astro, "not-found");
 
 const requested = Astro.url.searchParams.get("post");
@@ -149,8 +147,6 @@ const heading = initial ? (initial.sha ? "Edit post" : "New post") : "Posts";
 </Layout>
 
 <style>
-  /* Stand-ins for what the post page gets from Expressive Code and its own
-     styles, so the preview's rhythm matches. Highlighting is not attempted. */
   :global(.post-preview pre) {
     overflow-x: auto;
     padding: 1em 1.25em;

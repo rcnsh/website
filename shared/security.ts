@@ -1,12 +1,3 @@
-/**
- * The site's security headers, served from two places: public/_headers for
- * prerendered pages, src/middleware.ts for everything else. Edit this file —
- * scripts/generate-headers.ts writes public/_headers out of it.
- *
- * Plain TypeScript, no Astro-isms: Vite, bare Node and astro.config.ts all
- * load it.
- */
-
 import { staticAssets } from "./cache-policy.ts";
 
 export function securityHeaders() {
@@ -20,20 +11,8 @@ export function securityHeaders() {
   } satisfies Record<string, string>;
 }
 
-/**
- * The R2 bucket's public origin (PUBLIC_BUCKET_URL). /files previews read it
- * three ways: posters as images, playback as media, and Mediabunny's ranged
- * reads as fetches.
- */
 export const BUCKET_ORIGIN = "https://upload.rcn.sh";
 
-/**
- * Everything the policy says that is not about scripts or styles. Astro's
- * `<meta>` CSP carries only script-src and style-src, so these directives bind
- * from this header alone. That stops being true the moment astro.config.ts
- * passes Astro any `directives`; then a host must be in both. See CLAUDE.md
- * § Maintenance.
- */
 function baseDirectives(): string[] {
   return [
     "default-src 'self'",
@@ -42,37 +21,18 @@ function baseDirectives(): string[] {
     "object-src 'none'",
     "font-src 'self'",
     `connect-src 'self' ${BUCKET_ORIGIN}`,
-    // Spotify spreads art across several scdn.co subdomains, hence wildcards.
     `img-src 'self' data: https://*.scdn.co https://*.spotifycdn.com https://avatars.githubusercontent.com ${BUCKET_ORIGIN}`,
     `media-src 'self' ${BUCKET_ORIGIN}`,
     "upgrade-insecure-requests",
   ];
 }
 
-/**
- * Every script source, for both surfaces: this header and, via astro.config.ts,
- * Astro's `<meta>` policy. A source named in only one is blocked. Keep `'self'`
- * — Astro's `resources` replaces its default rather than extending it. See
- * CLAUDE.md § Maintenance.
- *
- * The insights entry is the Cloudflare Web Analytics beacon: the host, not the
- * file, because the injected URL carries a version and a CSP path must match
- * exactly.
- *
- * `'wasm-unsafe-eval'` lets the palette's terminal (wterm) compile its WASM
- * core. It admits WebAssembly compilation only, not `eval` or `new Function`.
- */
 export const SCRIPT_SOURCES = [
   "'self'",
   "https://static.cloudflareinsights.com",
   "'wasm-unsafe-eval'",
 ];
 
-/**
- * Do not remove 'unsafe-inline'. This header is the permissive floor and
- * Astro's hash-locked <meta> is what binds; dropping it here leaves an
- * intersection that admits no inline script at all. See CLAUDE.md § Maintenance.
- */
 function contentSecurityPolicy(): string {
   return [
     ...baseDirectives(),
@@ -82,13 +42,6 @@ function contentSecurityPolicy(): string {
   ].join("; ");
 }
 
-/**
- * A route's own CSP with every directive it lacks added from the base set.
- * Astro's header on a `prerender = false` page carries only script-src and
- * style-src, so keeping it unchanged left the page with no default-src,
- * base-uri, object-src or form-action. Directives it does carry are never
- * touched: its hashed script-src is the best policy on the site.
- */
 export function completePolicy(existing: string): string {
   const present = new Set(
     existing
@@ -103,7 +56,6 @@ export function completePolicy(existing: string): string {
   return missing.length ? [policy, ...missing].join("; ") : policy;
 }
 
-/** The contents of public/_headers. Always the production set. */
 export function headersFile(): string {
   const rules = Object.entries(securityHeaders())
     .map(([name, value]) => `  ${name}: ${value}`)

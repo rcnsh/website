@@ -1,0 +1,5 @@
+# 0207. The contribution grid has the same shape loaded and pending
+
+In `src/components/widgets/Contributions.astro` the week columns are `minmax(8px, 1fr)` inside a horizontal scroller: they fill the width on wide screens, and below 8px per column the graph scrolls rather than becoming unreadable. Cells are square and their size follows the column width, so only the full grid gives a skeleton the loaded graph's height. The `pending` skeleton therefore renders all 53 empty weeks of day cells, and the first cell of the month row is an empty `h-3` span that holds the row's height when no month label is rendered.
+
+Each week's days are placed into rows by `getUTCDay()`, not by array index. The first and last weeks of GitHub's calendar are short, and placing by index would misalign them with the Mon/Wed/Fri labels. A month label is shown only when the next label starts at least three week-columns later: the year starts mid-month, so the leading month may own a single column and its label would run into the next one, and three columns clear a three-letter label at the narrowest a column gets (8px).

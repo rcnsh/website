@@ -10,11 +10,9 @@ try {
   console.error("[music-stats] on repeat island failed", error);
 }
 
-// One scale for every sparkline, so a tall bar means the same in each row.
 const peak = Math.max(1, ...(data?.tracks.flatMap((track) => track.daily) ?? []));
 const daysAgo = (index: number, length: number) => {
   const ago = length - 1 - index;
-  // The series ends at local midnight, so its last day is yesterday.
   return ago === 0 ? "yesterday" : `${ago + 1} days ago`;
 };
 ---

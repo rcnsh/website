@@ -4,10 +4,6 @@ import { writeOwnerHint } from "./owner-hint.ts";
 
 export const SESSION_COOKIE = `${COOKIE_PREFIX}rcnsh_session`;
 
-/**
- * The only writer of the session cookie, so the owner hint is issued and
- * extended with it rather than expiring on its own while the session lives.
- */
 export function writeSessionCookie(cookies: AstroCookies, token: string, expiresAt: Date, owner: boolean): void {
   cookies.set(SESSION_COOKIE, token, {
     path: "/",

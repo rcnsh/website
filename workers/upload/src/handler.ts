@@ -8,16 +8,9 @@ import {
 import { uncachedError } from "../../../shared/cache-policy.ts";
 import { decideRead, type RuleRow, rulesLoader } from "../../../shared/visibility.ts";
 
-/**
- * upload.rcn.sh: the file bucket on its own domain, in place of R2's public
- * access, so a private folder can be refused. Same answers R2 gave otherwise:
- * stored metadata, ranges, conditionals, and CORS for the site.
- */
-
 export interface Env {
   BUCKET: R2Bucket;
   DB: D1Database;
-  /** Comma-separated origins that may read the bucket cross-origin. */
   ALLOWED_ORIGINS?: string;
 }
 
@@ -33,10 +26,8 @@ function describe(object: R2Object, headers: Headers): void {
   headers.set("accept-ranges", "bytes");
 }
 
-/** Offset and length actually served, from whichever form of range R2 echoes. */
 function span(object: R2ObjectBody): { offset: number; length: number } | null {
   if (!object.range) return null;
-  // Read by value, not by `in`: R2 hands back every field, unset ones undefined.
   const range = object.range as { offset?: number; length?: number; suffix?: number };
   if (typeof range.suffix === "number") {
     const length = Math.min(range.suffix, object.size);
@@ -46,7 +37,6 @@ function span(object: R2ObjectBody): { offset: number; length: number } | null {
   return { offset, length: Math.min(range.length ?? object.size - offset, object.size - offset) };
 }
 
-/** A handler with its own rules memo, so tests do not share one. */
 export function createHandler() {
   let rules: ReturnType<typeof rulesLoader> | null = null;
 
@@ -68,13 +58,11 @@ export function createHandler() {
       const key = keyFromPath(new URL(request.url).pathname);
       if (!key) return text("Not found", 404, headers);
 
-      // The binding is the same on every request an isolate serves.
       rules ??= rulesLoader(async () => {
         const { results } = await env.DB.prepare("SELECT prefix, visibility FROM file_visibility").all<RuleRow>();
         return results;
       });
 
-      // Nobody is the owner here: a private file goes through the site's download route.
       const decision = await decideRead(key, rules.load, async () => false);
       if (!decision.ok) {
         headers.set("cache-control", uncachedError);
@@ -95,7 +83,6 @@ export function createHandler() {
       try {
         object = await env.BUCKET.get(key, { range: request.headers, onlyIf: request.headers });
       } catch (error) {
-        // R2 throws on a range it cannot satisfy; anything else is ours to surface.
         if (!request.headers.has("range")) throw error;
         return text("Range not satisfiable", 416, headers);
       }
@@ -108,14 +95,11 @@ export function createHandler() {
 
       describe(object, headers);
 
-      // No body means a condition in the request failed.
       if (!("body" in object)) {
         const notModified = request.headers.has("if-none-match") || request.headers.has("if-modified-since");
         return new Response(null, { status: notModified ? 304 : 412, headers });
       }
 
-      // Keyed on the request, as Cloudflare's own example is: `range` on the
-      // object is not a promise that only part of it was asked for.
       const served = request.headers.has("range") ? span(object) : null;
       if (served) {
         headers.set("content-range", `bytes ${served.offset}-${served.offset + served.length - 1}/${object.size}`);

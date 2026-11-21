@@ -1,0 +1,7 @@
+# 0097. The guestbook map is static SVG, joined to the ranking by ISO code
+
+`src/components/widgets/GuestbookMap.astro` only picks a fill for each precomputed outline in `src/lib/world.ts` and ships no client JavaScript: hover is CSS (`.signed:hover`) and tooltips are `<title>` elements. That keeps the map static and cacheable. Each signed shape carries `data-c`, its ISO code, which the ranking tile uses to highlight a country, and `data-level` (4 for the busiest country, 3 for other signed ones, 1 for quiet ones), which is what the lattice field redraws the map from in the title band (`data-lattice="svg:[data-world-map]"` in `src/pages/guestbook.astro`). The lattice's svg picture is rebuilt from `data-level` alone.
+
+The only script is on `src/pages/guestbook.astro`. It delegates hover events from `document` for ranking rows (`[data-country]`) and map shapes (`[data-c]`), which meet on the ISO code, and fills the caption's `data-map-tip` from the hovered shape's `<title>`. Delegation is required because the ranking and the map both arrive in server islands after the script runs, and in either order, so listeners cannot be bound to them directly.
+
+`rankCountries` in `src/lib/country-ranking.ts` sorts by count descending and breaks ties on the country code, so the order is stable between renders, then splits the result into drawn rows (`top`, 10 by default) and a folded tail (`rest`).

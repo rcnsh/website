@@ -2,20 +2,10 @@ import { z } from "zod";
 import { spotifyUrl } from "./music-stats-view.ts";
 import type { Read } from "./warehouse-client.ts";
 
-/**
- * What `./spotify` reads from the music-warehouse, and how each answer becomes
- * what the site renders. Dependency-free of `cloudflare:workers`, so tests run
- * these through a client with a fake transport.
- *
- * The schemas describe only the fields actually rendered, so a field the
- * upstream adds or nulls can't take the page down.
- */
-
 const imageSchema = z
   .array(z.object({ url: z.string(), width: z.number().nullish() }))
   .default([]);
 
-/** Smallest cover at least `minWidth` across, else the largest on offer. */
 function artwork(
   images: z.infer<typeof imageSchema>,
   minWidth: number,
@@ -27,9 +17,7 @@ function artwork(
   return pick?.url ?? null;
 }
 
-/** Track art is drawn at 56px at most; this is 2x on the densest screen. */
 const TRACK_ART = 128;
-/** Artist tiles are a grid column wide — around 160px on a phone. */
 const ARTIST_ART = 320;
 
 const artistSchema = z.object({
@@ -38,7 +26,6 @@ const artistSchema = z.object({
 });
 
 const trackSchema = z.object({
-  // Null for local files, which Spotify can't play remotely.
   id: z.string().nullish(),
   name: z.string(),
   duration_ms: z.number().optional(),
@@ -84,12 +71,10 @@ export type NowPlaying =
 
 export type TimeRange = "short_term" | "medium_term" | "long_term";
 
-// A long window only means the warehouse is polled less; `cached()` serves
-// stale instantly either way.
 export const TOP_FRESHNESS: Record<TimeRange, number> = {
-  short_term: 60 * 60, // "4 weeks" — shifts day to day
-  medium_term: 60 * 60 * 6, // "6 months" — shifts over weeks
-  long_term: 60 * 60 * 24, // "all time" — barely shifts at all
+  short_term: 60 * 60,
+  medium_term: 60 * 60 * 6,
+  long_term: 60 * 60 * 24,
 };
 
 function normaliseTrack(raw: z.infer<typeof trackSchema>): Track {
@@ -104,7 +89,6 @@ function normaliseTrack(raw: z.infer<typeof trackSchema>): Track {
   };
 }
 
-/** Live: proxied straight through the warehouse to Spotify. */
 export const nowPlaying = (): Read<NowPlaying> => ({
   path: "/api/now-playing",
   schema: z
@@ -136,7 +120,6 @@ export const nowPlaying = (): Read<NowPlaying> => ({
 
 export type RecentTrack = Track & { playedAt: string };
 
-/** Live, like `nowPlaying()`. */
 export const lastPlayed = (): Read<RecentTrack | null> => ({
   path: "/api/recently-played?limit=1",
   schema: z
@@ -150,7 +133,6 @@ export const lastPlayed = (): Read<RecentTrack | null> => ({
     ),
 });
 
-/** Both top lists in one round trip; the warehouse returns them together. */
 export const top = (range: TimeRange, limit: number): Read<{ tracks: Track[]; artists: Artist[] }> => ({
   path: `/api/top?range=${range}&limit=${limit}`,
   schema: z
@@ -178,7 +160,6 @@ export const top = (range: TimeRange, limit: number): Read<{ tracks: Track[]; ar
         url: item.external_urls?.spotify ?? null,
       })),
     })),
-  // v2 carries track ids; v1 entries lack them.
   cache: { key: `top:v2:${range}:${limit}`, freshForSeconds: TOP_FRESHNESS[range] },
 });
 
@@ -189,27 +170,21 @@ const playRowSchema = z.object({
   duration_ms: z.number().nullish(),
   album_name: z.string().nullish(),
   image_url: z.string().nullish(),
-  // Credited artists arrive pre-joined, comma-separated, in credit order.
   artists: z.string().nullish(),
-  // The same artists one by one, so a name containing ", " stays whole.
   artist_list: z
     .array(z.object({ id: z.string().nullish(), name: z.string() }))
     .nullish()
     .transform((list) => list ?? []),
-  // Which play of its song this was, counting every edition.
   play_number: z.number().int().nullish(),
   first_play: z.boolean().nullish(),
-  // The album, artist or playlist it was started from, when known.
   context_name: z.string().nullish(),
   context_type: z.string().nullish(),
 });
 
-/** Context types whose name the site shows as "from …". */
 const PUBLIC_CONTEXTS = new Set(["album", "artist"]);
 
 export type Credit = { id: string | null; name: string; url: string | null };
 
-/** A stored play, with what only the warehouse knows about it. */
 export type StoredPlay = RecentTrack & {
   credits: Credit[];
   playNumber: number | null;
@@ -217,7 +192,6 @@ export type StoredPlay = RecentTrack & {
   context: string | null;
 };
 
-/** Stored, not live: these rows survive a dead Spotify grant. */
 export const recentPlays = (limit: number): Read<StoredPlay[]> => ({
   path: `/api/plays?limit=${limit}`,
   schema: z
@@ -229,7 +203,6 @@ export const recentPlays = (limit: number): Read<StoredPlay[]> => ({
         artists: row.artists ?? "",
         album: row.album_name ?? null,
         image: row.image_url ?? null,
-        // The warehouse stores ids, not links; the canonical URL is derivable.
         url: `https://open.spotify.com/track/${row.track_id}`,
         durationMs: row.duration_ms ?? null,
         playedAt: new Date(row.played_at_ms).toISOString(),
@@ -240,18 +213,12 @@ export const recentPlays = (limit: number): Read<StoredPlay[]> => ({
         })),
         playNumber: row.play_number ?? null,
         firstPlay: row.first_play ?? false,
-        // Albums and artists only: playlist names stay private, and autoplay
-        // after a playlist ends is still reported as that playlist.
         context: PUBLIC_CONTEXTS.has(row.context_type ?? "") ? (row.context_name ?? null) : null,
       })),
     ),
   cache: {
-    // Versioned: a value cached before credits were read lacks them, and
-    // stale-while-revalidate would serve it to code that expects them. v3
-    // drops the playlist names v2 cached; v4 adds track ids.
     key: `recent:v4:${limit}`,
     freshForSeconds: 60 * 5,
-    // Every row renders as "played 3 hours ago", so week-old stale reads as broken.
     maxStaleSeconds: 60 * 60 * 6,
   },
 });

@@ -1,24 +1,15 @@
 import { z } from "zod";
 import raw from "@/content/site.json";
 
-/**
- * Loads and validates `src/content/site.json`. Vite inlines the JSON at build
- * time, and validation runs at module load, so a typo fails the build with the
- * exact path rather than rendering a broken page.
- */
-
 const linkSchema = z.object({
   href: z.string().min(1),
   label: z.string().min(1),
-  /** Maps to an icon in components/icons.ts. */
   icon: z.string().optional(),
-  /** Extra terms the command palette should match on. */
   keywords: z.string().optional(),
 });
 
 const pageSchema = z.object({
   title: z.string().min(1),
-  /** Not rendered on the page — this is the <meta name="description">. */
   description: z.string().min(1),
 });
 
@@ -36,7 +27,6 @@ const schema = z.object({
   }),
   clock: z.object({
     label: z.string().min(1),
-    /** My timezone, not the visitor's. Checked against the runtime's zone database. */
     timeZone: z.string().refine(
       (tz) => {
         try {
@@ -55,7 +45,6 @@ const schema = z.object({
   }),
   pages: z.object({
     blog: pageSchema.extend({
-      /** The page description is written for search — a subscriber needs its own line. */
       feedDescription: z.string().min(1),
     }),
     uses: pageSchema,
@@ -71,7 +60,6 @@ const schema = z.object({
     groups: z
       .array(
         z.object({
-          /** Sits on the group's top border, cutting through it. */
           title: z.string().min(1),
           items: z
             .array(
@@ -79,14 +67,8 @@ const schema = z.object({
                 .object({
                   name: z.string().min(1),
                   url: z.url().optional(),
-                  /** Second line — a model, a maker, a qualifier. */
                   detail: z.string().optional(),
-                  /**
-                   * Which drawing to show: a hand-drawn shape in UsesArt.astro,
-                   * or a brand mark. An unknown name renders a placeholder.
-                   */
                   art: z.string().min(1),
-                  /** On the home Uses tile; `primary` leads and carries the dot. */
                   home: z.enum(["primary", "supporting"]).optional(),
                 })
                 .refine((item) => !item.home || item.url, {
@@ -124,7 +106,6 @@ export const site = {
   spotifyUser: config.accounts.spotify,
 } as const;
 
-/** A page's share card. Home is not among them; it keeps the static /og.png. */
 export const pageOgHref = (key: keyof typeof config.pages) =>
   `/og/pages/${key}.png`;
 

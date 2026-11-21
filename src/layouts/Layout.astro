@@ -3,8 +3,6 @@ import { ClientRouter } from "astro:transitions";
 import { MOTION_BOOTSTRAP } from "../../shared/inline-scripts.ts";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
-/* The two subsets an English page actually uses, so they can be preloaded —
-   Vite rewrites these to the same hashed files the stylesheet asks for. */
 import geistSans from "@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url";
 import geistMono from "@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2?url";
 import "@/styles/global.css";
@@ -20,18 +18,11 @@ import { site } from "@/lib/site";
 interface Props {
   title?: string;
   description?: string;
-  /** Posts are "article"; everything else is a page. */
   ogType?: "website" | "article";
-  /** Share card. Site-relative or absolute; resolved against the site URL. */
   image?: string;
-  /**
-   * Dimensions of `image`, for scrapers that read them before fetching.
-   * Defaults to the size every card here is drawn at; null for anything else.
-   */
   imageSize?: { width: number; height: number } | null;
 }
 
-/* The fallback card in public/, and the size lib/og.ts draws at. */
 const OG_IMAGE = { src: "/og.png", width: 1200, height: 630 } as const;
 
 const {
@@ -44,17 +35,11 @@ const {
 
 const pageTitle = title ? `${site.name} • ${title}` : `${site.name} • Home`;
 
-// Unwrap `[label](url)`, so raw Markdown never lands in a meta tag.
 const metaDescription = description.replace(/\[([^\]]+)\]\([^)\s]+\)/g, "$1");
-// `build.format: "file"` prerenders each page under its file name
-// (`/index.html`, `/blog.html`), but the site serves it at the clean path and
-// redirects the `.html` one there. A canonical naming the file points Google
-// at a redirect, and it drops the page as a duplicate of it.
 const pathname = Astro.url.pathname.replace(/(?:\/index)?\.html$/, "");
 const canonical =
   new URL(pathname, site.url).toString().replace(/\/+$/, "") || site.url;
 
-// Absolute — a relative og:image is ignored by every scraper that reads it.
 const ogImage = new URL(image, site.url).toString();
 const imageAlt = `${site.author} — ${site.name}`;
 ---
@@ -65,11 +50,6 @@ const imageAlt = `${site.author} — ${site.name}`;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    {
-      /* Without these the first paragraph paints twice. `crossorigin`
-         because fonts are fetched in CORS mode even from this origin, and a
-         preload that does not match is a second download. */
-    }
     <link rel="preload" href={geistSans} as="font" type="font/woff2" crossorigin />
     <link rel="preload" href={geistMono} as="font" type="font/woff2" crossorigin />
     <title>{pageTitle}</title>
@@ -91,10 +71,6 @@ const imageAlt = `${site.author} — ${site.name}`;
       )
     }
     <meta property="og:image:alt" content={imageAlt} />
-    {
-      /* X falls back to og:*, but card validators and some other scrapers
-         read only twitter:*, so name the image there too. */
-    }
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={pageTitle} />
     <meta name="twitter:description" content={metaDescription} />
@@ -121,21 +97,9 @@ const imageAlt = `${site.author} — ${site.name}`;
     <meta name="color-scheme" content="dark" />
     <meta name="generator" content={Astro.generator} />
 
-
-    {
-      /* The body lives in shared/inline-scripts.ts so astro.config.ts can
-         hash the identical string for the CSP. Any new is:inline script must
-         be registered there too. */
-    }
     <script is:inline set:html={MOTION_BOOTSTRAP} />
 
     {
-      /* Soft navigation, so the player keeps playing between pages. Only on
-         prerendered pages: they all share one CSP (the union of their hashes,
-         see scripts/csp-union.ts), while an SSR page's policy names only its
-         own scripts. A link into one is a full load, as the router falls back
-         to whenever the next page has no <ClientRouter />. See CLAUDE.md
-         § Maintenance › CSP and the router. */
       Astro.isPrerendered && <ClientRouter />
     }
   </head>
@@ -148,13 +112,11 @@ const imageAlt = `${site.author} — ${site.name}`;
       Skip to content
     </a>
 
-    {/* Behind everything; only an element marked data-lattice lets it show. */}
     <Lattice />
 
     <div class="page-shell relative z-10 flex min-h-dvh flex-col overflow-x-clip">
       <TopBar />
       <main id="content" class="flex-1">
-        {/* Full-bleed, above the page frame: the home page's field. */}
         <slot name="hero" />
         <div class="mx-auto w-full max-w-page px-4 pt-7 sm:px-5">
           <slot />
@@ -163,7 +125,6 @@ const imageAlt = `${site.author} — ${site.name}`;
       <Footer />
     </div>
 
-    {/* Outside the header: its backdrop-blur would trap a fixed overlay. */}
     <CommandPalette />
     <PlayOnSpotify />
     <MiniPlayer />

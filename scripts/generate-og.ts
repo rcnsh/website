@@ -5,19 +5,12 @@ import { parse as parseYaml } from "yaml";
 import { renderOgImage } from "../src/lib/og.ts";
 import { readingTime } from "../src/lib/utils.ts";
 
-/**
- * Draws a share card per post and per page into public/og/. A prebuild step
- * rather than an endpoint because workerd has neither sharp's native binding
- * nor a font to read off disk. Incremental against mtime.
- */
-
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const POSTS_DIR = path.join(ROOT, "src/content/blog");
 const SITE_JSON = path.join(ROOT, "src/content/site.json");
 const OUT_DIR = path.join(ROOT, "public/og/blog");
 const PAGES_OUT_DIR = path.join(ROOT, "public/og/pages");
 
-/** Touching either of these restyles every card, so both invalidate all of them. */
 const LAYOUT_SOURCES = [
   path.join(ROOT, "src/lib/og.ts"),
   fileURLToPath(import.meta.url),
@@ -32,7 +25,6 @@ const DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
 });
 
 type Post = {
-  /** Collection id: the path under src/content/blog without the extension. */
   id: string;
   file: string;
   title: string;
@@ -48,8 +40,6 @@ async function mtime(file: string): Promise<number> {
   }
 }
 
-/** No underscore filter: the glob loader takes `_name.md` as an ordinary
- * entry, and `draft: true` is what hides a file. */
 async function findPosts(dir: string, prefix = ""): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
   const files: string[] = [];
@@ -79,7 +69,6 @@ async function readPost(id: string): Promise<Post | null> {
 
   const data = parseYaml(match[1]!) as Record<string, unknown>;
 
-  // Drafts are not built, so a card would be an orphan in public/.
   if (data.draft === true) return null;
 
   const { title, description, pubDate } = data;
@@ -93,12 +82,10 @@ async function readPost(id: string): Promise<Post | null> {
     file,
     title,
     description,
-    // YAML gives a Date for a bare `2026-08-29`; a quoted one is a string.
     pubDate: pubDate instanceof Date ? pubDate : new Date(String(pubDate)),
   };
 }
 
-/** Cards left behind by posts that have been renamed, deleted or drafted. */
 async function prune(dir: string, keep: Set<string>, prefix = "") {
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
 
@@ -120,7 +107,6 @@ async function prune(dir: string, keep: Set<string>, prefix = "") {
 
 type Page = { key: string; href: string; title: string; description: string };
 
-/** Home is skipped; the static /og.png is the card for the site. */
 async function readPages(): Promise<Page[]> {
   const site = JSON.parse(await readFile(SITE_JSON, "utf8")) as {
     nav: { href: string }[];

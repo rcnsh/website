@@ -1,0 +1,5 @@
+# 0222. The build heartbeat is optional and never fails the build
+
+`.github/workflows/build.yml` pings a healthchecks.io check through the `HC_BUILD_URL` secret: `/start` when the run begins, the bare URL on success, and `/fail` from an `if: failure()` step. The check expects a ping every Sunday, so it alerts when GitHub has silently disabled the schedule. Manual runs ping too, since they are real builds. Without the failure ping, a failed build would only alert about three hours later, when the check gives up waiting for the success ping.
+
+Each heartbeat step reads the URL from its own step `env` as `HC_URL`, never interpolated into the script, because interpolating a secret into a script is unsafe. The heartbeat is optional, so each step exits 0 when the variable is unset. That test is inside the script rather than in `if:`, because a step's own `env` is not visible to its `if:` expression. Each step is `continue-on-error`, since a healthchecks.io outage is no reason to call the build broken, and `HC_BUILD_URL` is not part of the required-secrets check.

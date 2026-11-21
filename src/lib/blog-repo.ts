@@ -1,18 +1,11 @@
 import { env } from "cloudflare:workers";
 import { deadline } from "./upstream";
 
-/**
- * Posts read and written straight on the repository's default branch, through
- * the Contents API. A commit there is what publishes: Workers Builds deploys
- * every push to main.
- */
-
 const REPO = "rcnsh/website";
 const BRANCH = "main";
 const DIR = "src/content/blog";
 const API = `https://api.github.com/repos/${REPO}/contents/${DIR}`;
 
-/** The file changed on GitHub after the editor loaded it. */
 export class PostConflictError extends Error {}
 
 function headers(): HeadersInit {
@@ -47,7 +40,6 @@ function encode(text: string): string {
   return btoa(binary);
 }
 
-/** Slugs of every post on the branch, deployed or not. */
 export async function listPostSlugs(): Promise<string[]> {
   const response = await fetch(`${API}?ref=${BRANCH}`, { headers: headers(), signal: deadline() });
   if (!response.ok) throw new Error(`GitHub contents list responded ${response.status}`);
@@ -58,7 +50,6 @@ export async function listPostSlugs(): Promise<string[]> {
     .map((entry) => entry.name.slice(0, -3));
 }
 
-/** Null when the post does not exist. */
 export async function readPostFile(slug: string): Promise<{ source: string; sha: string } | null> {
   const response = await fetch(`${fileUrl(slug)}?ref=${BRANCH}`, {
     headers: headers(),
@@ -71,11 +62,6 @@ export async function readPostFile(slug: string): Promise<{ source: string; sha:
   return { source: decode(file.content), sha: file.sha };
 }
 
-/**
- * Creates the file when `sha` is null, otherwise replaces that exact revision.
- * GitHub refuses both a create over an existing file and an update from a stale
- * sha, which is what keeps two open editors from overwriting each other.
- */
 export async function writePostFile(
   slug: string,
   source: string,

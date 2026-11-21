@@ -1,6 +1,5 @@
 import { clsx, type ClassValue } from "clsx";
 
-/** Plain clsx: nothing takes a className prop, so there is nothing to merge. */
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
 }
@@ -51,10 +50,6 @@ export function relativeTime(input: string | Date): string {
 
 const WORDS_PER_MINUTE = 200;
 
-/**
- * Rough by design: code is dropped, the rest counted as tokens. Here rather
- * than lib/blog.ts so the share-card script avoids `astro:content`.
- */
 export function readingTime(body = ""): number {
   const prose = body.replace(/```[\s\S]*?```/g, " ").replace(/`[^`]*`/g, " ");
   const words = prose.split(/\s+/).filter(Boolean).length;
@@ -68,7 +63,6 @@ export function formatDuration(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-/** Human-readable file-type bucket, used for icons and colour in the browser. */
 export function fileKind(name: string) {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   if (["png", "jpg", "jpeg", "gif", "webp", "avif", "svg", "bmp", "ico"].includes(ext))

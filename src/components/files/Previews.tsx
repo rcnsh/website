@@ -31,8 +31,6 @@ function extension(name: string): string {
   return dot > 0 ? name.slice(dot + 1) : "";
 }
 
-/* -------------------------------------------------------------------------- */
-
 export function ImagePreview({ entry, base }: { entry: Entry; base: string }) {
   const url = publicUrl(base, entry.key);
   const [box, setBox] = useState<{ width: number; height: number } | null>(null);
@@ -88,11 +86,8 @@ export function ImagePreview({ entry, base }: { entry: Entry; base: string }) {
   );
 }
 
-/* -------------------------------------------------------------------------- */
-
 type TextState = { lines: string[] } | "loading" | "binary" | "failed";
 
-/** The first few KB of the file, read with one ranged request. */
 async function readHead(url: string, signal: AbortSignal): Promise<Uint8Array> {
   const response = await fetch(url, {
     headers: { Range: `bytes=0-${TEXT_PREVIEW_BYTES - 1}` },
@@ -100,7 +95,6 @@ async function readHead(url: string, signal: AbortSignal): Promise<Uint8Array> {
   });
   if (!response.ok || !response.body) throw new Error(`head ${response.status}`);
 
-  // A server that ignores Range sends the whole file; stop reading at the cap.
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let length = 0;
@@ -185,19 +179,14 @@ export function TextPreview({ entry, base }: { entry: Entry; base: string }) {
   );
 }
 
-/* -------------------------------------------------------------------------- */
-
-/** Past this an image is a file to open, not a thumbnail to load. */
 const CARD_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 
 type CardArt = {
-  /** A poster or cover, as a URL an <img> can show. */
   src?: string;
   peaks?: Float32Array;
   duration?: number | null;
 };
 
-/** Metadata is a Worker round trip each; art is a decode. Both are rationed. */
 const metaQueue = queue(3);
 const artQueue = queue(1);
 const artCache = new Map<string, Promise<CardArt>>();
@@ -209,7 +198,6 @@ async function cardArt(key: string, base: string): Promise<CardArt> {
   const kind = fileKind(key);
 
   if (kind === "video") {
-    // Only a poster stamped for this upload counts; the meta route checks.
     const stored = meta.thumbs?.poster ? thumbUrl(base, key, "poster.webp") : null;
     if (stored) return { src: stored, duration };
     if (!meta.video) return { duration };
@@ -257,13 +245,11 @@ function cachedCardArt(key: string, uploaded: number | null, base: string): Prom
   if (!art) {
     art = cardArt(key, base);
     artCache.set(id, art);
-    // Not remembered when it failed, so the next time the card shows retries.
     art.catch(() => artCache.delete(id));
   }
   return art;
 }
 
-/** A grid card's picture: stored thumbs first, in-browser generation after. */
 export function CardThumb({ entry, base }: { entry: Entry; base: string }) {
   const kind = entry.dir ? null : fileKind(entry.name);
   const ref = useRef<HTMLDivElement>(null);

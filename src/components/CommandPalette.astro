@@ -1,20 +1,11 @@
 ---
-// Here, not beside the lazily loaded terminal: see CLAUDE.md § Palette shell.
 import "@wterm/dom/css";
 import Icon from "./Icon.astro";
 import { externalLinks, nav } from "@/lib/site";
 
-/**
- * ⌘K / Ctrl+K, or "/" outside a text field. Rows are server-drawn, so filtering
- * is hiding and reordering markup rather than hydrating a component tree.
- *
- * Lives at the end of <body>: the header's backdrop-blur is a containing block
- * for fixed positioning, so the overlay would size to the bar.
- */
 const items = [...nav, ...externalLinks].map((item) => ({
   ...item,
   external: /^https?:/.test(item.href) || item.href.endsWith(".txt"),
-  // Lowercased once here so the keystroke handler never has to.
   needle: item.label.toLowerCase(),
   haystack: `${item.label} ${item.keywords ?? ""}`.toLowerCase(),
 }));
@@ -51,18 +42,10 @@ const items = [...nav, ...externalLinks].map((item) => ({
       couldn't load the shell — try again
     </p>
 
-    {/*
-      The shell: a wterm terminal, mounted here on the first `$`. The engine,
-      the terminal and the filesystem are all fetched then, so the palette
-      costs nothing extra until it is used as one. Collapsed rather than
-      hidden in search mode, so the terminal keeps its size and never refits
-      its scrollback to nothing.
-    */}
     <div data-palette-shell inert>
       <div data-palette-term aria-label="Shell" class="h-[21.5rem]"></div>
     </div>
 
-    {/* Tall enough that the full, unfiltered list lands without scrolling. */}
     <div data-palette-list class="max-h-[21.5rem] overflow-y-auto p-1.5">
       {
         items.map((item) => (
@@ -107,8 +90,6 @@ const items = [...nav, ...externalLinks].map((item) => ({
 </div>
 
 <style>
-  /* Always in the DOM and toggled with opacity, so closing can fade. `inert`
-     is what makes that safe — a transparent overlay is still focusable. */
   .palette {
     opacity: 0;
     pointer-events: none;
@@ -127,12 +108,10 @@ const items = [...nav, ...externalLinks].map((item) => ({
     padding: 1px 5px;
   }
 
-  /* A row's own `display: flex` outranks the UA rule for [hidden]. */
   [data-palette-item][hidden] {
     display: none;
   }
 
-  /* The highlighted row — set by the arrow keys and by the pointer. */
   [data-palette-item][data-active] {
     background: var(--color-raised);
     color: var(--color-ink);
@@ -142,7 +121,6 @@ const items = [...nav, ...externalLinks].map((item) => ({
     color: var(--color-brand-alt);
   }
 
-  /* In shell mode the search bar and the rows give way to the terminal. */
   [data-palette][data-shell] [data-palette-searchbar],
   [data-palette][data-shell] [data-palette-list],
   [data-palette][data-shell] [data-search-hint],
@@ -155,8 +133,6 @@ const items = [...nav, ...externalLinks].map((item) => ({
     overflow: hidden;
   }
 
-  /* The terminal in the site's colours. The session writes indexed colours
-     (34 blue, 31 red, 90 faint), so these decide what they look like. */
   [data-palette] :global(.wterm) {
     --term-fg: var(--color-ink);
     --term-bg: var(--color-base);
@@ -187,17 +163,12 @@ const items = [...nav, ...externalLinks].map((item) => ({
   import type { PaletteTerminal } from "@/lib/palette-terminal";
   import type { SessionState } from "@/lib/shell-session";
 
-  // Module state outlives the page, so the working directory, the history and
-  // the downloaded filesystem carry across soft navigations. The terminal
-  // itself belongs to one page's markup and is mounted afresh on each. The
-  // promise, not its value, so pages that ask while it is in flight share it.
   let shellLoad: Promise<SessionState> | null = null;
   let bannerShown = false;
 
   async function loadShellState(): Promise<SessionState> {
     const response = await fetch("/shell-fs.json");
     if (!response.ok) throw new Error(`shell-fs.json responded ${response.status}`);
-    // The one place the filesystem crosses an untyped boundary.
     const root = (await response.json()) as SessionState["root"];
     return { root, cwd: "/", history: [] };
   }
@@ -228,17 +199,11 @@ const items = [...nav, ...externalLinks].map((item) => ({
     let shellOn = false;
     signal.addEventListener("abort", () => terminal?.destroy());
 
-    /** The matching rows, in the order they are drawn. */
     let visible = rows;
     let active = 0;
     let open = false;
     let previousOverflow = "";
 
-    /**
-     * Subsequence match — "gst" finds "Guestbook", null when it does not.
-     * Walks the label alone: over a whole keyword line almost any short query
-     * threads some path through. Keywords still match as a literal run.
-     */
     const score = (row: HTMLAnchorElement, query: string): number | null => {
       if (!query) return 0;
       const needle = row.dataset.needle ?? "";
@@ -268,8 +233,6 @@ const items = [...nav, ...externalLinks].map((item) => ({
       const current = visible[active];
       if (!current) return;
       current.setAttribute("data-active", "");
-      // Only worth doing while the list is on screen, and scrolling something
-      // invisible is a good way to move the page instead.
       if (open) current.scrollIntoView({ block: "nearest" });
     };
 
@@ -282,8 +245,6 @@ const items = [...nav, ...externalLinks].map((item) => ({
         .sort((a, b) => b.s - a.s);
 
       for (const row of rows) row.hidden = true;
-      // Moving each match ahead of the empty-state line both re-sorts the list
-      // and keeps that line last.
       for (const { row } of matches) {
         row.hidden = false;
         list.insertBefore(row, empty);
@@ -303,7 +264,6 @@ const items = [...nav, ...externalLinks].map((item) => ({
       palette.toggleAttribute("inert", !next);
 
       if (next) {
-        // Takes the settings popover down with it — see lib/overlays.
         overlayOpened("palette");
         previousOverflow = document.body.style.overflow;
         document.body.style.overflow = "hidden";
@@ -322,8 +282,6 @@ const items = [...nav, ...externalLinks].map((item) => ({
       if (!terminal) {
         loading = true;
         try {
-          // Only a failed fetch is forgotten: a later failure keeps the
-          // visit's cwd and history.
           shellLoad ??= loadShellState().catch((error) => {
             shellLoad = null;
             throw error;
@@ -332,12 +290,10 @@ const items = [...nav, ...externalLinks].map((item) => ({
             import("../lib/palette-terminal"),
             shellLoad,
           ]);
-          // Closed, moved on to another page, or deleted the `$`, while that loaded.
           if (signal.aborted || !open || !input.value.startsWith("$")) return;
 
           terminal = await mountTerminal(termHost, state, {
             banner: !bannerShown,
-            // Let the line land before the browser leaves the page.
             navigate: (href) => {
               const cancel = () => clearTimeout(timer);
               const timer = setTimeout(() => {
@@ -353,11 +309,8 @@ const items = [...nav, ...externalLinks].map((item) => ({
             return;
           }
           bannerShown = true;
-          // Mounted, but the reader has moved on; the next `$` resumes it.
           if (!open || !input.value.startsWith("$")) return;
         } catch (error) {
-          // Guarded: without it a failure leaves a prompt over a shell whose
-          // filesystem never arrived, answering as if the bucket were empty.
           console.error("[palette] shell failed to load", error);
           shellError.hidden = false;
           return;
@@ -368,7 +321,6 @@ const items = [...nav, ...externalLinks].map((item) => ({
         terminal.resume();
       }
 
-      // Whatever was typed after the `$` while the shell loaded is its first input.
       const ahead = input.value.slice(1);
       shellOn = true;
       shellError.hidden = true;
@@ -420,7 +372,6 @@ const items = [...nav, ...externalLinks].map((item) => ({
           setActive(active - 1);
         } else if (event.key === "Enter") {
           event.preventDefault();
-          // Click the row rather than navigating by hand, so both paths agree.
           visible[active]?.click();
         }
       },
@@ -431,7 +382,6 @@ const items = [...nav, ...externalLinks].map((item) => ({
       "click",
       (event) => {
         if (!(event.target as HTMLElement).closest("[data-palette-item]")) return;
-        // Flipping `inert` mid-dispatch would cancel the activation this rides on.
         setTimeout(() => setOpen(false));
       },
       { signal },
@@ -450,9 +400,6 @@ const items = [...nav, ...externalLinks].map((item) => ({
       { signal },
     );
 
-    // Global ⌘K / Ctrl+K, and "/" as a shortcut when not already typing.
-    // Capturing, and stopped here, because the terminal claims both Ctrl+K and
-    // Escape for itself and stops them before they would bubble up.
     window.addEventListener(
       "keydown",
       (event) => {

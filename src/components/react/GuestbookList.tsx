@@ -3,16 +3,8 @@ import type { GuestbookEntry } from "@/lib/guestbook";
 import { useSigner } from "./useSigner";
 import { cn, relativeTime } from "@/lib/utils";
 
-/**
- * The signature list, loaded a page at a time as the reader scrolls. The
- * first page arrives as HTML in the GuestbookEntries server island, before
- * React runs.
- */
-
 type Props = {
-  /** The first page, rendered on the server. */
   initial: GuestbookEntry[];
-  /** Cursor for the page after `initial`, or null if that was all of them. */
   initialCursor: string | null;
 };
 
@@ -20,8 +12,6 @@ type Page = { entries: GuestbookEntry[]; next: string | null; error?: boolean };
 
 export default function GuestbookList({ initial, initialCursor }: Props) {
   const [entries, setEntries] = useState(initial);
-  // The signed-in reader, so their own entries get a delete control. Asked
-  // after load: the list is rendered alike for everyone.
   const signer = useSigner();
   const signerId = signer && signer !== "failed" ? (signer.signer?.githubId ?? null) : null;
   const [cursor, setCursor] = useState(initialCursor);
@@ -30,8 +20,6 @@ export default function GuestbookList({ initial, initialCursor }: Props) {
 
   const sentinel = useRef<HTMLDivElement | null>(null);
 
-  // In refs as well as state: the observer callback is not re-created per
-  // render, and one closed over the first cursor would refetch page two forever.
   const cursorRef = useRef(initialCursor);
   const loadingRef = useRef(false);
 
@@ -54,8 +42,6 @@ export default function GuestbookList({ initial, initialCursor }: Props) {
         return;
       }
 
-      // The cursor cannot overlap, but a delete between two fetches shifts the
-      // window, so filter for rows already on screen.
       setEntries((current) => {
         const seen = new Set(current.map((entry) => entry.id));
         return [...current, ...page.entries.filter((entry) => !seen.has(entry.id))];
@@ -64,7 +50,6 @@ export default function GuestbookList({ initial, initialCursor }: Props) {
       cursorRef.current = page.next;
       setCursor(page.next);
     } catch {
-      // Offline or cut short. The sentinel stays put, so scrolling retries.
       setFailed(true);
     } finally {
       loadingRef.current = false;
@@ -72,14 +57,11 @@ export default function GuestbookList({ initial, initialCursor }: Props) {
     }
   }, []);
 
-  // `cursor` is load-bearing: an observer reports transitions, not states, and
-  // on a tall screen the sentinel stays inside the margin after a page lands.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: see above
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-observing on each cursor fires again while the sentinel stays in the margin
   useEffect(() => {
     const target = sentinel.current;
     if (!target) return;
 
-    // A margin, so the next page lands before the reader reaches the bottom.
     const observer = new IntersectionObserver(
       (records) => {
         if (records.some((record) => record.isIntersecting)) void loadMore();
@@ -167,8 +149,6 @@ export default function GuestbookList({ initial, initialCursor }: Props) {
       </ul>
 
       {cursor && (
-        /* A real button, not a bare sentinel, so it stays reachable from the
-           keyboard when the observer does not fire. */
         <div ref={sentinel} className="pt-4 text-center">
           <button
             type="button"

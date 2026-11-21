@@ -2,62 +2,35 @@ import type { R2File, R2Listing, R2Tree } from "./r2.ts";
 import { type Entry, fileEntry, type FolderStat, folderStats, searchTree } from "./files-nav.ts";
 import { type Visibility, type VisibilityRules, visibilityOf } from "../../shared/visibility.ts";
 
-// Where the /files browser's listings come from. The island ships either the
-// whole tree ("complete": nothing is ever fetched) or only the root ("lazy":
-// each folder and every search is a request). Callers never see which. Once
-// mounted, the browser asks /api/files/visibility whether the reader is the
-// owner, and if so swaps the visitors' listings for the owner's.
-// No DOM and no React, so `node --test` drives it through an injected fetch.
-
-/** One immutable state of the source, safe to render from. */
 export type FilesView = {
   listing(prefix: string): R2Listing | undefined;
   loading(prefix: string): boolean;
-  /** Without this a failed fetch renders identically to an empty folder. */
   failed(prefix: string): boolean;
-  /** The root has never arrived, or its last fetch failed. */
   rootError: boolean;
-  /** Rollups under every prefix; only when the whole tree is here. */
   stats: Record<string, FolderStat> | null;
-  /** Folder settings, present only for the owner. */
   rules: VisibilityRules | null;
   owner: boolean;
-  /** The owner check has settled, either way. */
   accessChecked: boolean;
-  /** Where a file's bytes come from: the bucket's domain, or for a private one the owner-checked route. */
   baseFor(key: string): string;
-  /** A tag for anything a visitor would not see listed; owner only. */
   tagFor(key: string): Visibility | null;
-  /**
-   * Where a deep link lands, or null when the folder is not in the tree. A
-   * link to a folder without its trailing slash still opens the folder.
-   */
   locate(prefix: string, file: string | null): { prefix: string; file: string | null } | null;
 };
 
 export type FilesSource = {
   getSnapshot(): FilesView;
   subscribe(listener: () => void): () => void;
-  /** Fetches a folder unless it is here, in flight, or (without `retry`) failed. */
   load(prefix: string, options?: { retry?: boolean }): Promise<void>;
-  /** Results now when the tree is here, or later from the server. Rejects on failure or abort. */
   search(term: string, signal: AbortSignal): Entry[] | Promise<Entry[]>;
-  /** The owner upgrade. Runs once; `onSettled` is called exactly once on every path. */
   checkAccess(): Promise<void>;
-  /** Owner only. Throws when the change was not saved. */
   setVisibility(prefix: string, visibility: Visibility | null): Promise<void>;
-  /** Stops state updates; the access check still settles. */
 };
 
 export type FilesSourceOptions = {
   fetch: typeof fetch;
-  /** Whole bucket, keyed by prefix. Null once the bucket is too big to inline. */
   tree: R2Tree | null;
   initial: R2Listing | null;
   bucketUrl: string;
-  /** Hands the owner's tree to the page's other islands. */
   publish?: (tree: R2Tree) => void;
-  /** The check is over; `published` says whether the owner's tree went out. */
   onSettled?: (published: boolean) => void;
   searchDelayMs?: number;
 };
@@ -112,8 +85,6 @@ export function createFilesSource(options: FilesSourceOptions): FilesSource {
     rules: null,
     accessChecked: false,
   };
-  // Bumped when the owner's view replaces the visitors', so a folder fetched
-  // for the visitor and landing after the swap is dropped.
   let generation = 0;
   let access: Promise<void> | null = null;
   const listeners = new Set<() => void>();
@@ -163,7 +134,6 @@ export function createFilesSource(options: FilesSourceOptions): FilesSource {
     update((s) => ({ loading: withKey(s.loading, prefix), failed: withoutKey(s.failed, prefix) }));
     try {
       const response = await fetch(`/api/files/list?prefix=${encodeURIComponent(prefix)}`);
-      // A 429 and a 500 both arrive as JSON, and neither is an empty folder.
       if (!response.ok) throw new Error(String(response.status));
       const data = (await response.json()) as R2Listing & { error?: boolean };
       if (data.error) throw new Error("listing unavailable");
@@ -204,14 +174,12 @@ export function createFilesSource(options: FilesSourceOptions): FilesSource {
       if (complete) {
         update((s) => ({ rules, listings: ownerTree ?? s.listings }));
       } else {
-        // What lazy mode fetched so far was the visitors' view; start over.
         update(() => ({ rules, listings: {}, failed: new Set(), loading: new Set() }));
       }
       if (!ownerTree) return false;
       publish?.(ownerTree);
       return true;
     } catch {
-      // Not signed in, or offline: the visitors' view stands.
       return false;
     }
   }

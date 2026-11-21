@@ -18,7 +18,6 @@ const recentPosts = (await getPosts()).slice(0, 3);
 const [firstName, ...rest] = site.author.split(" ");
 const github = externalLinks.find((link) => link.icon === "github");
 const githubHref = github?.href ?? `https://github.com/${site.githubUser}`;
-// "/pgp_key.asc.txt" → "pgp_key.asc": what each link points at, after its name.
 const elsewhere = externalLinks.map((link) => ({
   ...link,
   external: /^https?:/.test(link.href),
@@ -27,11 +26,6 @@ const elsewhere = externalLinks.map((link) => ({
 ---
 
 <Layout>
-  {/*
-    The field. The canvas behind the page (Lattice.astro) draws what is
-    playing on the mark's own triangle grid, inside this section's box; the
-    text sits over the side it dissolves on.
-  */}
   <section slot="hero" class="hero" data-lattice="cover" data-lattice-intro aria-labelledby="who">
     <div class="hero-frame mx-auto flex w-full max-w-page flex-col px-4 sm:px-5">
       <h1 id="who" class="hero-name display-face text-ink">
@@ -61,12 +55,6 @@ const elsewhere = externalLinks.map((link) => ({
     </div>
   </section>
 
-  {/*
-    The ledger: one numbered entry per subject, read top to bottom. Each
-    server island renders inside its own entry, so a slow one holds its place
-    and nothing reflows into it. From 1280px the short entries pair up, so
-    the whole ledger fits a screen under the header.
-  */}
   <div class="flex-1 pb-6 xl:grid xl:grid-cols-2 xl:grid-rows-[auto_auto_auto_1fr] xl:pb-0">
     <LedgerSection n={1} label="Writing" id="writing-heading" link={{ href: "/blog", text: "all posts" }} col="start">
       {
@@ -170,9 +158,6 @@ const elsewhere = externalLinks.map((link) => ({
     display: flex;
   }
 
-  /* The ledger's first rule is the hero's foot, and the footer closes its
-     last row, so nothing but the ledger stands between them. Any slack goes
-     into that last row, so its divider runs down to the footer's rule. */
   :global(main:has(> .hero)) {
     display: flex;
     flex-direction: column;
@@ -187,11 +172,6 @@ const elsewhere = externalLinks.map((link) => ({
     margin-top: 0;
   }
 
-  /* The rest of the page is at least a screen too, so scrolled to the
-     bottom the hero's rule meets the header's, as it meets the screen's
-     foot at the top. The slack goes into the ledger's last row. From
-     1280px the ledger pairs its short entries to fit one screen exactly
-     where it can (LedgerSection.astro). */
   @media (min-width: 768px) {
     :global(.page-shell:has(> main > .hero)) {
       min-height: calc(200svh - var(--header-h));
@@ -202,13 +182,11 @@ const elsewhere = externalLinks.map((link) => ({
     padding-block: clamp(2.5rem, 7vh, 5rem) clamp(1.5rem, 4vh, 2.75rem);
   }
 
-  /* Sized so the surname ends before the cover turns solid. */
   .hero-name {
     font-size: clamp(3.25rem, 9.2vw, 9.5rem);
     letter-spacing: -0.065em;
     line-height: 0.86;
     margin-left: -0.045em;
-    /* Where a letter crosses a lit triangle, the ground comes with it. */
     text-shadow: 0 0 0.35em var(--color-base);
   }
 
@@ -218,7 +196,6 @@ const elsewhere = externalLinks.map((link) => ({
     overflow-clip-margin: 0.12em;
   }
 
-  /* Each line slides up its own slot along the lattice's slant. */
   .hero-line > span {
     display: block;
     animation: hero-line 0.9s var(--ease-out-quint) both;
@@ -281,15 +258,11 @@ const elsewhere = externalLinks.map((link) => ({
     background: var(--color-brand);
   }
 
-  /* A phone: the cover runs edge to edge across the top and the text starts
-     where it thins out. */
   @media (max-width: 767px) {
     .hero {
       min-height: 0;
     }
     .hero-frame {
-      /* The cover's inset below the header, then its last thin scatter, which
-         the name's text-shadow grounds. */
       padding-top: calc(22px + 88vw);
     }
     .hero-name {
