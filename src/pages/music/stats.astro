@@ -439,6 +439,7 @@ const pastYears = years.slice(0, -1).join(" ");
 
 <script>
   import { onPage } from "@/lib/page-lifecycle";
+  import { newYears } from "@/lib/music-stats-view";
 
   onPage((signal) => {
     const switcher = document.querySelector<HTMLFieldSetElement>("[data-year-switch]");
@@ -457,6 +458,25 @@ const pastYears = years.slice(0, -1).join(" ");
     const mark = (root: Element | Document) => {
       for (const el of root.querySelectorAll<HTMLElement>(TAGGED)) markOne(el);
     };
+    const linked = new URLSearchParams(location.search).get("year");
+    const offerYears = (root: Element | Document) => {
+      const rendered = [...root.querySelectorAll<HTMLElement>(TAGGED)];
+      if (root instanceof HTMLElement && root.matches(TAGGED)) rendered.push(root);
+      const offered = [...switcher.querySelectorAll<HTMLInputElement>("input")].map((input) => input.value);
+      const values = rendered.map((el) => el.dataset.year ?? el.dataset.colYear ?? el.dataset.cardYear ?? "");
+      const template = switcher.querySelector("label:last-of-type");
+      if (!template) return;
+      for (const year of newYears(offered, values)) {
+        const input = template.querySelector("input")!.cloneNode() as HTMLInputElement;
+        input.value = year;
+        input.checked = year === linked;
+        const label = template.cloneNode() as HTMLLabelElement;
+        label.appendChild(input);
+        label.appendChild(document.createTextNode(year));
+        template.parentElement!.appendChild(label);
+        if (input.checked) showYear(year);
+      }
+    };
     const showYear = (year: string) => {
       chosen = year;
       if (year === "all") delete document.documentElement.dataset.statsYear;
@@ -464,10 +484,11 @@ const pastYears = years.slice(0, -1).join(" ");
       mark(document);
     };
     const observer = new MutationObserver((records) => {
-      if (chosen === "all") return;
       for (const record of records) {
         for (const node of record.addedNodes) {
           if (!(node instanceof HTMLElement)) continue;
+          offerYears(node);
+          if (chosen === "all") continue;
           if (node.matches(TAGGED)) markOne(node);
           mark(node);
         }
@@ -475,12 +496,12 @@ const pastYears = years.slice(0, -1).join(" ");
     });
     observer.observe(document.body, { childList: true, subtree: true });
     signal.addEventListener("abort", () => observer.disconnect());
-    const linked = new URLSearchParams(location.search).get("year");
     const linkedInput = linked ? switcher.querySelector<HTMLInputElement>(`input[value="${CSS.escape(linked)}"]`) : null;
     if (linked && linkedInput) {
       linkedInput.checked = true;
       showYear(linked);
     }
+    offerYears(document);
     switcher.addEventListener("change", (event) => {
       const year = (event.target as HTMLInputElement).value;
       showYear(year);

@@ -14,6 +14,7 @@ import {
   peakHour,
   percent,
   quarterLabel,
+  newYears,
   statsYears,
   shareBetween,
   spotifyUrl,
@@ -79,6 +80,16 @@ describe("chart geometry", () => {
 describe("year switch", () => {
   test("offers every year from the first to the current one", () => {
     assert.deepEqual(statsYears(new Date("2026-10-11T00:00:00Z")), ["2020", "2021", "2022", "2023", "2024", "2025", "2026"]);
+  });
+
+  test("adds years the islands render that the build did not know", () => {
+    const offered = statsYears(new Date("2026-10-11T00:00:00Z"));
+    assert.deepEqual(newYears(offered, ["all", "2025", "2027", "2026", "2027", "2028"]), ["2027", "2028"]);
+  });
+
+  test("adds nothing for years already offered or values that are not years", () => {
+    const offered = statsYears(new Date("2026-10-11T00:00:00Z"));
+    assert.deepEqual(newYears(offered, ["all", "2024", "2026", "", "2027-Q1", "27", "2019"]), []);
   });
 
 });

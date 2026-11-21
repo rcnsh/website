@@ -107,3 +107,10 @@ export function statsYears(now: Date): string[] {
   return years;
 }
 
+
+export function newYears(offered: readonly string[], rendered: Iterable<string>): string[] {
+  const latest = Math.max(FIRST_STATS_YEAR - 1, ...offered.map(Number).filter(Number.isInteger));
+  const found = new Set<string>();
+  for (const value of rendered) if (/^\d{4}$/.test(value) && Number(value) > latest) found.add(value);
+  return [...found].sort();
+}
