@@ -51,7 +51,8 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
     object = await r2.get(decision.key, range ? { range: request.headers } : undefined);
   } catch (error) {
     if (!range || !isRangeError(error)) throw error;
-    const head = await r2.head(decision.key);
+    const head = await r2.head(decision.key).catch(() => undefined);
+    if (head === null) return new Response("Not found", { status: 404 });
     return new Response("Range not satisfiable", {
       status: 416,
       headers: head ? { "content-range": `bytes */${head.size}` } : {},
@@ -87,6 +88,12 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   }
 
   const served = range ? span(object) : null;
+  if (range && object.range && !served) {
+    return new Response("Range not satisfiable", {
+      status: 416,
+      headers: { "content-range": `bytes */${object.size}` },
+    });
+  }
   if (served) {
     headers.set("content-range", contentRange(served, object.size));
     headers.set("content-length", String(served.length));

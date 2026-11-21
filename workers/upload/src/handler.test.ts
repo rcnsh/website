@@ -107,3 +107,23 @@ test("a zero-byte suffix range is a 416, not an empty 200", async () => {
   assert.equal(response.status, 416);
   assert.equal(response.headers.get("content-range"), "bytes */5");
 });
+
+test("an empty span from R2 is a 416, and a refused range on a missing key is a 404", async () => {
+  const { env } = fakeEnv();
+  const bucket = env.BUCKET as unknown as {
+    get: (key: string) => Promise<unknown>;
+    head: (key: string) => Promise<unknown>;
+  };
+  const original = await bucket.get("music/a.mp3");
+  bucket.get = async () => ({ ...(original as object), range: { offset: 5 } });
+  const empty = await ranged(env, "/music/a.mp3", "Bytes=5-");
+  assert.equal(empty.status, 416);
+  assert.equal(empty.headers.get("content-range"), "bytes */5");
+  assert.equal(empty.headers.get("cache-control"), "no-store");
+
+  bucket.get = async () => {
+    throw new Error("get: The requested range is not satisfiable (10039)");
+  };
+  bucket.head = async () => null;
+  assert.equal((await ranged(env, "/music/gone.mp3", "bytes=9-")).status, 404);
+});

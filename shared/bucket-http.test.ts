@@ -35,11 +35,14 @@ test("a zero-byte suffix, or any range on an empty object, is unsatisfiable", ()
   assert.equal(unsatisfiable("bytes=-0", 10), true);
   assert.equal(unsatisfiable("bytes=0-", 0), true);
   assert.equal(unsatisfiable("bytes=-5", 10), false);
+  assert.equal(unsatisfiable("bytes=-5", 0), true);
+  assert.equal(span({ size: 10, range: { offset: 10 } }), null);
 });
 
 test("only R2's range refusal counts as a range error", () => {
   assert.equal(isRangeError(new Error("get: The requested range is not satisfiable (10039)")), true);
   assert.equal(isRangeError(new Error("internal error")), false);
+  assert.equal(isRangeError(new Error("Value out of range")), false);
 });
 
 test("span reads a suffix range as the last bytes of the object", () => {

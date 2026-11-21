@@ -19,6 +19,7 @@ export interface Env {
 
 function text(body: string, status: number, headers: Headers): Response {
   headers.set("content-type", "text/plain; charset=utf-8");
+  if (status >= 400) headers.set("cache-control", uncachedError);
   return new Response(body, { status, headers });
 }
 
@@ -79,7 +80,8 @@ export function createHandler() {
         object = await env.BUCKET.get(key, { range: request.headers, onlyIf: request.headers });
       } catch (error) {
         if (!request.headers.has("range") || !isRangeError(error)) throw error;
-        const head = await env.BUCKET.head(key);
+        const head = await env.BUCKET.head(key).catch(() => undefined);
+        if (head === null) return text("Not found", 404, headers);
         if (head) headers.set("content-range", `bytes */${head.size}`);
         return text("Range not satisfiable", 416, headers);
       }
@@ -98,6 +100,10 @@ export function createHandler() {
       }
 
       const served = request.headers.has("range") ? span(object) : null;
+      if (request.headers.has("range") && object.range && !served) {
+        headers.set("content-range", `bytes */${object.size}`);
+        return text("Range not satisfiable", 416, headers);
+      }
       if (served) {
         headers.set("content-range", contentRange(served, object.size));
         headers.set("content-length", String(served.length));
