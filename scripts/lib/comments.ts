@@ -218,11 +218,11 @@ function astroRanges(source: string): Range[] {
     if (node.type === "frontmatter") return code(node.value ?? "", false);
     if (node.type === "comment") {
       const value = node.value ?? "";
-      const opener = [`<!--${value}`, `<!${value}`, `<${value}`].find(
-        (o) => source.indexOf(o, cursor) !== -1,
-      );
-      if (!opener) throw new Error(`cannot place an Astro comment in the source: ${value.slice(0, 60)}`);
-      const at = source.indexOf(opener, cursor);
+      const [at, opener] = [`<!--${value}`, `<!${value}`, `<${value}`]
+        .map((o) => [source.indexOf(o, cursor), o] as const)
+        .filter(([i]) => i !== -1)
+        .sort(([a, x], [b, y]) => a - b || y.length - x.length)[0] ?? [-1, ""];
+      if (at === -1) throw new Error(`cannot place an Astro comment in the source: ${value.slice(0, 60)}`);
       let end = at + opener.length;
       const closer = ["-->", "--!>", "->", ">"].find((c) => source.startsWith(c, end));
       if (closer) end += closer.length;
@@ -258,7 +258,15 @@ function astroRanges(source: string): Range[] {
     }
   };
   const root = parseAstro(source, { position: false }).ast as AstroNode;
-  const last = root.children?.at(-1);
+  let last: AstroNode | undefined;
+  const findLast = (node: AstroNode) => {
+    if (node.type === "text") last = node;
+    if (node.type === "element" && ["textarea", "title", "script", "style"].includes(node.name ?? "")) {
+      return;
+    }
+    for (const child of node.children ?? []) findLast(child);
+  };
+  findLast(root);
   visit(root);
   return out;
 }
