@@ -129,6 +129,8 @@ test("Astro: frontmatter with templates, regexes, JSX and dashed comments", () =
   assert.deepEqual(texts("<p>a</p></3><!-- b -->", "astro"), ["</3>", "<!-- b -->"]);
   assert.deepEqual(texts("<>\n<p>a</p>\n</><!-- c -->", "astro"), ["<!-- c -->"]);
   assert.deepEqual(texts("<!DOCTYPE html>\n<html><body><!----></body></html>", "astro"), ["<!---->"]);
+  assert.deepEqual(texts(`---\nconst s = "${"\u0130".repeat(30)}";\n---\n<!DOCTYPE html><!-- a --><p/>`, "astro"), ["<!-- a -->"]);
+  assert.deepEqual(texts('<div title="<!x>"></div><!---->', "astro"), ["<!---->"]);
   assert.deepEqual(texts("<p>a</p><!-- unclosed {/* c */} more", "astro"), ["<!-- unclosed {/* c */} more"]);
   assert.deepEqual(texts("<p>a</p><svg><title>x <!-- y</title></svg>", "astro"), ["<!-- y</title></svg>"]);
   assert.deepEqual(texts("<p>a</p><iframe>x <!-- y</iframe>", "astro"), []);

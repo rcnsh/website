@@ -202,7 +202,6 @@ function astroRanges(source: string): Range[] {
     let joined = "";
     const map: { from: number; to: number; at: number }[] = [];
     for (const child of node.children ?? []) {
-      if (ended) return;
       if (child.type === "text" && child.value) {
         const at = locate(child.value);
         if (at !== -1) map.push({ from: joined.length, to: joined.length + child.value.length, at });
@@ -221,14 +220,21 @@ function astroRanges(source: string): Range[] {
   const visit = (node: AstroNode) => {
     if (ended) return;
     if (node.type === "doctype") {
-      const at = source.toLowerCase().indexOf("<!doctype", cursor);
-      if (at !== -1) cursor = source.indexOf(">", at) + 1;
+      const doctype = /<!doctype/gi;
+      doctype.lastIndex = cursor;
+      const found = doctype.exec(source);
+      if (found) {
+        const close = source.indexOf(">", found.index);
+        cursor = close === -1 ? source.length : close + 1;
+      }
       return;
     }
     if (node.type === "frontmatter") return code(node.value ?? "", false);
     if (node.type === "comment") {
       const value = node.value ?? "";
-      const openers = [`<!--${value}`, `<!${value}`, ...(value ? [`</${value}`, `<${value}`] : [])];
+      const openers = value
+        ? [`<!--${value}`, `<!${value}`, `</${value}`, `<${value}`]
+        : ["<!--", "<!>"];
       let at = cursor - 1;
       let opener: string | undefined;
       while (!opener) {
