@@ -7,7 +7,7 @@ Cloudflare Workers, with D1, R2 and KV.
 npm run dev        # astro dev, port 4321
 npm run build      # generate → wrangler types → astro check → astro build → verify:headers
 npm test           # node --test over src/, shared/, workers/
-npm run lint       # biome lint (NOT format — the repo is not biome-formatted)
+npm run lint       # comment ratchet, then biome lint (NOT format — the repo is not biome-formatted)
 npm run preview    # build, then wrangler dev on the real bindings
 ```
 
@@ -20,7 +20,7 @@ npm run preview    # build, then wrangler dev on the real bindings
 ## Maintenance
 
 Things that will break if you change them without knowing why. Most were paid
-for once already; the comment in the code may be short or gone, so this is the
+for once already; the code carries no comments, so this is the
 record.
 
 ### CSP and the router
@@ -258,7 +258,7 @@ isolate's lifetime.
 `read()` throws on a failed response or a schema mismatch, applies
 `deadline()`, and namespaces cache keys under `warehouse:`. A read's cached
 value is its schema's *output*, transforms included, so changing what a
-schema transforms to means bumping its key (`recent:v3`), or stale entries
+schema transforms to means bumping its key (`recent:v4`), or stale entries
 in the old shape reach new code. The read definitions live in
 `src/lib/spotify-reads.ts`, free of `cloudflare:workers`, so tests drive them
 through `createWarehouse` with a fake `fetch`. `getNowPlaying()` throws on a
@@ -656,9 +656,15 @@ be verified there; extract the decision and unit-test it (see
 
 ## Conventions
 
-- Comments explain **why**, not what. Prefer none to a paragraph restating the
-  code. Load-bearing invariants belong in the Maintenance section above, where
-  they are findable, not buried at their call site.
+- Code carries no comments. A decision that would have been a comment is an
+  ADR in `docs/adr/` (index and format in its README); a load-bearing invariant
+  also goes in the Maintenance section above. `npm run lint:comments` holds a
+  ratchet in `comments-baseline.json`, a fingerprint of each comment still
+  allowed: any other comment fails, an edited one included, and a deleted one
+  fails until `npm run lint:comments:update` drops it (that command never adds
+  one; `--accept-new` is only for when the scanner learns a new syntax). Tool directives (`biome-ignore`, `@ts-expect-error`, `@vite-ignore`,
+  `/* glsl */`) are not comments to it. `/delete-comment` pays down what is
+  left; a hack a comment excused is a GitHub issue labelled `excuse`.
 - Tests are `node --test`; no framework. Pure logic is extracted from
   components so it can be tested (`edge-fade`, `coalesce`).
 - `shared/` is dependency-free TypeScript imported by the Worker and scripts.
