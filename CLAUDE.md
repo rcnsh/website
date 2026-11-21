@@ -517,7 +517,9 @@ the first `QUIET_MAX` (4) on screen.
 **`page-band` (`global.css`) breaks out of the page frame by `--page-w`**, the
 viewport without its scrollbar, which TopBar publishes beside `--header-h`;
 `100vw` would include the scrollbar gutter. It must be a direct child of the
-page's `bento` grid, and nothing may share its row.
+page's `bento` grid, and nothing may share its row. The field reads the frame's
+width from `--container-page` (`global.css`) when it resizes, so the frame is
+set there and nowhere else.
 
 **An `svg:` picture is rebuilt from the shapes' `data-level` (0 to 4) alone**
 (`svgPicture` in `field.ts`): the page's own fills, classes and strokes are
