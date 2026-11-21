@@ -57,7 +57,7 @@ Take the next free number and write `NNNN-<slug>.md`, starting `# NNNN. Title`. 
 - [0036. Bucket reads go through a reader-scoped view](0036-bucket-reads-go-through-a-reader-scoped-view.md)
 - [0037. The visitor file tree shows folders that lead to a listed one](0037-visitor-file-tree-shows-paths-to-listed-folders.md)
 - [0038. upload.rcn.sh is a Worker in place of R2 public access](0038-upload-rcn-sh-is-a-worker-in-place-of-r2-public-access.md)
-- [0039. The upload Worker follows R2's get semantics](0039-upload-worker-follows-r2-get-semantics.md)
+- [0039. Both readers of bucket bytes follow R2's get semantics](0039-upload-worker-follows-r2-get-semantics.md)
 - [0040. Route downloads by visibility](0040-route-downloads-by-visibility.md)
 - [0041. Serve downloads as inert content](0041-serve-downloads-as-inert-content.md)
 - [0042. Cache the bucket tree in KV with a one-day stale ceiling](0042-cache-the-bucket-tree-in-kv.md)

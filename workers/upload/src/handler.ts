@@ -1,12 +1,11 @@
 import {
-  corsHeaders,
-  isRangeError,
-  keyFromPath,
   contentRange,
+  corsHeaders,
+  keyFromPath,
   PREFLIGHT_HEADERS,
   parseOrigins,
-  rangeToAsk,
-  rangeOutcome,
+  readObject,
+  type Stored,
 } from "../../../shared/bucket-http.ts";
 import { uncachedError } from "../../../shared/cache-policy.ts";
 import { decideRead, REFUSALS, type RuleRow, rulesLoader } from "../../../shared/visibility.ts";
@@ -23,7 +22,7 @@ function text(body: string, status: number, headers: Headers): Response {
   return new Response(body, { status, headers });
 }
 
-function describe(object: R2Object, headers: Headers): void {
+function describe(object: Stored, headers: Headers): void {
   object.writeHttpMetadata(headers);
   headers.set("etag", object.httpEtag);
   headers.set("last-modified", object.uploaded.toUTCString());
@@ -71,38 +70,24 @@ export function createHandler() {
         return new Response(null, { headers });
       }
 
-      const asked = rangeToAsk(request.headers.get("range"));
-      let object: R2Object | R2ObjectBody | null;
-      try {
-        object = await env.BUCKET.get(key, { ...(asked ? { range: asked } : {}), onlyIf: request.headers });
-      } catch (error) {
-        if (!asked || !isRangeError(error)) throw error;
-        const head = await env.BUCKET.head(key);
-        if (!head) return text("Not found", 404, headers);
-        headers.set("content-range", `bytes */${head.size}`);
+      const read = await readObject(env.BUCKET, key, request.headers);
+      if (read.kind === "missing") return text("Not found", 404, headers);
+      if (read.kind === "unsatisfiable") {
+        headers.set("content-range", read.contentRange);
         return text("Range not satisfiable", 416, headers);
       }
-      if (!object) return text("Not found", 404, headers);
-
-      if (!("body" in object)) {
-        describe(object, headers);
-        const notModified = request.headers.has("if-none-match") || request.headers.has("if-modified-since");
-        if (!notModified) headers.set("cache-control", uncachedError);
-        return new Response(null, { status: notModified ? 304 : 412, headers });
+      if (read.kind === "not-modified" || read.kind === "precondition-failed") {
+        describe(read.object, headers);
+        if (read.kind === "precondition-failed") headers.set("cache-control", uncachedError);
+        return new Response(null, { status: read.kind === "not-modified" ? 304 : 412, headers });
       }
 
-      const outcome = rangeOutcome(request.headers.get("range"), object);
-      if (outcome.kind === "unsatisfiable") {
-        await object.body.cancel();
-        headers.set("content-range", outcome.contentRange);
-        return text("Range not satisfiable", 416, headers);
-      }
-
+      const { object } = read;
       describe(object, headers);
 
-      if (outcome.kind === "partial") {
-        headers.set("content-range", contentRange(outcome.span, object.size));
-        headers.set("content-length", String(outcome.span.length));
+      if (read.kind === "partial") {
+        headers.set("content-range", contentRange(read.span, object.size));
+        headers.set("content-length", String(read.span.length));
         return new Response(object.body, { status: 206, headers });
       }
 

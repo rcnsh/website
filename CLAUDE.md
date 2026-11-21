@@ -325,9 +325,11 @@ serves bucket bytes must too. Key and prefix shapes (`objectKey`,
 `folderPrefix`, the hidden-segment rule, `THUMBS_PREFIX`) live in
 `shared/bucket-keys.ts` and nowhere else.
 
-**Both readers of bucket bytes decide a Range header in `shared/bucket-http.ts`**
-(`rangeToAsk` for what R2 is asked, `rangeOutcome` for 200, 206 or 416; see
-ADR-0039). `LARGEST_OBJECT` (2^43) must stay at or above R2's largest object,
+**Both readers of bucket bytes read through `readObject` (`shared/bucket-http.ts`)**,
+which decides conditions, `If-Range` and Range for both (304, 412, 200, 206
+or 416; see ADR-0039). A stale `If-Range` must never yield a 206: R2 ignores
+that header, so `readObject` checks it against the returned object and
+refetches the whole one. `LARGEST_OBJECT` (2^43) must stay at or above R2's largest object,
 or valid ranges on large files are refused or rewritten.
 
 **Private files download through `/api/files/download`, owner only.** That

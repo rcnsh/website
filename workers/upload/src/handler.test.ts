@@ -84,9 +84,11 @@ const ranged = (env: Env, path: string, range: string) =>
 
 test("a range R2 refuses is a 416 that names the size; any other R2 failure is not", async () => {
   const { env } = fakeEnv();
-  const bucket = env.BUCKET as unknown as { get: (key: string) => Promise<unknown> };
-  bucket.get = async () => {
-    throw new Error("get: The requested range is not satisfiable (10039)");
+  const bucket = env.BUCKET as unknown as { get: (key: string, options?: { range?: Headers }) => Promise<unknown> };
+  const original = bucket.get;
+  bucket.get = async (key, options) => {
+    if (options?.range) throw new Error("get: The requested range is not satisfiable (10039)");
+    return original(key);
   };
   const refused = await ranged(env, "/music/a.mp3", "bytes=999-");
   assert.equal(refused.status, 416);
@@ -111,8 +113,7 @@ test("a zero-byte suffix range is a 416, not an empty 200", async () => {
 test("an empty span from R2 is a 416, and a refused range on a missing key is a 404", async () => {
   const { env } = fakeEnv();
   const bucket = env.BUCKET as unknown as {
-    get: (key: string) => Promise<unknown>;
-    head: (key: string) => Promise<unknown>;
+    get: (key: string, options?: { range?: Headers }) => Promise<unknown>;
   };
   const original = await bucket.get("music/a.mp3");
   bucket.get = async () => ({ ...(original as object), range: { offset: 5 } });
@@ -121,10 +122,10 @@ test("an empty span from R2 is a 416, and a refused range on a missing key is a 
   assert.equal(empty.headers.get("content-range"), "bytes */5");
   assert.equal(empty.headers.get("cache-control"), "no-store");
 
-  bucket.get = async () => {
-    throw new Error("get: The requested range is not satisfiable (10039)");
+  bucket.get = async (_key, options) => {
+    if (options?.range) throw new Error("get: The requested range is not satisfiable (10039)");
+    return null;
   };
-  bucket.head = async () => null;
   assert.equal((await ranged(env, "/music/gone.mp3", "bytes=9-")).status, 404);
 });
 
@@ -169,4 +170,32 @@ test("a range starting past any object is a 416 after preconditions, never a bod
   assert.equal(response.status, 416);
   assert.equal(response.headers.get("content-range"), "bytes */5");
   assert.equal(response.headers.get("etag"), null);
+});
+
+test("a resumed download whose If-Range names an old upload gets the whole new file", async () => {
+  const { env } = fakeEnv();
+  const bucket = env.BUCKET as unknown as {
+    get: (key: string, options?: { range?: Headers }) => Promise<unknown>;
+  };
+  const original = bucket.get;
+  bucket.get = async (key, options) => {
+    const object = (await original(key)) as Record<string, unknown>;
+    if (!options?.range) return object;
+    return { ...object, range: { offset: 1, length: 2 }, body: new Blob(["el"]).stream() };
+  };
+  const resume = (ifRange: string) =>
+    createHandler().fetch(
+      new Request("https://upload.rcn.sh/music/a.mp3", { headers: { range: "bytes=1-2", "if-range": ifRange } }),
+      env,
+    );
+
+  const stale = await resume('"old"');
+  assert.equal(stale.status, 200);
+  assert.equal(stale.headers.get("content-range"), null);
+  assert.equal(await stale.text(), "hello");
+
+  const fresh = await resume('"e"');
+  assert.equal(fresh.status, 206);
+  assert.equal(fresh.headers.get("content-range"), "bytes 1-2/5");
+  assert.equal(await fresh.text(), "el");
 });

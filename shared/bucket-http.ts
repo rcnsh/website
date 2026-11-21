@@ -101,3 +101,75 @@ export function rangeOutcome(range: string | null, object: { size: number; range
 export function contentRange({ offset, length }: Span, size: number): string {
   return `bytes ${offset}-${offset + length - 1}/${size}`;
 }
+
+export type Stored = {
+  size: number;
+  httpEtag: string;
+  uploaded: Date;
+  range?: ByteRange;
+  writeHttpMetadata(headers: Headers): void;
+};
+
+export type StoredBody = Stored & { body: ReadableStream };
+
+export type ReadableBucket = {
+  head(key: string): Promise<Stored | null>;
+  get(key: string, options: { range?: Headers; onlyIf: Headers }): Promise<Stored | StoredBody | null>;
+};
+
+export type BucketRead =
+  | { kind: "missing" }
+  | { kind: "unsatisfiable"; contentRange: string }
+  | { kind: "not-modified"; object: Stored }
+  | { kind: "precondition-failed"; object: Stored }
+  | { kind: "full"; object: StoredBody }
+  | { kind: "partial"; object: StoredBody; span: Span };
+
+export function ifRangeHolds(ifRange: string | null, object: { httpEtag: string }): boolean {
+  return ifRange === null || ifRange.trim() === object.httpEtag;
+}
+
+function unconditional(object: Stored | StoredBody, request: Headers): BucketRead | null {
+  if ("body" in object) return null;
+  const notModified = request.has("if-none-match") || request.has("if-modified-since");
+  return { kind: notModified ? "not-modified" : "precondition-failed", object };
+}
+
+async function whole(bucket: ReadableBucket, key: string, request: Headers): Promise<BucketRead> {
+  const object = await bucket.get(key, { onlyIf: request });
+  if (!object) return { kind: "missing" };
+  return unconditional(object, request) ?? { kind: "full", object: object as StoredBody };
+}
+
+export async function readObject(bucket: ReadableBucket, key: string, request: Headers): Promise<BucketRead> {
+  const range = request.get("range");
+  const ifRange = request.get("if-range");
+  const asked = rangeToAsk(range);
+  let object: Stored | StoredBody | null;
+  try {
+    object = await bucket.get(key, { ...(asked ? { range: asked } : {}), onlyIf: request });
+  } catch (error) {
+    if (!asked || !isRangeError(error)) throw error;
+    const read = await whole(bucket, key, request);
+    if (read.kind !== "full" || !ifRangeHolds(ifRange, read.object)) return read;
+    await read.object.body.cancel();
+    return { kind: "unsatisfiable", contentRange: `bytes */${read.object.size}` };
+  }
+  if (!object) return { kind: "missing" };
+  const refused = unconditional(object, request);
+  if (refused) return refused;
+  const body = object as StoredBody;
+
+  if (range && !ifRangeHolds(ifRange, body)) {
+    if (!asked) return { kind: "full", object: body };
+    await body.body.cancel();
+    return whole(bucket, key, request);
+  }
+
+  const outcome = rangeOutcome(range, body);
+  if (outcome.kind === "unsatisfiable") {
+    await body.body.cancel();
+    return outcome;
+  }
+  return outcome.kind === "partial" ? { kind: "partial", object: body, span: outcome.span } : { kind: "full", object: body };
+}

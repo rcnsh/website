@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { contentRange, isRangeError, rangeOutcome, rangeToAsk } from "../../../../shared/bucket-http.ts";
+import { contentRange, readObject } from "../../../../shared/bucket-http.ts";
 import { uncachedError } from "../../../../shared/cache-policy.ts";
 import { bucket } from "@/lib/bucket";
 import { policies, privateNoStore } from "@/lib/http";
@@ -51,32 +51,19 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   const r2 = env.BUCKET;
   if (!r2) return new Response("Bucket not configured", { status: 503, headers: REFUSAL_HEADERS });
 
-  const range = request.headers.get("range");
-  const refuse = (status: 404 | 416, extra: Record<string, string> = {}) =>
-    new Response(status === 404 ? "Not found" : "Range not satisfiable", {
-      status,
-      headers: { ...REFUSAL_HEADERS, ...extra },
+  const read = await readObject(r2, decision.key, request.headers);
+  if (read.kind === "missing") return new Response("Not found", { status: 404, headers: REFUSAL_HEADERS });
+  if (read.kind === "unsatisfiable") {
+    return new Response("Range not satisfiable", {
+      status: 416,
+      headers: { ...REFUSAL_HEADERS, "content-range": read.contentRange },
     });
-  const asked = rangeToAsk(range);
-  let object: R2ObjectBody | null;
-  try {
-    object = await r2.get(decision.key, asked ? { range: asked } : undefined);
-  } catch (error) {
-    if (!asked || !isRangeError(error)) throw error;
-    const head = await r2.head(decision.key);
-    return head ? refuse(416, { "content-range": `bytes */${head.size}` }) : refuse(404);
-  }
-
-  if (!object) return refuse(404);
-  const outcome = rangeOutcome(range, object);
-  if (outcome.kind === "unsatisfiable") {
-    await object.body.cancel();
-    return refuse(416, { "content-range": outcome.contentRange });
   }
 
   const headers = new Headers();
-  object.writeHttpMetadata(headers);
-  headers.set("etag", object.httpEtag);
+  read.object.writeHttpMetadata(headers);
+  headers.set("etag", read.object.httpEtag);
+  headers.set("last-modified", read.object.uploaded.toUTCString());
   headers.set("cache-control", isPrivate ? privateNoStore : policies.download);
   headers.set("accept-ranges", "bytes");
 
@@ -94,9 +81,16 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
     );
   }
 
-  if (outcome.kind === "partial") {
-    headers.set("content-range", contentRange(outcome.span, object.size));
-    headers.set("content-length", String(outcome.span.length));
+  if (read.kind === "not-modified") return new Response(null, { status: 304, headers });
+  if (read.kind === "precondition-failed") {
+    headers.set("cache-control", uncachedError);
+    return new Response(null, { status: 412, headers });
+  }
+
+  const { object } = read;
+  if (read.kind === "partial") {
+    headers.set("content-range", contentRange(read.span, object.size));
+    headers.set("content-length", String(read.span.length));
     return new Response(object.body, { status: 206, headers });
   }
 
