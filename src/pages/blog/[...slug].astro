@@ -12,6 +12,7 @@ import {
   type Post,
 } from "@/lib/blog";
 import { wordCount } from "@/lib/writing";
+import "@/styles/post-body.css";
 
 export async function getStaticPaths() {
   const posts = await getPosts();
@@ -190,34 +191,3 @@ const details = [
 
   onPage(revealOwnerLinks);
 </script>
-
-<style>
-  .post-body {
-    --ec-codeBg: var(--color-base);
-    --ec-frm-edBg: var(--color-base);
-    --ec-frm-trmBg: var(--color-base);
-    --ec-frm-edTabBarBg: color-mix(in oklab, var(--color-base) 60%, black);
-    --ec-frm-trmTtbBg: color-mix(in oklab, var(--color-base) 60%, black);
-    --ec-tm-markBg: color-mix(in oklab, var(--color-brand) 12%, transparent);
-    --ec-tm-markBrdCol: var(--color-brand);
-  }
-
-  .post-body :global(* + .expressive-code) {
-    margin-top: 1.5em;
-  }
-
-  .post-body :global(section.footnotes) {
-    margin-top: 3em;
-    padding-top: 1.5em;
-    border-top: 1px solid var(--color-line);
-    font-size: 0.90625rem;
-  }
-  .post-body :global(section.footnotes ol) {
-    margin-top: 0.75em;
-  }
-  .post-body :global(.data-footnote-backref) {
-    text-decoration: none;
-    color: var(--color-brand);
-    font-family: var(--font-mono);
-  }
-</style>

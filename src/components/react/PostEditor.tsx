@@ -246,7 +246,7 @@ export default function PostEditor({ initial }: { initial: Post }) {
             {showsPreview && (
               <section
                 className={cn(
-                  "post-preview h-[70vh] min-h-[320px] overflow-y-auto rounded-[6px] border border-line-soft px-8 py-7 max-sm:px-5",
+                  "post-body h-[70vh] min-h-[320px] overflow-y-auto rounded-[6px] border border-line-soft px-8 py-7 max-sm:px-5",
                   view === "preview" && "h-auto min-h-[70vh] overflow-visible",
                 )}
                 aria-label="Preview"
