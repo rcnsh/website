@@ -5,6 +5,7 @@ import { bucket } from "@/lib/bucket";
 import { policies, privateNoStore } from "@/lib/http";
 import { requireOwner } from "@/lib/owner";
 import { publicBucketBase } from "@/lib/r2";
+import { REFUSALS } from "../../../../shared/visibility.ts";
 
 export const prerender = false;
 
@@ -32,15 +33,8 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   const decision = await bucket.view(owner).canRead(url.searchParams.get("key"));
 
   if (!decision.ok) {
-    switch (decision.refusal) {
-      case "bad-request":
-        return new Response("Bad request", { status: 400 });
-      case "not-found":
-        return new Response("Not found", { status: 404 });
-      case "unavailable":
-        console.error("[files] rules unavailable", decision.error);
-        return new Response("Unavailable", { status: 503 });
-    }
+    if (decision.refusal === "unavailable") console.error("[files] rules unavailable", decision.error);
+    return new Response(REFUSALS[decision.refusal].message, { status: REFUSALS[decision.refusal].status });
   }
 
   const isPrivate = decision.visibility === "private";

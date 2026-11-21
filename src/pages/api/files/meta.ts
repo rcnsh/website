@@ -5,6 +5,7 @@ import { cachedMediaMeta, cachedThumbs, uploadedSeconds } from "@/lib/media";
 import { bucket } from "@/lib/bucket";
 import { requireOwner } from "@/lib/owner";
 import { NO_THUMBS, type ThumbSet } from "@/lib/thumbs";
+import { REFUSALS } from "../../../../shared/visibility.ts";
 
 export const prerender = false;
 
@@ -17,15 +18,8 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
     decision = { ok: false, refusal: "unavailable", error };
   }
   if (!decision.ok) {
-    switch (decision.refusal) {
-      case "bad-request":
-        return json({ error: "Bad request" }, { status: 400, policy: uncachedError });
-      case "not-found":
-        return json({ error: "Not found" }, { status: 404, policy: uncachedError });
-      case "unavailable":
-        console.error("[files] meta failed", url.searchParams.get("key"), decision.error);
-        return json({ error: "Metadata unavailable" }, { status: 502, policy: uncachedError });
-    }
+    if (decision.refusal === "unavailable") console.error("[files] meta failed", url.searchParams.get("key"), decision.error);
+    return json({ error: REFUSALS[decision.refusal].message }, { status: REFUSALS[decision.refusal].status, policy: uncachedError });
   }
   const { key } = decision;
 

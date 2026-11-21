@@ -57,6 +57,12 @@ export function accessSubject(key: string): string | null {
 
 export type ReadRefusal = "bad-request" | "not-found" | "unavailable";
 
+export const REFUSALS: Record<ReadRefusal, { status: number; message: string }> = {
+  "bad-request": { status: 400, message: "Bad request" },
+  "not-found": { status: 404, message: "Not found" },
+  unavailable: { status: 503, message: "Unavailable" },
+};
+
 export type ReadDecision =
   | { ok: true; key: string; visibility: Visibility }
   | { ok: false; refusal: ReadRefusal; error?: unknown };

@@ -7,6 +7,7 @@ import {
   inheritedFrom,
   parseRules,
   prefixOf,
+  REFUSALS,
   RULES_FRESH_MS,
   rulesLoader,
   rulesVersion,
@@ -186,4 +187,11 @@ test("rulesVersion ignores insertion order and changes with the rules", () => {
   assert.equal(a, b);
   assert.notEqual(a, rulesVersion({ "a/": "listed", "b/": "unlisted" }));
   assert.notEqual(a, rulesVersion({ "a/": "listed" }));
+});
+
+test("every read refusal has one status, unreadable rules a 503", () => {
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(REFUSALS).map(([refusal, { status }]) => [refusal, status])),
+    { "bad-request": 400, "not-found": 404, unavailable: 503 },
+  );
 });
