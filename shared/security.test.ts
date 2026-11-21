@@ -1,5 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   BUCKET_ORIGIN,
   completePolicy,
@@ -124,5 +125,25 @@ describe("completePolicy", () => {
   test("leaves a complete policy alone", () => {
     const full = securityHeaders()["Content-Security-Policy"];
     assert.equal(completePolicy(full), full);
+  });
+});
+
+function readJsonc(relative: string) {
+  const text = readFileSync(new URL(relative, import.meta.url), "utf8")
+    .replace(/("(?:\\.|[^"\\])*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (_, string) => string ?? "")
+    .replace(/,(\s*[}\]])/g, "$1");
+  return JSON.parse(text);
+}
+
+describe("bucket origin", () => {
+  test("the site's PUBLIC_BUCKET_URL is BUCKET_ORIGIN", () => {
+    const config = readJsonc("../wrangler.jsonc");
+    assert.equal(new URL(config.vars.PUBLIC_BUCKET_URL).origin, BUCKET_ORIGIN);
+  });
+
+  test("the upload Worker is routed on BUCKET_ORIGIN's host", () => {
+    const config = readJsonc("../workers/upload/wrangler.jsonc");
+    const patterns = config.routes.map((route: { pattern: string }) => route.pattern);
+    assert.deepEqual(patterns, [new URL(BUCKET_ORIGIN).host]);
   });
 });

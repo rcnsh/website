@@ -142,7 +142,8 @@ itself.
 **Astro's meta carries `script-src` and `style-src` only.** Everything else
 (`connect-src`, `media-src`, `img-src`) binds from the header alone, which is
 why the bucket origin needs to be in `BUCKET_ORIGIN` (`shared/security.ts`) and
-nowhere else. Pass Astro any `directives` and that stops being true: those
+in no other policy. It must match `PUBLIC_BUCKET_URL` and the upload Worker's
+route; `shared/security.test.ts` fails when they differ. Pass Astro any `directives` and that stops being true: those
 hosts must then be in both policies. `worker-src` is the trap: it falls back to
 `script-src`, which the meta *does* bind.
 
@@ -187,8 +188,10 @@ serves stale past them, so the browser gets a 15-minute ceiling instead.
 CDN-cache a Worker's responses on `cache-control` alone, so the routes that
 need it (files search, guestbook list, now-playing) keep one copy per colo in
 the Cache API. It rebuilds a hit, because a cached Response's headers are
-immutable and the middleware writes to them, and never stores a rejection or
-a non-2xx. Keep cache names and key URLs stable: changing either orphans every
+immutable and the middleware writes to them, and never stores a rejection,
+a non-2xx, or an answer its producer sent `no-store` or `private` (that one
+goes out with its own `cache-control`), so a producer must send no
+`cache-control` of its own. Keep cache names and key URLs stable: changing either orphans every
 copy until it expires. The Cache API is per colo, so `invalidateEdge` clears
 only the colo the write ran in; elsewhere a copy lives out its max-age.
 
@@ -322,6 +325,11 @@ serves bucket bytes must too. Key and prefix shapes (`objectKey`,
 `folderPrefix`, the hidden-segment rule, `THUMBS_PREFIX`) live in
 `shared/bucket-keys.ts` and nowhere else.
 
+**Both readers of bucket bytes decide a Range header in `shared/bucket-http.ts`**
+(`rangeToAsk` for what R2 is asked, `rangeOutcome` for 200, 206 or 416; see
+ADR-0039). `LARGEST_OBJECT` (2^43) must stay at or above R2's largest object,
+or valid ranges on large files are refused or rewritten.
+
 **Private files download through `/api/files/download`, owner only.** That
 route still 404s public keys while `PUBLIC_BUCKET_URL` is set; that rule is the
 route's own, not access policy. The browser picks the route per file
@@ -386,6 +394,13 @@ missing hint for the owner, and any refusal deletes a stale one. Scripts read
 it through `hasOwnerHint()` (`src/lib/owner-hint.ts`), which holds the one
 name: `PlayOnSpotify`, the /files hold (`owner-view.ts`) and the blog edit
 links. It is a hint, not a permission: nothing is granted on it.
+
+**Expired sessions are swept by a daily Cron Trigger**, not by requests.
+`wrangler.jsonc`'s `main` is `src/worker.ts`, which wraps the adapter's
+`@astrojs/cloudflare/entrypoints/server` fetch and adds `scheduled`
+(`scheduledHandler` in `src/lib/scheduled.ts`); any other Worker handler goes
+there too. Drop `main` and the adapter's default entry takes over, silently
+without `scheduled`. See ADR-0030.
 
 ### Blog editor
 
@@ -517,7 +532,9 @@ the first `QUIET_MAX` (4) on screen.
 **`page-band` (`global.css`) breaks out of the page frame by `--page-w`**, the
 viewport without its scrollbar, which TopBar publishes beside `--header-h`;
 `100vw` would include the scrollbar gutter. It must be a direct child of the
-page's `bento` grid, and nothing may share its row.
+page's `bento` grid, and nothing may share its row. The field reads the frame's
+width from `--container-page` (`global.css`) when it resizes, so the frame is
+set there and nowhere else.
 
 **An `svg:` picture is rebuilt from the shapes' `data-level` (0 to 4) alone**
 (`svgPicture` in `field.ts`): the page's own fills, classes and strokes are
@@ -553,7 +570,9 @@ top and bottom crop it, and its far edge sits on the page frame. The shader
 gives it its own dissolve (`BAND_GONE_X`, `BAND_SOLID_X`, on `uBand`), no
 fade at the foot, and nothing past its edge. A phone's band has room
 for the whole square instead (`square`): top corner, above the foot row of
-links or figures, only a sliver of its near edge thinned (`uWhole`). A phone's
+links or figures, only a sliver of its near edge thinned (`uWhole`). The foot
+row carries `data-lattice-foot` and is measured every drawn frame
+(`footDepth`), so a cover band without the mark keeps no room for it. A phone's
 home cover runs edge to edge a header's inset below the top and thins out
 over its lower quarter (`COVER_SOLID_Y`, `COVER_GONE_Y`); the hero's
 `padding-top` starts the name there, so change them together.

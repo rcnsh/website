@@ -1,21 +1,13 @@
-export const MOTION_BOOTSTRAP = `
-      (() => {
-        const apply = () => {
-          try {
-            const stored = localStorage.getItem("rcn:motion");
-            const reduce =
-              stored === "reduce" ||
-              (stored !== "full" &&
-                matchMedia("(prefers-reduced-motion: reduce)").matches);
-            document.documentElement.dataset.motion = reduce ? "reduce" : "full";
-          } catch {
-            // Storage is walled off. Leaving the attribute unset is what hands
-            // the decision back to the media query in global.css.
-          }
-        };
+import { REDUCED_MOTION_QUERY } from "./motion.ts";
 
-        apply();
-      })();
-    `;
+export const MOTION_BOOTSTRAP = `(() => {
+  let stored = null;
+  try {
+    stored = localStorage.getItem("rcn:motion");
+  } catch {}
+  const prefersReduce = matchMedia(${JSON.stringify(REDUCED_MOTION_QUERY)}).matches;
+  document.documentElement.dataset.motion =
+    stored === "reduce" || stored === "full" ? stored : prefersReduce ? "reduce" : "full";
+})();`;
 
 export const INLINE_SCRIPTS = [MOTION_BOOTSTRAP];

@@ -1,3 +1,5 @@
+import { REDUCED_MOTION_QUERY, resolveMotion } from "../../shared/motion.ts";
+
 const EVENT = "rcn:pref";
 
 export type PrefKey = "live" | "motion";
@@ -34,13 +36,14 @@ export function onPrefChange(
   );
 }
 
-export const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+export { REDUCED_MOTION_QUERY };
+
+function currentMotion() {
+  return resolveMotion(readPref("motion"), matchMedia(REDUCED_MOTION_QUERY).matches);
+}
 
 export function motionReduced(): boolean {
-  const stored = readPref("motion");
-  if (stored === "reduce") return true;
-  if (stored === "full") return false;
-  return matchMedia(REDUCED_MOTION_QUERY).matches;
+  return currentMotion() === "reduce";
 }
 
 export function setMotionReduced(reduce: boolean) {
@@ -49,7 +52,7 @@ export function setMotionReduced(reduce: boolean) {
 }
 
 export function applyMotion() {
-  document.documentElement.dataset.motion = motionReduced() ? "reduce" : "full";
+  document.documentElement.dataset.motion = currentMotion();
 }
 
 export function liveUpdates(): boolean {

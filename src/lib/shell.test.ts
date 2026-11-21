@@ -135,6 +135,40 @@ describe("run", () => {
     ]);
   });
 
+  it("greps a file named like the pattern", () => {
+    const named: ShellState = {
+      root: dir("", [file("astro", "astro one\nnone\nastro two")]),
+      cwd: "/",
+      history: [],
+    };
+    assert.deepEqual(run(named, "grep astro astro").output, [
+      "astro one",
+      "astro two",
+    ]);
+  });
+
+  it("numbers grep matches with -n instead of taking -n's value", () => {
+    assert.deepEqual(run(state(), "grep -n astro about.txt").output, [
+      "3:astro rules",
+    ]);
+    assert.deepEqual(run(state(), "cat about.txt | grep -n o").output, [
+      "1:hello",
+      "2:world",
+      "3:astro rules",
+    ]);
+  });
+
+  it("takes head -n and tail -n with files", () => {
+    assert.deepEqual(run(state(), "head -n 1 about.txt").output, ["hello"]);
+    assert.deepEqual(run(state(), "tail -n 2 about.txt").output, [
+      "world",
+      "astro rules",
+    ]);
+    assert.deepEqual(run(state(), "tail -n 1 about.txt blog/first.md").output, [
+      "two",
+    ]);
+  });
+
   it("respects quoting", () => {
     assert.deepEqual(run(state(), 'echo "one   two"').output, ["one   two"]);
   });

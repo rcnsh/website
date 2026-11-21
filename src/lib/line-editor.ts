@@ -1,3 +1,5 @@
+import { cellWidth } from "./cell-width.ts";
+
 export type Key =
   | { type: "text"; text: string }
   | {
@@ -175,7 +177,7 @@ export class LineEditor {
   leave(): string {
     const caret = this.cursor;
     this.cursor = this.chars.length;
-    const total = this.promptWidth + this.chars.length;
+    const { total } = this.layout(Math.max(1, this.cols()));
     const filled = total > 0 && total % Math.max(1, this.cols()) === 0;
     const out = filled ? this.draw() : `${this.draw()}\r\n`;
     this.cursor = caret;
@@ -279,16 +281,28 @@ export class LineEditor {
     return i;
   }
 
+  private layout(cols: number): { total: number; at: number } {
+    let offset = this.promptWidth;
+    let at = offset;
+    this.chars.forEach((char, i) => {
+      const width = cols > 1 ? cellWidth(char) : 1;
+      if (width === 2 && offset % cols === cols - 1) offset += 1;
+      if (i === this.cursor) at = offset;
+      offset += width;
+    });
+    if (this.cursor === this.chars.length) at = offset;
+    return { total: offset, at };
+  }
+
   private draw(): string {
     const cols = Math.max(1, this.cols());
     let out = this.row > 0 ? `\x1b[${this.row}A` : "";
     out += `\r\x1b[J${this.prompt}${this.line}`;
 
-    const total = this.promptWidth + this.chars.length;
+    const { total, at } = this.layout(cols);
     if (total > 0 && total % cols === 0) out += "\r\n";
 
     const endRow = Math.floor(total / cols);
-    const at = this.promptWidth + this.cursor;
     const row = Math.floor(at / cols);
     const col = at % cols;
 

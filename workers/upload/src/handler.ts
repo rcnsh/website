@@ -1,12 +1,15 @@
 import {
   corsHeaders,
+  isRangeError,
   keyFromPath,
+  contentRange,
   PREFLIGHT_HEADERS,
   parseOrigins,
-  unsatisfiable,
+  rangeToAsk,
+  rangeOutcome,
 } from "../../../shared/bucket-http.ts";
 import { uncachedError } from "../../../shared/cache-policy.ts";
-import { decideRead, type RuleRow, rulesLoader } from "../../../shared/visibility.ts";
+import { decideRead, REFUSALS, type RuleRow, rulesLoader } from "../../../shared/visibility.ts";
 
 export interface Env {
   BUCKET: R2Bucket;
@@ -16,6 +19,7 @@ export interface Env {
 
 function text(body: string, status: number, headers: Headers): Response {
   headers.set("content-type", "text/plain; charset=utf-8");
+  if (status >= 400) headers.set("cache-control", uncachedError);
   return new Response(body, { status, headers });
 }
 
@@ -24,17 +28,6 @@ function describe(object: R2Object, headers: Headers): void {
   headers.set("etag", object.httpEtag);
   headers.set("last-modified", object.uploaded.toUTCString());
   headers.set("accept-ranges", "bytes");
-}
-
-function span(object: R2ObjectBody): { offset: number; length: number } | null {
-  if (!object.range) return null;
-  const range = object.range as { offset?: number; length?: number; suffix?: number };
-  if (typeof range.suffix === "number") {
-    const length = Math.min(range.suffix, object.size);
-    return { offset: object.size - length, length };
-  }
-  const offset = range.offset ?? 0;
-  return { offset, length: Math.min(range.length ?? object.size - offset, object.size - offset) };
 }
 
 export function createHandler() {
@@ -56,7 +49,7 @@ export function createHandler() {
       }
 
       const key = keyFromPath(new URL(request.url).pathname);
-      if (!key) return text("Not found", 404, headers);
+      if (!key) return text(REFUSALS["bad-request"].message, REFUSALS["bad-request"].status, headers);
 
       rules ??= rulesLoader(async () => {
         const { results } = await env.DB.prepare("SELECT prefix, visibility FROM file_visibility").all<RuleRow>();
@@ -65,10 +58,9 @@ export function createHandler() {
 
       const decision = await decideRead(key, rules.load, async () => false);
       if (!decision.ok) {
-        headers.set("cache-control", uncachedError);
-        if (decision.refusal !== "unavailable") return text("Not found", 404, headers);
-        console.error("[upload] rules unavailable", decision.error);
-        return text("Unavailable", 503, headers);
+        if (decision.refusal === "unavailable") console.error("[upload] rules unavailable", decision.error);
+        const refusal = REFUSALS[decision.refusal];
+        return text(refusal.message, refusal.status, headers);
       }
 
       if (request.method === "HEAD") {
@@ -79,31 +71,38 @@ export function createHandler() {
         return new Response(null, { headers });
       }
 
+      const asked = rangeToAsk(request.headers.get("range"));
       let object: R2Object | R2ObjectBody | null;
       try {
-        object = await env.BUCKET.get(key, { range: request.headers, onlyIf: request.headers });
+        object = await env.BUCKET.get(key, { ...(asked ? { range: asked } : {}), onlyIf: request.headers });
       } catch (error) {
-        if (!request.headers.has("range")) throw error;
+        if (!asked || !isRangeError(error)) throw error;
+        const head = await env.BUCKET.head(key);
+        if (!head) return text("Not found", 404, headers);
+        headers.set("content-range", `bytes */${head.size}`);
         return text("Range not satisfiable", 416, headers);
       }
       if (!object) return text("Not found", 404, headers);
 
-      if (unsatisfiable(request.headers.get("range"), object.size)) {
-        headers.set("content-range", `bytes */${object.size}`);
+      if (!("body" in object)) {
+        describe(object, headers);
+        const notModified = request.headers.has("if-none-match") || request.headers.has("if-modified-since");
+        if (!notModified) headers.set("cache-control", uncachedError);
+        return new Response(null, { status: notModified ? 304 : 412, headers });
+      }
+
+      const outcome = rangeOutcome(request.headers.get("range"), object);
+      if (outcome.kind === "unsatisfiable") {
+        await object.body.cancel();
+        headers.set("content-range", outcome.contentRange);
         return text("Range not satisfiable", 416, headers);
       }
 
       describe(object, headers);
 
-      if (!("body" in object)) {
-        const notModified = request.headers.has("if-none-match") || request.headers.has("if-modified-since");
-        return new Response(null, { status: notModified ? 304 : 412, headers });
-      }
-
-      const served = request.headers.has("range") ? span(object) : null;
-      if (served) {
-        headers.set("content-range", `bytes ${served.offset}-${served.offset + served.length - 1}/${object.size}`);
-        headers.set("content-length", String(served.length));
+      if (outcome.kind === "partial") {
+        headers.set("content-range", contentRange(outcome.span, object.size));
+        headers.set("content-length", String(outcome.span.length));
         return new Response(object.body, { status: 206, headers });
       }
 

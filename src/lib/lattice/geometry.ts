@@ -32,6 +32,10 @@ export const BAND_COVER_SHOWN = 0.65;
 const BAND_COVER_ROOM = 0.7;
 const SQUARE_COVER_ROOM = 0.52;
 
+export function footDepth(field: { bottom: number }, foot: { top: number } | null, ratio: number): number {
+  return foot ? Math.max(0, field.bottom - foot.top) * ratio : 0;
+}
+
 export function placeCover(field: { w: number; h: number }, layout: CoverLayout, inset = 0, foot = 0): Rect {
   if (layout === "narrow") {
     const side = field.w;

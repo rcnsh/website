@@ -1,9 +1,12 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
+import { contentRange, isRangeError, rangeOutcome, rangeToAsk } from "../../../../shared/bucket-http.ts";
+import { uncachedError } from "../../../../shared/cache-policy.ts";
 import { bucket } from "@/lib/bucket";
 import { policies, privateNoStore } from "@/lib/http";
 import { requireOwner } from "@/lib/owner";
 import { publicBucketBase } from "@/lib/r2";
+import { REFUSALS } from "../../../../shared/visibility.ts";
 
 export const prerender = false;
 
@@ -26,37 +29,50 @@ function inlineSafe(type: string | undefined): boolean {
   );
 }
 
+const REFUSAL_HEADERS = { "cache-control": uncachedError, "x-content-type-options": "nosniff" };
+
 export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   const owner = async () => !(await requireOwner({ request, cookies, url, locals }, { refuse: "not-found" }));
   const decision = await bucket.view(owner).canRead(url.searchParams.get("key"));
 
   if (!decision.ok) {
-    switch (decision.refusal) {
-      case "bad-request":
-        return new Response("Bad request", { status: 400 });
-      case "not-found":
-        return new Response("Not found", { status: 404 });
-      case "unavailable":
-        console.error("[files] rules unavailable", decision.error);
-        return new Response("Unavailable", { status: 503 });
-    }
+    if (decision.refusal === "unavailable") console.error("[files] rules unavailable", decision.error);
+    return new Response(REFUSALS[decision.refusal].message, {
+      status: REFUSALS[decision.refusal].status,
+      headers: REFUSAL_HEADERS,
+    });
   }
 
   const isPrivate = decision.visibility === "private";
   if (!isPrivate && publicBucketBase()) {
-    return new Response("Not found", { status: 404 });
+    return new Response("Not found", { status: 404, headers: REFUSAL_HEADERS });
   }
 
   const r2 = env.BUCKET;
-  if (!r2) return new Response("Bucket not configured", { status: 503 });
+  if (!r2) return new Response("Bucket not configured", { status: 503, headers: REFUSAL_HEADERS });
 
   const range = request.headers.get("range");
-  const object = await r2.get(
-    decision.key,
-    range ? { range: request.headers } : undefined,
-  );
+  const refuse = (status: 404 | 416, extra: Record<string, string> = {}) =>
+    new Response(status === 404 ? "Not found" : "Range not satisfiable", {
+      status,
+      headers: { ...REFUSAL_HEADERS, ...extra },
+    });
+  const asked = rangeToAsk(range);
+  let object: R2ObjectBody | null;
+  try {
+    object = await r2.get(decision.key, asked ? { range: asked } : undefined);
+  } catch (error) {
+    if (!asked || !isRangeError(error)) throw error;
+    const head = await r2.head(decision.key);
+    return head ? refuse(416, { "content-range": `bytes */${head.size}` }) : refuse(404);
+  }
 
-  if (!object) return new Response("Not found", { status: 404 });
+  if (!object) return refuse(404);
+  const outcome = rangeOutcome(range, object);
+  if (outcome.kind === "unsatisfiable") {
+    await object.body.cancel();
+    return refuse(416, { "content-range": outcome.contentRange });
+  }
 
   const headers = new Headers();
   object.writeHttpMetadata(headers);
@@ -78,13 +94,9 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
     );
   }
 
-  if (object.range && "offset" in object.range) {
-    const offset = object.range.offset ?? 0;
-    const length = object.range.length ?? object.size - offset;
-    headers.set(
-      "content-range",
-      `bytes ${offset}-${offset + length - 1}/${object.size}`,
-    );
+  if (outcome.kind === "partial") {
+    headers.set("content-range", contentRange(outcome.span, object.size));
+    headers.set("content-length", String(outcome.span.length));
     return new Response(object.body, { status: 206, headers });
   }
 

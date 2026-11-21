@@ -2,15 +2,16 @@ import satori from "satori";
 import sharp from "sharp";
 import { LOGO_ASPECT, LOGO_LIFTED, logoSvg } from "./logo.ts";
 import { loadFonts } from "./og.ts";
+import { loadPalette } from "./palette.ts";
 
-const COLOR = {
-  base: "#0d0d0c",
-  raised: "#1a1917",
-  line: "#3f3d3a",
-  ink: "#e8e3d9",
-  inkDim: "#a09a8f",
-  brand: "#7f8ad0",
-} as const;
+export const BADGE_COLOR = loadPalette({
+  base: "base",
+  raised: "raised",
+  line: "line",
+  ink: "ink",
+  inkDim: "ink-dim",
+  brand: "brand",
+});
 
 export const BADGE_WIDTH = 88;
 export const BADGE_HEIGHT = 31;
@@ -43,8 +44,8 @@ export async function renderBadge(scale = 1): Promise<Buffer> {
           width: "100%",
           height: "100%",
           alignItems: "stretch",
-          backgroundColor: COLOR.base,
-          border: `${px(1)}px solid ${COLOR.line}`,
+          backgroundColor: BADGE_COLOR.base,
+          border: `${px(1)}px solid ${BADGE_COLOR.line}`,
         },
       },
       [
@@ -56,8 +57,8 @@ export async function renderBadge(scale = 1): Promise<Buffer> {
               width: px(32),
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: COLOR.raised,
-              borderRight: `${px(1)}px solid ${COLOR.line}`,
+              backgroundColor: BADGE_COLOR.raised,
+              borderRight: `${px(1)}px solid ${BADGE_COLOR.line}`,
             },
           },
           [
@@ -91,13 +92,13 @@ export async function renderBadge(scale = 1): Promise<Buffer> {
                   fontSize: px(11),
                   lineHeight: 1,
                   letterSpacing: `${px(-0.2)}px`,
-                  borderBottom: `${px(1)}px solid ${COLOR.brand}`,
+                  borderBottom: `${px(1)}px solid ${BADGE_COLOR.brand}`,
                   paddingBottom: px(2),
                 },
               },
               [
-                el("span", { style: { color: COLOR.ink } }, "rcn"),
-                el("span", { style: { color: COLOR.inkDim } }, ".sh"),
+                el("span", { style: { color: BADGE_COLOR.ink } }, "rcn"),
+                el("span", { style: { color: BADGE_COLOR.inkDim } }, ".sh"),
               ],
             ),
           ],

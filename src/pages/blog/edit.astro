@@ -7,6 +7,7 @@ import { getPosts } from "@/lib/blog";
 import { listPostSlugs, readPostFile } from "@/lib/blog-repo";
 import { isSlug } from "@/lib/post-slug";
 import { parsePost } from "@/lib/post-source";
+import "@/styles/post-body.css";
 
 export const prerender = false;
 
@@ -145,28 +146,3 @@ const heading = initial ? (initial.sha ? "Edit post" : "New post") : "Posts";
     }
   </div>
 </Layout>
-
-<style>
-  :global(.post-preview pre) {
-    overflow-x: auto;
-    padding: 1em 1.25em;
-    border: 1px solid var(--color-line);
-    border-radius: var(--radius-card);
-    background: var(--color-base);
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    line-height: 1.7;
-    color: var(--color-ink);
-  }
-  :global(.post-preview section.footnotes) {
-    margin-top: 3em;
-    padding-top: 1.5em;
-    border-top: 1px solid var(--color-line);
-    font-size: 0.90625rem;
-  }
-  :global(.post-preview .data-footnote-backref) {
-    text-decoration: none;
-    color: var(--color-brand);
-    font-family: var(--font-mono);
-  }
-</style>

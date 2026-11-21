@@ -100,7 +100,10 @@ const fail = (message: string): never => {
   throw new ShellError(message);
 };
 
-function parseArgs(args: string[]) {
+const NO_VALUES: ReadonlySet<string> = new Set();
+const COUNT = new Set(["n"]);
+
+function parseArgs(args: string[], valued = NO_VALUES) {
   const flags = new Set<string>();
   const values = new Map<string, string>();
   const operands: string[] = [];
@@ -114,8 +117,9 @@ function parseArgs(args: string[]) {
     }
 
     if (arg.startsWith("-") && arg.length > 1) {
-      if (arg === "-n") {
-        values.set("n", args[i + 1] ?? "");
+      const name = arg.slice(1);
+      if (valued.has(name)) {
+        values.set(name, args[i + 1] ?? "");
         i += 1;
       } else {
         for (const char of arg.slice(1)) flags.add(char);
@@ -136,11 +140,10 @@ const nodeAt = (ctx: Context, target: string, command: string): VNode => {
 };
 
 function inputLines(
-  args: string[],
+  operands: string[],
   ctx: Context,
   command: string,
 ): string[] {
-  const { operands } = parseArgs(args);
   if (operands.length === 0) return ctx.stdin;
 
   return operands.flatMap((target) => {
@@ -251,7 +254,7 @@ export const COMMANDS: Record<string, Command> = {
   cat: {
     usage: "cat [file...]",
     summary: "concatenate files to standard output",
-    run: (args, ctx) => inputLines(args, ctx, "cat"),
+    run: (args, ctx) => inputLines(parseArgs(args).operands, ctx, "cat"),
   },
 
   echo: {
@@ -264,9 +267,9 @@ export const COMMANDS: Record<string, Command> = {
     usage: "head [-n count] [file...]",
     summary: "output the first part of a file",
     run: (args, ctx) => {
-      const { values } = parseArgs(args);
+      const { values, operands } = parseArgs(args, COUNT);
       const count = Number(values.get("n") ?? 10);
-      return inputLines(args, ctx, "head").slice(0, Math.max(count, 0));
+      return inputLines(operands, ctx, "head").slice(0, Math.max(count, 0));
     },
   },
 
@@ -274,9 +277,9 @@ export const COMMANDS: Record<string, Command> = {
     usage: "tail [-n count] [file...]",
     summary: "output the last part of a file",
     run: (args, ctx) => {
-      const { values } = parseArgs(args);
+      const { values, operands } = parseArgs(args, COUNT);
       const count = Number(values.get("n") ?? 10);
-      const lines = inputLines(args, ctx, "tail");
+      const lines = inputLines(operands, ctx, "tail");
       return count >= lines.length ? lines : lines.slice(-count);
     },
   },
@@ -285,8 +288,8 @@ export const COMMANDS: Record<string, Command> = {
     usage: "wc [-l] [-w] [-c] [file...]",
     summary: "count lines, words and bytes",
     run: (args, ctx) => {
-      const { flags } = parseArgs(args);
-      const lines = inputLines(args, ctx, "wc");
+      const { flags, operands } = parseArgs(args);
+      const lines = inputLines(operands, ctx, "wc");
       const text = lines.join("\n");
 
       const counts = {
@@ -311,8 +314,7 @@ export const COMMANDS: Record<string, Command> = {
       const pattern = operands[0];
       if (pattern === undefined) fail("usage: grep [-ivn] pattern [file...]");
 
-      const rest = args.filter((arg) => arg !== pattern);
-      const lines = inputLines(rest, ctx, "grep");
+      const lines = inputLines(operands.slice(1), ctx, "grep");
 
       let regex: RegExp;
       try {

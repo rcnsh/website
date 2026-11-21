@@ -1,3 +1,4 @@
+import { cellWidth } from "./cell-width.ts";
 import { type Key, LineEditor, parseKeys, printable, toTerminal } from "./line-editor.ts";
 import { complete, run, type ShellState } from "./shell.ts";
 
@@ -34,7 +35,7 @@ export function createSession(state: SessionState, host: SessionHost) {
     const cwd = printable(state.cwd);
     const out = editor.begin(
       `${BLUE}${cwd}${RESET} ${FAINT}$${RESET} `,
-      Array.from(cwd).length + 3,
+      Array.from(cwd).reduce((width, char) => width + cellWidth(char), 0) + 3,
     );
     host.write(out);
   };

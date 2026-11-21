@@ -1,6 +1,6 @@
 import { deadline } from "./upstream";
 import { eq, lt } from "drizzle-orm";
-import { env, waitUntil } from "cloudflare:workers";
+import { env } from "cloudflare:workers";
 import type { AstroCookies } from "astro";
 import { getDb, schema } from "./db";
 import { COOKIE_PREFIX } from "./cookies";
@@ -117,9 +117,7 @@ async function hashToken(token: string): Promise<string> {
   ).join("");
 }
 
-const SWEEP_SAMPLE_RATE = 50;
-
-async function sweepExpiredSessions(): Promise<void> {
+export async function sweepExpiredSessions(): Promise<void> {
   await getDb()
     .delete(schema.sessions)
     .where(lt(schema.sessions.expiresAt, new Date()));
@@ -172,14 +170,6 @@ export async function getSession(
     writeSessionCookie(cookies, token, expiresAt, owner);
   } else if (owner && !cookies.has(OWNER_HINT_COOKIE)) {
     writeOwnerHint(cookies, row.expiresAt);
-  }
-
-  if (Math.floor(Math.random() * SWEEP_SAMPLE_RATE) === 0) {
-    waitUntil(
-      sweepExpiredSessions().catch((error) => {
-        console.error("[auth] session sweep failed", error);
-      }),
-    );
   }
 
   return {

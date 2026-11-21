@@ -2,6 +2,7 @@
 import type { EraRhythm } from "@/lib/music-stats";
 import {
   WEEKDAYS,
+  eraStyle,
   heatLevel,
   hourLabel,
   linePath,
@@ -19,10 +20,6 @@ interface Props {
 
 const { eras, year } = Astro.props;
 
-const ERA_STYLE: Record<string, { colour: string; dash?: string }> = {
-  newcastle: { colour: "var(--color-brand)" },
-  singapore: { colour: "#c08050", dash: "6 4" },
-};
 const W = 600;
 const H = 150;
 
@@ -32,8 +29,7 @@ const lines = eras.flatMap((era) =>
         {
           ...era,
           hours: era.hour_share,
-          colour: ERA_STYLE[era.key]?.colour ?? "var(--color-ink-dim)",
-          dash: ERA_STYLE[era.key]?.dash,
+          ...eraStyle(era.key),
           peak: peakHour(era.hour_share),
           night: shareBetween(era.hour_share, 0, 6),
         },

@@ -54,6 +54,13 @@ describe("createSession", () => {
     assert.ok(!all.includes("\x1b]"));
   });
 
+  it("counts a wide working directory by its columns when placing the caret", () => {
+    const { session, writes } = setup({ cwd: "/漢字" });
+    writes.length = 0;
+    session.feed("l");
+    assert.ok(writes.join("").includes("\x1b[9C"), JSON.stringify(writes.join("")));
+  });
+
   it("strips control characters from the working directory in the prompt", () => {
     const { session, writes } = setup({ cwd: "/x\x1b]0;title\x07" });
     session.start(false);

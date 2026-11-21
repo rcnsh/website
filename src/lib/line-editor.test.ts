@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { cellWidth } from "./cell-width.ts";
 import { LineEditor, parseKeys, printable, toTerminal } from "./line-editor.ts";
 
 function screen(cols: number) {
@@ -13,13 +14,14 @@ function screen(cols: number) {
   };
 
   const write = (data: string) => {
-    for (let i = 0; i < data.length; i += 1) {
-      const char = data[i]!;
+    const chars = Array.from(data);
+    for (let i = 0; i < chars.length; i += 1) {
+      const char = chars[i]!;
       if (char === "\x1b") {
         let j = i + 2;
-        while (!/[@-~]/.test(data[j]!)) j += 1;
-        const param = Number(data.slice(i + 2, j)) || 1;
-        const final = data[j];
+        while (!/[@-~]/.test(chars[j]!)) j += 1;
+        const param = Number(chars.slice(i + 2, j).join("")) || 1;
+        const final = chars[j];
         if (final === "A") row = Math.max(0, row - param);
         if (final === "C") col = Math.min(cols - 1, col + param);
         if (final === "J") {
@@ -36,15 +38,19 @@ function screen(cols: number) {
         ensure(row);
         pendingWrap = false;
       } else {
-        if (pendingWrap) {
+        const width = cols > 1 ? cellWidth(char) : 1;
+        if (pendingWrap || col + width > cols) {
           row += 1;
           col = 0;
           ensure(row);
           pendingWrap = false;
         }
         rows[row]![col] = char;
-        if (col === cols - 1) pendingWrap = true;
-        else col += 1;
+        if (width === 2) rows[row]![col + 1] = "";
+        if (col + width >= cols) {
+          col = cols - 1;
+          pendingWrap = true;
+        } else col += width;
       }
     }
   };
@@ -226,6 +232,53 @@ describe("LineEditor", () => {
     const { term, editor } = setup();
     term.write(editor.set("a\x1b[2Jb"));
     assert.equal(term.text(), "$ a[2Jb");
+  });
+
+  it("places the caret after wide characters by their two columns", () => {
+    const { term, editor } = setup();
+    term.write(editor.insert("cat 漢字🙂"));
+    assert.equal(term.text(), "$ cat 漢字🙂");
+    assert.deepEqual(term.cursor(), { row: 0, col: 12 });
+    term.write(editor.edit({ type: "left" })!);
+    assert.deepEqual(term.cursor(), { row: 0, col: 10 });
+    term.write(editor.insert("x"));
+    assert.equal(term.text(), "$ cat 漢字x🙂");
+    assert.deepEqual(term.cursor(), { row: 0, col: 11 });
+  });
+
+  it("wraps a line of wide characters by width", () => {
+    const { term, editor } = setup(10);
+    term.write(editor.insert("漢字漢字漢字"));
+    assert.equal(term.text(), "$ 漢字漢字\n漢字");
+    assert.deepEqual(term.cursor(), { row: 1, col: 4 });
+    term.write(editor.edit({ type: "home" })!);
+    assert.deepEqual(term.cursor(), { row: 0, col: 2 });
+    term.write(editor.edit({ type: "end" })!);
+    assert.deepEqual(term.cursor(), { row: 1, col: 4 });
+  });
+
+  it("follows a wide character that wraps early past the last column", () => {
+    const { term, editor } = setup(10);
+    term.write(editor.insert("abc漢字漢"));
+    assert.equal(term.text(), "$ abc漢字\n漢");
+    assert.deepEqual(term.cursor(), { row: 1, col: 2 });
+    term.write(editor.edit({ type: "left" })!);
+    assert.deepEqual(term.cursor(), { row: 1, col: 0 });
+    term.write(editor.edit({ type: "left" })!);
+    assert.deepEqual(term.cursor(), { row: 0, col: 7 });
+    term.write(editor.edit({ type: "end" })!);
+    term.write(editor.commit().out);
+    term.write("OUT");
+    assert.equal(term.text(), "$ abc漢字\n漢\nOUT");
+  });
+
+  it("commits a wide line that exactly fills its last row without a blank row", () => {
+    const { term, editor } = setup(10);
+    term.write(editor.insert("漢字漢字"));
+    assert.deepEqual(term.cursor(), { row: 1, col: 0 });
+    term.write(editor.commit().out);
+    term.write("OUT");
+    assert.equal(term.text(), "$ 漢字漢字\nOUT");
   });
 
   it("keeps surrogate pairs whole", () => {

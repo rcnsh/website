@@ -194,7 +194,9 @@ before touching the middleware, `astro.config.ts` or `shared/security.ts`.
 
 ## Reuse
 
-MIT, see [`LICENSE`](LICENSE). It is built around my own accounts and content,
+MIT, see [`LICENSE`](LICENSE). The icons, brand marks, map outlines and
+card fonts come from other projects under their own terms, listed in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). It is built around my own accounts and content,
 so it is not meant to be run as-is by anyone else, but take whatever is useful.
 
 ## Issues

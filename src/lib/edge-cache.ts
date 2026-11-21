@@ -37,8 +37,9 @@ export function createEdgeCache({ open, waitUntil }: EdgeCacheDeps) {
     const response = await produce();
     if (!response.ok) {
       response.headers.set("cache-control", uncachedError);
-      return response;
+      return withHeaders(response, headers);
     }
+    if (refusesStorage(response.headers.get("cache-control"))) return withHeaders(response, headers);
 
     response.headers.set("cache-control", policy);
     waitUntil(
@@ -64,4 +65,11 @@ export function createEdgeCache({ open, waitUntil }: EdgeCacheDeps) {
 function withHeaders(response: Response, headers: Record<string, string>): Response {
   for (const [name, value] of Object.entries(headers)) response.headers.set(name, value);
   return response;
+}
+
+function refusesStorage(cacheControl: string | null): boolean {
+  return (cacheControl ?? "")
+    .split(",")
+    .map((directive) => directive.split("=")[0].trim().toLowerCase())
+    .some((name) => name === "no-store" || name === "private");
 }

@@ -3,6 +3,7 @@ import type {
   TransitionBeforeSwapEvent,
 } from "astro:transitions/client";
 import { COVER_CLOSE_MS, latticeCover } from "./lattice-wipe.ts";
+import { motionReduced } from "./prefs.ts";
 import { needsFullLoad } from "./server-pages.ts";
 
 export function onPage(setup: (signal: AbortSignal) => void): void {
@@ -34,11 +35,6 @@ export function keepReaderAttributes(): void {
 }
 
 const WIPE_STUCK_MS = 4000;
-
-function motionReduced(): boolean {
-  const chosen = document.documentElement.dataset.motion;
-  return chosen ? chosen === "reduce" : matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
 
 export function wipePagesIn(): void {
   const cover = latticeCover();

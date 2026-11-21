@@ -1,0 +1,33 @@
+const WIDE: [number, number][] = [
+  [0x1100, 0x115f],
+  [0x2329, 0x232a],
+  [0x2e80, 0x303e],
+  [0x3041, 0x33ff],
+  [0x3400, 0x4dbf],
+  [0x4e00, 0x9fff],
+  [0xa000, 0xa4cf],
+  [0xa960, 0xa97f],
+  [0xac00, 0xd7a3],
+  [0xf900, 0xfaff],
+  [0xfe10, 0xfe19],
+  [0xfe30, 0xfe6f],
+  [0xff00, 0xff60],
+  [0xffe0, 0xffe6],
+  [0x1f300, 0x1f64f],
+  [0x1f900, 0x1f9ff],
+  [0x20000, 0x2fffd],
+  [0x30000, 0x3fffd],
+];
+
+const EMOJI = /\p{Emoji_Presentation}/u;
+
+export function cellWidth(char: string): 1 | 2 {
+  const code = char.codePointAt(0) ?? 0;
+  if (code < 0x1100) return 1;
+  if (EMOJI.test(char)) return 2;
+  for (const [start, end] of WIDE) {
+    if (code < start) return 1;
+    if (code <= end) return 2;
+  }
+  return 1;
+}
