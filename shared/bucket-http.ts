@@ -48,7 +48,6 @@ function rangeParts(range: string | null): RangeParts | null {
   if (first === Number.POSITIVE_INFINITY) return { first, last: null };
   let last = read(rawLast);
   if (first !== null && last === LARGEST_OBJECT) last = null;
-  if (first !== null && last !== null && last < first) return null;
   return { first, last };
 }
 
@@ -56,6 +55,10 @@ export function rangeToAsk(range: string | null): Headers | undefined {
   const parts = rangeParts(range);
   if (!parts || (parts.first === null && parts.last === 0) || parts.first === Number.POSITIVE_INFINITY) return undefined;
   return new Headers({ range: `bytes=${parts.first ?? ""}-${parts.last ?? ""}` });
+}
+
+export function beyondAnyObject(range: string | null): boolean {
+  return rangeParts(range)?.first === Number.POSITIVE_INFINITY;
 }
 
 export function unsatisfiable(range: string | null, size: number): boolean {

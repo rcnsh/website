@@ -1,4 +1,5 @@
 import {
+  beyondAnyObject,
   corsHeaders,
   isRangeError,
   keyFromPath,
@@ -69,6 +70,13 @@ export function createHandler() {
         describe(object, headers);
         headers.set("content-length", String(object.size));
         return new Response(null, { headers });
+      }
+
+      if (beyondAnyObject(request.headers.get("range"))) {
+        const head = await env.BUCKET.head(key);
+        if (!head) return text("Not found", 404, headers);
+        headers.set("content-range", `bytes */${head.size}`);
+        return text("Range not satisfiable", 416, headers);
       }
 
       const asked = rangeToAsk(request.headers.get("range"));

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { contentRange, corsHeaders, isRangeError, keyFromPath, parseOrigins, rangeOutcome, rangeToAsk, span, unsatisfiable } from "./bucket-http.ts";
+import { beyondAnyObject, contentRange, corsHeaders, isRangeError, keyFromPath, parseOrigins, rangeOutcome, rangeToAsk, span, unsatisfiable } from "./bucket-http.ts";
 
 test("keyFromPath decodes each segment the way publicUrl encodes it", () => {
   assert.equal(keyFromPath("/Jacob%20Wiltshire_0xD6C31FE5_public.asc"), "Jacob Wiltshire_0xD6C31FE5_public.asc");
@@ -65,6 +65,8 @@ test("a reversed range is ignored; a start past any size is refused", () => {
   assert.deepEqual(rangeOutcome("bytes=10-5", { size: 5 }), { kind: "full" });
   assert.equal(unsatisfiable("bytes=99999999999999999999999-", 5), true);
   assert.equal(unsatisfiable("bytes=99999999999999999999999-5", 100), false);
+  assert.equal(beyondAnyObject("bytes=99999999999999999999999-"), true);
+  assert.equal(beyondAnyObject(`bytes=${2 ** 43 - 1}-`), false);
   assert.deepEqual(rangeOutcome("bytes=99999999999999999999999-5", { size: 100 }), { kind: "full" });
 });
 
