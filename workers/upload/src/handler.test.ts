@@ -78,3 +78,32 @@ test("refuses everything while the rules cannot be read", async () => {
   assert.equal(response.headers.get("cache-control"), "no-store");
   assert.deepEqual(reads, []);
 });
+
+const ranged = (env: Env, path: string, range: string) =>
+  createHandler().fetch(new Request(`https://upload.rcn.sh${path}`, { headers: { range } }), env);
+
+test("a range R2 refuses is a 416 that names the size; any other R2 failure is not", async () => {
+  const { env } = fakeEnv();
+  const bucket = env.BUCKET as unknown as { get: (key: string) => Promise<unknown> };
+  bucket.get = async () => {
+    throw new Error("get: The requested range is not satisfiable (10039)");
+  };
+  const refused = await ranged(env, "/music/a.mp3", "bytes=999-");
+  assert.equal(refused.status, 416);
+  assert.equal(refused.headers.get("content-range"), "bytes */5");
+
+  bucket.get = async () => {
+    throw new Error("internal error");
+  };
+  await assert.rejects(Promise.resolve(ranged(env, "/music/a.mp3", "bytes=0-")).then((r) => {
+    if (r.status >= 500) throw new Error(`status ${r.status}`);
+    return r;
+  }));
+});
+
+test("a zero-byte suffix range is a 416, not an empty 200", async () => {
+  const { env } = fakeEnv();
+  const response = await ranged(env, "/music/a.mp3", "bytes=-0");
+  assert.equal(response.status, 416);
+  assert.equal(response.headers.get("content-range"), "bytes */5");
+});

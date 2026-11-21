@@ -120,10 +120,12 @@ describe("edgeCached", () => {
     const h = harness();
     const response = await h.edgeCached("things", URL_, async () => new Response("{}", { status: 502 }), {
       policy: POLICY,
+      headers: { vary: "cookie" },
     });
     await h.settle();
     assert.equal(response.status, 502);
     assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("vary"), "cookie");
     assert.equal(h.stores.get("things")?.size, 0);
   });
 

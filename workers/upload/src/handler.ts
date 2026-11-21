@@ -1,5 +1,6 @@
 import {
   corsHeaders,
+  isRangeError,
   keyFromPath,
   contentRange,
   PREFLIGHT_HEADERS,
@@ -47,7 +48,10 @@ export function createHandler() {
       }
 
       const key = keyFromPath(new URL(request.url).pathname);
-      if (!key) return text(REFUSALS["bad-request"].message, REFUSALS["bad-request"].status, headers);
+      if (!key) {
+        headers.set("cache-control", uncachedError);
+        return text(REFUSALS["bad-request"].message, REFUSALS["bad-request"].status, headers);
+      }
 
       rules ??= rulesLoader(async () => {
         const { results } = await env.DB.prepare("SELECT prefix, visibility FROM file_visibility").all<RuleRow>();
@@ -74,7 +78,9 @@ export function createHandler() {
       try {
         object = await env.BUCKET.get(key, { range: request.headers, onlyIf: request.headers });
       } catch (error) {
-        if (!request.headers.has("range")) throw error;
+        if (!request.headers.has("range") || !isRangeError(error)) throw error;
+        const head = await env.BUCKET.head(key);
+        if (head) headers.set("content-range", `bytes */${head.size}`);
         return text("Range not satisfiable", 416, headers);
       }
       if (!object) return text("Not found", 404, headers);

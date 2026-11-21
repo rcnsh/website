@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { contentRange, corsHeaders, keyFromPath, parseOrigins, span, unsatisfiable } from "./bucket-http.ts";
+import { contentRange, corsHeaders, isRangeError, keyFromPath, parseOrigins, span, unsatisfiable } from "./bucket-http.ts";
 
 test("keyFromPath decodes each segment the way publicUrl encodes it", () => {
   assert.equal(keyFromPath("/Jacob%20Wiltshire_0xD6C31FE5_public.asc"), "Jacob Wiltshire_0xD6C31FE5_public.asc");
@@ -31,9 +31,15 @@ test("a range starting past the end is unsatisfiable; others are not", () => {
   assert.equal(unsatisfiable(null, 10), false);
 });
 
-test("span has no range to describe for an empty object or a zero-byte suffix", () => {
-  assert.equal(span({ size: 0, range: { offset: 0 } }), null);
-  assert.equal(span({ size: 10, range: { suffix: 0 } }), null);
+test("a zero-byte suffix, or any range on an empty object, is unsatisfiable", () => {
+  assert.equal(unsatisfiable("bytes=-0", 10), true);
+  assert.equal(unsatisfiable("bytes=0-", 0), true);
+  assert.equal(unsatisfiable("bytes=-5", 10), false);
+});
+
+test("only R2's range refusal counts as a range error", () => {
+  assert.equal(isRangeError(new Error("get: The requested range is not satisfiable (10039)")), true);
+  assert.equal(isRangeError(new Error("internal error")), false);
 });
 
 test("span reads a suffix range as the last bytes of the object", () => {

@@ -37,7 +37,7 @@ export function createEdgeCache({ open, waitUntil }: EdgeCacheDeps) {
     const response = await produce();
     if (!response.ok) {
       response.headers.set("cache-control", uncachedError);
-      return response;
+      return withHeaders(response, headers);
     }
     if (refusesStorage(response.headers.get("cache-control"))) return withHeaders(response, headers);
 
