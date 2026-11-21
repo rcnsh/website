@@ -60,7 +60,7 @@ export const GET: APIRoute = async ({ url, request, cookies, locals }) => {
   const asked = rangeToAsk(range);
   let object: R2ObjectBody | null;
   try {
-    object = await r2.get(decision.key, asked ? { range: request.headers } : undefined);
+    object = await r2.get(decision.key, asked ? { range: asked } : undefined);
   } catch (error) {
     if (!asked || !isRangeError(error)) throw error;
     const head = await r2.head(decision.key);

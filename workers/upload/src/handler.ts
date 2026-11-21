@@ -74,7 +74,7 @@ export function createHandler() {
       const asked = rangeToAsk(request.headers.get("range"));
       let object: R2Object | R2ObjectBody | null;
       try {
-        object = await env.BUCKET.get(key, { ...(asked ? { range: request.headers } : {}), onlyIf: request.headers });
+        object = await env.BUCKET.get(key, { ...(asked ? { range: asked } : {}), onlyIf: request.headers });
       } catch (error) {
         if (!asked || !isRangeError(error)) throw error;
         const head = await env.BUCKET.head(key);

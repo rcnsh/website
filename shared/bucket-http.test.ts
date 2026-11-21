@@ -47,17 +47,21 @@ test("a malformed, multi-part or other-unit range is ignored, even on an empty o
   }
 });
 
-test("R2 is handed a Range only when it is one valid bytes range it can answer", () => {
-  for (const range of ["bytes=2-5", "Bytes=2-", "bytes=-3", "bytes=0-1048575"]) assert.equal(rangeToAsk(range), true, range);
+test("R2 is handed one valid bytes range, normalised, and nothing else", () => {
+  const asked = (range: string | null) => rangeToAsk(range)?.get("range");
+  assert.equal(asked("bytes=2-5"), "bytes=2-5");
+  assert.equal(asked(" Bytes=2-"), "bytes=2-");
+  assert.equal(asked("bytes=-3"), "bytes=-3");
+  assert.equal(asked("bytes=0-99999999999999999999999"), "bytes=0-");
   for (const range of [null, "bytes=3-1", "bytes=0-1,4-5", "items=0-5", "bytes=-", "bytes=abc", "bytes=-0", "bytes=99999999999999999999999-"]) {
-    assert.equal(rangeToAsk(range), false, String(range));
+    assert.equal(asked(range), undefined, String(range));
   }
 });
 
-test("a reversed or oversized range is ignored rather than refused", () => {
+test("a reversed range is ignored; a start past any size is refused", () => {
   assert.equal(unsatisfiable("bytes=10-5", 5), false);
-  assert.equal(unsatisfiable("bytes=99999999999999999999999-", 5), false);
   assert.deepEqual(rangeOutcome("bytes=10-5", { size: 5 }), { kind: "full" });
+  assert.equal(unsatisfiable("bytes=99999999999999999999999-", 5), true);
 });
 
 test("rangeOutcome serves a span, refuses an empty one, and ignores a range R2 did not apply", () => {

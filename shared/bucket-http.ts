@@ -38,16 +38,20 @@ type RangeParts = { first: number | null; last: number | null };
 function rangeParts(range: string | null): RangeParts | null {
   const match = range?.trim().match(SINGLE_RANGE);
   if (!match) return null;
-  const [first, last] = [match[1], match[2]].map((part) => (part === "" ? null : Number(part)));
-  if ([first, last].some((n) => n !== null && !Number.isSafeInteger(n))) return null;
+  const read = (part: string) => (part === "" ? null : Number(part));
+  const first = read(match[1]);
+  let last = read(match[2]);
   if (first === null && last === null) return null;
+  if (first !== null && !Number.isSafeInteger(first)) return { first: Number.POSITIVE_INFINITY, last: null };
+  if (last !== null && !Number.isSafeInteger(last)) last = first === null ? Number.MAX_SAFE_INTEGER : null;
   if (first !== null && last !== null && last < first) return null;
   return { first, last };
 }
 
-export function rangeToAsk(range: string | null): boolean {
+export function rangeToAsk(range: string | null): Headers | undefined {
   const parts = rangeParts(range);
-  return parts !== null && !(parts.first === null && parts.last === 0);
+  if (!parts || (parts.first === null && parts.last === 0) || parts.first === Number.POSITIVE_INFINITY) return undefined;
+  return new Headers({ range: `bytes=${parts.first ?? ""}-${parts.last ?? ""}` });
 }
 
 export function unsatisfiable(range: string | null, size: number): boolean {
