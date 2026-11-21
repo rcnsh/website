@@ -387,6 +387,13 @@ it through `hasOwnerHint()` (`src/lib/owner-hint.ts`), which holds the one
 name: `PlayOnSpotify`, the /files hold (`owner-view.ts`) and the blog edit
 links. It is a hint, not a permission: nothing is granted on it.
 
+**Expired sessions are swept by a daily Cron Trigger**, not by requests.
+`wrangler.jsonc`'s `main` is `src/worker.ts`, which wraps the adapter's
+`@astrojs/cloudflare/entrypoints/server` fetch and adds `scheduled`
+(`scheduledHandler` in `src/lib/scheduled.ts`); any other Worker handler goes
+there too. Drop `main` and the adapter's default entry takes over, silently
+without `scheduled`. See ADR-0030.
+
 ### Blog editor
 
 **`/blog/edit` commits to `main`; it does not write to the site.** Saves go

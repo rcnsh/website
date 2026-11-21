@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "website",
+  "main": "./src/worker.ts",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
@@ -11,6 +12,8 @@
   "workers_dev": false,
 
   "limits": { "cpu_ms": 500 },
+
+  "triggers": { "crons": ["17 4 * * *"] },
 
   "ratelimits": [
     {
