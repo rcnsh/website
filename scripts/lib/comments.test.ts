@@ -96,6 +96,18 @@ test("Astro: self-closing scripts, regex literals and fences inside strings", ()
   assert.deepEqual(texts("<p>{a /* it's */ && b}</p>\n<!-- after -->", "astro"), ["/* it's */", "<!-- after -->"]);
 });
 
+test("Astro: frontmatter with templates, regexes, JSX and dashed comments", () => {
+  assert.deepEqual(texts("---\nconst a = `x ${b} y`;\n// hidden\n---\n<p/>", "astro"), ["// hidden"]);
+  assert.deepEqual(texts("---\nconst r = s.replace(/'/g, \"\");\n// hidden\n---\n<p/>", "astro"), ["// hidden"]);
+  assert.deepEqual(texts("---\nconst el = <div>it's</div>;\n// hidden\n---\n<p/>", "astro"), ["// hidden"]);
+  assert.deepEqual(
+    texts("---\nconst a = 1;\n// --- section ---\nconst b = 2; // x\n---\n<p/>", "astro"),
+    ["// --- section ---", "// x"],
+  );
+  assert.deepEqual(texts("<p>{x && <a>https://x.com</a>}</p>\n<!-- after -->", "astro"), ["<!-- after -->"]);
+  assert.deepEqual(texts("<p class={/* attr */ x}>t</p>", "astro"), ["/* attr */"]);
+});
+
 test("YAML quotes, escapes and block scalars", () => {
   assert.deepEqual(texts("run: echo don't # leak\n", "yaml"), ["# leak"]);
   assert.deepEqual(texts('a: "x \\" # not"\n', "yaml"), []);

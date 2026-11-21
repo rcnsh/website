@@ -1,3 +1,4 @@
+import { parse as parseAstro } from "@astrojs/compiler/sync";
 import ts from "typescript";
 
 export interface Comment {
@@ -169,123 +170,73 @@ function shifted(ranges: Range[], by: number): Range[] {
   return ranges.map((r) => ({ start: r.start + by, end: r.end + by }));
 }
 
-function expressionRanges(template: string, open: number, close: number): Range[] {
-  const body = template.slice(open + 1, close);
-  if (!body.includes("//") && !body.includes("/*")) return [];
-  const prefix = "x=<>{";
-  return shifted(tsRanges(`${prefix}${body}}</>`, true), open + 1 - prefix.length).filter(
-    (r) => r.start > open && r.end <= close,
-  );
-}
-
-function regexEnd(source: string, start: number): number {
-  let inClass = false;
-  for (let i = start + 1; i < source.length; i++) {
-    const c = source[i];
-    if (c === "\\") i++;
-    else if (c === "\n") return i;
-    else if (c === "[") inClass = true;
-    else if (c === "]") inClass = false;
-    else if (c === "/" && !inClass) return i;
-  }
-  return source.length;
-}
-
-function closesCleanly(code: string): boolean {
-  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, code);
-  while (scanner.scan() !== ts.SyntaxKind.EndOfFileToken) {
-    if (scanner.isUnterminated()) return false;
-  }
-  return true;
-}
-
-function frontmatter(source: string): { body: string; start: number; end: number } | null {
-  const open = /^\uFEFF?\s*---[ \t]*\r?\n/.exec(source);
-  if (!open) return null;
-  const start = open[0].length;
-  for (const close of source.slice(start).matchAll(/---[ \t]*(?:\r?\n|$)/g)) {
-    const body = source.slice(start, start + close.index);
-    if (closesCleanly(body)) return { body, start, end: start + close.index + close[0].length };
-  }
-  return null;
-}
-
-function templateRanges(template: string): Range[] {
-  const out: Range[] = [];
-  let inTag = false;
-  let quote = "";
-  let depth = 0;
-  let open = -1;
-  for (let i = 0; i < template.length; i++) {
-    const c = template[i];
-    if (quote) {
-      if (c === "\\" && depth > 0) i++;
-      else if (c === quote) quote = "";
-      continue;
-    }
-    if (depth > 0) {
-      if (template.startsWith("//", i) || template.startsWith("/*", i)) {
-        const end = template.indexOf(template[i + 1] === "/" ? "\n" : "*/", i + 2);
-        i = end === -1 ? template.length : end + (template[i + 1] === "/" ? 0 : 1);
-        continue;
-      }
-      let back = i - 1;
-      while (back >= 0 && /\s/.test(template[back])) back--;
-      const prev = template[back] ?? "";
-      const operand =
-        /[=(,:[{?&|!+\-*/%;]/.test(prev) || (prev === ">" && template[back - 1] === "=");
-      if ("'\"`".includes(c) && operand) quote = c;
-      else if (c === "/" && operand) i = regexEnd(template, i);
-      else if (c === "{") depth++;
-      else if (c === "}" && --depth === 0) out.push(...expressionRanges(template, open, i));
-      continue;
-    }
-    if (c === "{") {
-      depth = 1;
-      open = i;
-    } else if (inTag) {
-      if (c === '"' || c === "'") quote = c;
-      else if (c === ">") inTag = false;
-    } else if (template.startsWith("<!--", i)) {
-      const end = template.indexOf("-->", i + 4);
-      const stop = end === -1 ? template.length : end + 3;
-      out.push({ start: i, end: stop });
-      i = stop - 1;
-    } else if (c === "<" && /[A-Za-z/]/.test(template[i + 1] ?? "")) {
-      inTag = true;
-    }
-  }
-  return out;
+interface AstroNode {
+  type: string;
+  name?: string;
+  value?: string;
+  kind?: string;
+  attributes?: AstroNode[];
+  children?: AstroNode[];
 }
 
 function astroRanges(source: string): Range[] {
   const out: Range[] = [];
-  const blank = (s: string) => s.replace(/[^\n]/g, " ");
-  let template = source;
-
-  const fm = frontmatter(source);
-  if (fm) {
-    out.push(...shifted(tsRanges(fm.body, false), fm.start));
-    template = blank(source.slice(0, fm.end)) + template.slice(fm.end);
-  }
-
-  for (const [tag, read] of [
-    ["script", (s: string) => tsRanges(s, false)],
-    ["style", (s: string) => scan(s, CSS)],
-  ] as const) {
-    const re = new RegExp(`<${tag}\\b[^>]*?(?<!/)>([\\s\\S]*?)</${tag}>`, "g");
-    for (const m of template.matchAll(re)) {
-      const start = m.index + m[0].indexOf(">") + 1;
-      const opening = m[0].slice(0, start - m.index);
-      if (!/type=["']application\/(ld\+)?json["']/.test(opening)) {
-        out.push(...shifted(read(m[1]), start));
+  let cursor = 0;
+  const locate = (value: string) => {
+    if (!value) return -1;
+    const at = source.indexOf(value, cursor);
+    if (at !== -1) cursor = at + value.length;
+    return at;
+  };
+  const code = (value: string, jsx: boolean) => {
+    const at = locate(value);
+    if (at !== -1) out.push(...shifted(tsRanges(value, jsx), at));
+  };
+  const expression = (node: AstroNode) => {
+    let joined = "";
+    const map: { from: number; to: number; at: number }[] = [];
+    for (const child of node.children ?? []) {
+      if (child.type === "text" && child.value) {
+        const at = locate(child.value);
+        if (at !== -1) map.push({ from: joined.length, to: joined.length + child.value.length, at });
+        joined += child.value;
+      } else {
+        visit(child);
+        joined += " null ";
       }
-      template =
-        template.slice(0, m.index) + blank(m[0]) + template.slice(m.index + m[0].length);
     }
-  }
-
-  out.push(...templateRanges(template));
+    for (const r of tsRanges(joined, true)) {
+      const piece = map.find((m) => r.start >= m.from && r.end <= m.to);
+      if (piece) out.push({ start: piece.at + r.start - piece.from, end: piece.at + r.end - piece.from });
+    }
+  };
+  const visit = (node: AstroNode) => {
+    if (node.type === "frontmatter") return code(node.value ?? "", false);
+    if (node.type === "comment") {
+      const at = locate(`<!--${node.value}-->`);
+      if (at !== -1) out.push({ start: at, end: at + (node.value ?? "").length + 7 });
+      return;
+    }
+    if (node.type === "expression") return expression(node);
+    if (node.type === "text") return void locate(node.value ?? "");
+    for (const attr of node.attributes ?? []) {
+      if (attr.kind === "expression" && attr.value) code(attr.value, true);
+    }
+    const raw = node.type === "element" && (node.name === "script" || node.name === "style");
+    const json = node.attributes?.some(
+      (attr) => attr.name === "type" && /^application\/(ld\+)?json$/.test(attr.value ?? ""),
+    );
+    for (const child of node.children ?? []) {
+      if (raw && child.type === "text" && child.value) {
+        if (json) locate(child.value);
+        else if (node.name === "style") {
+          const at = locate(child.value);
+          if (at !== -1) out.push(...shifted(scan(child.value, CSS), at));
+        } else code(child.value, false);
+      } else visit(child);
+    }
+  };
+  visit(parseAstro(source, { position: false }).ast as AstroNode);
   return out;
 }
 
